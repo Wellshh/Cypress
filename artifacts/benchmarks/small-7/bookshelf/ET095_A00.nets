@@ -1,0 +1,255 @@
+UCLA nets 1.0
+
+NumNets : 95
+NumPins : 153
+
+# ET095_A00.nets generated on 2024-09-13T102840 using /home/scratch.niansongz_research/pcb-util/pcb.py 1.0
+
+NetDegree : 12 NET_3V3_AUX
+	U59 I : 13 -25
+	U59 I : -7 -25
+	U100 I : 12 -25
+	U100 I : -8 -25
+	R231 I : 0 4
+	R239 I : -4 0
+	R236 I : 0 4
+	R235 I : 4 0
+	C107 I : 0 4
+	C106 I : 0 4
+	C464 I : 0 4
+	C463 I : 0 4
+NetDegree : 2 AD_GPIO_EXP_HALFA
+	U59 I : -12 -25
+	R234 I : -4 0
+NetDegree : 2 AD_GPIO_EXP_HALFB
+	U100 I : -13 -25
+	R231 I : 0 -4
+NetDegree : 1 GP_ASIC1_STRAP_FLASH_PRESENT
+	R1238 I : -4 0
+NetDegree : 2 GP_ASIC1_STRAP_FLASH_PRSNT_GPIO_EXP
+	U59 I : -24 -3
+	R1238 I : 4 0
+NetDegree : 1 GP_ASIC2_STRAP_FLASH_PRESENT
+	R1239 I : 0 -4
+NetDegree : 2 GP_ASIC2_STRAP_FLASH_PRSNT_GPIO_EXP
+	U59 I : -24 -8
+	R1239 I : 0 4
+NetDegree : 1 GP_ASIC_SOC_JTAG_BUF_EN_L
+	R1242 I : 0 -4
+NetDegree : 2 GP_ASIC_SOC_JTAG_BUF_EN_L_R
+	U100 I : 25 -18
+	R1242 I : 0 4
+NetDegree : 1 GP_GPIO_EXP_RESET_L
+	R237 I : -4 0
+NetDegree : 4 GP_GPIO_EXP_RESET_L_R
+	U59 I : -2 -25
+	U100 I : -3 -25
+	R239 I : 4 0
+	R237 I : 4 0
+NetDegree : 1 GP_SPI_ASIC1_FW_BUF1_EN_L
+	R249 I : -4 0
+NetDegree : 2 GP_SPI_ASIC1_FW_BUF1_EN_L_R
+	U100 I : 25 -13
+	R249 I : 4 0
+NetDegree : 1 GP_SPI_ASIC2_FW_BUF1_EN_L
+	R250 I : 0 4
+NetDegree : 2 GP_SPI_ASIC2_FW_BUF1_EN_L_R
+	U100 I : 25 -8
+	R250 I : 0 -4
+NetDegree : 1 GP_SW_I2C_MUXS_SEL_A
+	R743 I : 0 -4
+NetDegree : 2 GP_SW_I2C_MUXS_SEL_A_R
+	U100 I : 25 -3
+	R743 I : 0 4
+NetDegree : 1 GP_SW_I2C_MUXS_SEL_B
+	R744 I : 4 0
+NetDegree : 2 GP_SW_I2C_MUXS_SEL_B_R
+	U100 I : 25 2
+	R744 I : -4 0
+NetDegree : 3 I2C_TESTING_GPIO_SCL
+	U59 I : 3 -25
+	U100 I : 2 -25
+	R235 I : -4 0
+NetDegree : 3 I2C_TESTING_GPIO_SDA
+	U59 I : 8 -25
+	U100 I : 7 -25
+	R236 I : 0 -4
+NetDegree : 1 SNN_GPIO_EXP1_INT_N
+	U59 I : 18 -25
+NetDegree : 1 SNN_GPIO_EXP1_IO3_6
+	U100 I : 25 12
+NetDegree : 1 SNN_GPIO_EXP1_IO3_7
+	U100 I : 25 17
+NetDegree : 1 SNN_GPIO_EXP1_IO5_0
+	U100 I : -25 17
+NetDegree : 1 SNN_GPIO_EXP1_IO5_1
+	U100 I : -25 12
+NetDegree : 1 SNN_GPIO_EXP1_IO5_2
+	U100 I : -25 7
+NetDegree : 1 SNN_GPIO_EXP1_IO5_3
+	U100 I : -25 2
+NetDegree : 1 SNN_GPIO_EXP1_IO5_4
+	U100 I : -25 -3
+NetDegree : 1 SNN_GPIO_EXP1_IO5_5
+	U100 I : -25 -8
+NetDegree : 1 SNN_GPIO_EXP1_IO5_6
+	U100 I : -25 -13
+NetDegree : 1 SNN_GPIO_EXP1_IO5_7
+	U100 I : -25 -18
+NetDegree : 1 SNN_GPIO_EXP2_INT_N
+	U100 I : 17 -25
+NetDegree : 1 S_1V8_CPLD_EN
+	R1067 I : 0 4
+NetDegree : 2 S_1V8_CPLD_IO_EN_R
+	U59 I : -12 25
+	R1067 I : 0 -4
+NetDegree : 1 S_1V8_QPS_EN
+	R1365 I : 4 0
+NetDegree : 2 S_1V8_QPS_EN_GPIO_EXP
+	U100 I : 25 7
+	R1365 I : -4 0
+NetDegree : 1 S_3V3_ASIC_EN
+	R1064 I : 0 4
+NetDegree : 2 S_3V3_ASIC_EN_R
+	U59 I : 3 25
+	R1064 I : 0 -4
+NetDegree : 1 S_3V3_CTRL_PWR_EN
+	R834 I : -4 0
+NetDegree : 2 S_3V3_CTRL_PWR_EN_R
+	U59 I : 8 25
+	R834 I : 4 0
+NetDegree : 1 S_3V3_OSC1_EN
+	R1062 I : -4 0
+NetDegree : 2 S_3V3_OSC1_EN_R
+	U59 I : -24 7
+	R1062 I : 4 0
+NetDegree : 1 S_3V3_OSC2_EN
+	R1063 I : 0 -4
+NetDegree : 2 S_3V3_OSC2_EN_R
+	U59 I : -24 2
+	R1063 I : 0 4
+NetDegree : 1 S_5V_CLK1_EN
+	R1065 I : 0 4
+NetDegree : 2 S_5V_CLK1_EN_R
+	U59 I : -2 25
+	R1065 I : 0 -4
+NetDegree : 1 S_5V_CLK2_EN
+	R1066 I : 0 4
+NetDegree : 2 S_5V_CLK2_EN_R
+	U59 I : -7 25
+	R1066 I : 0 -4
+NetDegree : 1 S_ASIC1_RST_L
+	R1017 I : 0 -4
+NetDegree : 2 S_ASIC1_RST_L_R
+	U59 I : -24 -18
+	R1017 I : 0 4
+NetDegree : 1 S_ASIC1_TCXO_EN
+	R1241 I : 0 4
+NetDegree : 2 S_ASIC1_TCXO_EN_R
+	U100 I : -18 25
+	R1241 I : 0 -4
+NetDegree : 1 S_ASIC2_RST_L
+	R1018 I : 0 4
+NetDegree : 2 S_ASIC2_RST_L_R
+	U59 I : -24 -13
+	R1018 I : 0 -4
+NetDegree : 1 S_ASIC2_TCXO_EN
+	R1240 I : -4 0
+NetDegree : 2 S_ASIC2_TCXO_EN_R
+	U100 I : -13 25
+	R1240 I : 4 0
+NetDegree : 1 S_CLK_BRD1_OE_L
+	R931 I : -4 0
+NetDegree : 2 S_CLK_BRD1_OE_L_R
+	U100 I : -3 25
+	R931 I : 4 0
+NetDegree : 1 S_CLK_BRD1_PROGRAM_EN_L
+	R928 I : 0 4
+NetDegree : 2 S_CLK_BRD1_PROGRAM_EN_L_R
+	U100 I : 17 25
+	R928 I : 0 -4
+NetDegree : 1 S_CLK_BRD1_PWR_EN
+	R842 I : -4 0
+NetDegree : 2 S_CLK_BRD1_PWR_EN_R
+	U100 I : 7 25
+	R842 I : 4 0
+NetDegree : 1 S_CLK_BRD2_OE_L
+	R932 I : 0 4
+NetDegree : 2 S_CLK_BRD2_OE_L_R
+	U100 I : -8 25
+	R932 I : 0 -4
+NetDegree : 1 S_CLK_BRD2_PROGRAM_EN_L
+	R929 I : -4 0
+NetDegree : 2 S_CLK_BRD2_PROGRAM_EN_L_R
+	U100 I : 12 25
+	R929 I : 4 0
+NetDegree : 1 S_CLK_BRD2_PWR_EN
+	R843 I : 0 4
+NetDegree : 2 S_CLK_BRD2_PWR_EN_R
+	U100 I : 2 25
+	R843 I : 0 -4
+NetDegree : 1 S_DVDD_S0_ASIC1_EN
+	R921 I : 4 0
+NetDegree : 2 S_DVDD_S0_ASIC1_EN_R
+	U59 I : 25 -3
+	R921 I : -4 0
+NetDegree : 1 S_DVDD_S0_ASIC2_EN
+	R926 I : -4 0
+NetDegree : 2 S_DVDD_S0_ASIC2_EN_R
+	U59 I : 18 25
+	R926 I : 4 0
+NetDegree : 1 S_DVDD_S1_ASIC1_EN
+	R922 I : 0 4
+NetDegree : 2 S_DVDD_S1_ASIC1_EN_R
+	U59 I : 25 2
+	R922 I : 0 -4
+NetDegree : 1 S_DVDD_S1_ASIC2_EN
+	R927 I : 0 4
+NetDegree : 2 S_DVDD_S1_ASIC2_EN_R
+	U59 I : 13 25
+	R927 I : 0 -4
+NetDegree : 1 S_HVDD_S0_ASIC1_EN
+	R919 I : -4 0
+NetDegree : 2 S_HVDD_S0_ASIC1_EN_R
+	U59 I : 25 -13
+	R919 I : 4 0
+NetDegree : 1 S_HVDD_S0_ASIC2_EN
+	R924 I : 0 4
+NetDegree : 2 S_HVDD_S0_ASIC2_EN_R
+	U59 I : 25 12
+	R924 I : 0 -4
+NetDegree : 1 S_HVDD_S1_ASIC1_EN
+	R920 I : 0 4
+NetDegree : 2 S_HVDD_S1_ASIC1_EN_R
+	U59 I : 25 -8
+	R920 I : 0 -4
+NetDegree : 1 S_HVDD_S1_ASIC2_EN
+	R925 I : 0 -4
+NetDegree : 2 S_HVDD_S1_ASIC2_EN_R
+	U59 I : 25 17
+	R925 I : 0 4
+NetDegree : 2 S_MAIL_BOX_I2C_EN_GPIO_EXP_L
+	U59 I : -17 25
+	R930 I : -4 0
+NetDegree : 1 S_MAIL_BOX_I2C_EN_L
+	R930 I : 4 0
+NetDegree : 1 S_VDD_ASIC1_EN
+	R918 I : 0 -4
+NetDegree : 2 S_VDD_ASIC1_EN_R
+	U59 I : 25 -18
+	R918 I : 0 4
+NetDegree : 1 S_VDD_ASIC2_EN
+	R923 I : 4 0
+NetDegree : 2 S_VDD_ASIC2_EN_R
+	U59 I : 25 7
+	R923 I : -4 0
+NetDegree : 1 S_VDRV1_EN
+	R1060 I : 0 4
+NetDegree : 2 S_VDRV1_EN_R
+	U59 I : -24 17
+	R1060 I : 0 -4
+NetDegree : 1 S_VDRV2_EN
+	R1061 I : 0 -4
+NetDegree : 2 S_VDRV2_EN_R
+	U59 I : -24 12
+	R1061 I : 0 4

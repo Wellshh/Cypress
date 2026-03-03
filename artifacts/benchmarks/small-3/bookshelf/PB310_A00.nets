@@ -1,0 +1,214 @@
+UCLA nets 1.0
+
+NumNets : 51
+NumPins : 156
+
+# PB310_A00.nets generated on 2024-09-13T102832 using /home/scratch.niansongz_research/pcb-util/pcb.py 1.0
+
+NetDegree : 24 NET_12V_UPHY_ASIC2
+	C1_23_4 I : 14 0
+	C2_23_4 I : 14 0
+	C3_23_4 I : 15 0
+	C4_23_4 I : 15 0
+	C6_23_4 I : 4 0
+	C8_23_4 I : -4 0
+	U1_23_4 I : 12 12
+	U1_23_4 I : 29 20
+	C1_22_4 I : 14 0
+	C2_22_4 I : 14 0
+	C3_22_4 I : 15 0
+	C4_22_4 I : 15 0
+	C6_22_4 I : 4 0
+	C8_22_4 I : -4 0
+	U1_22_4 I : 12 12
+	U1_22_4 I : 29 21
+	C1_21_4 I : 14 0
+	C2_21_4 I : 14 0
+	C3_21_4 I : 15 0
+	C4_21_4 I : 15 0
+	C6_21_4 I : 4 0
+	C8_21_4 I : -4 0
+	U1_21_4 I : 12 12
+	U1_21_4 I : 29 21
+NetDegree : 1 AG_DVDD_PL0_PWM_PH1_4
+	U1_23_4 I : 29 2
+NetDegree : 1 AG_HVDD_PL0_PWM_PH1_4
+	U1_21_4 I : 29 3
+NetDegree : 1 AG_HVDD_PL0_PWM_PH2_4
+	U1_22_4 I : 29 3
+NetDegree : 2 AG_PH_BOOTRC_45
+	R4_23_4 I : 4 0
+	C11_23_4 I : 4 0
+NetDegree : 2 AG_PH_BOOTRC_46
+	R4_22_4 I : 4 0
+	C11_22_4 I : 4 0
+NetDegree : 2 AG_PH_BOOTRC_47
+	R4_21_4 I : 4 0
+	C11_21_4 I : 4 0
+NetDegree : 2 AG_PH_BOOT_45
+	R4_23_4 I : -4 0
+	U1_23_4 I : 29 7
+NetDegree : 2 AG_PH_BOOT_46
+	R4_22_4 I : -4 0
+	U1_22_4 I : 29 7
+NetDegree : 2 AG_PH_BOOT_47
+	R4_21_4 I : -4 0
+	U1_21_4 I : 29 7
+NetDegree : 2 AG_PH_PHASE_45
+	C11_23_4 I : -4 0
+	U1_23_4 I : 29 11
+NetDegree : 2 AG_PH_PHASE_46
+	C11_22_4 I : -4 0
+	U1_22_4 I : 29 12
+NetDegree : 2 AG_PH_PHASE_47
+	C11_21_4 I : -4 0
+	U1_21_4 I : 29 12
+NetDegree : 11 AG_PH_SW_45
+	U1_23_4 I : -30 -20
+	U1_23_4 I : -30 -16
+	U1_23_4 I : -30 -11
+	U1_23_4 I : -30 -7
+	U1_23_4 I : -30 -2
+	U1_23_4 I : -30 2
+	U1_23_4 I : -30 7
+	U1_23_4 I : -30 11
+	U1_23_4 I : -30 16
+	U1_23_4 I : -30 20
+	L1_23_4 I : 26 0
+NetDegree : 11 AG_PH_SW_46
+	U1_22_4 I : -30 -20
+	U1_22_4 I : -30 -16
+	U1_22_4 I : -30 -11
+	U1_22_4 I : -30 -7
+	U1_22_4 I : -30 -2
+	U1_22_4 I : -30 2
+	U1_22_4 I : -30 7
+	U1_22_4 I : -30 11
+	U1_22_4 I : -30 16
+	U1_22_4 I : -30 20
+	L1_22_4 I : 26 0
+NetDegree : 11 AG_PH_SW_47
+	U1_21_4 I : -30 -20
+	U1_21_4 I : -30 -16
+	U1_21_4 I : -30 -11
+	U1_21_4 I : -30 -7
+	U1_21_4 I : -30 -2
+	U1_21_4 I : -30 2
+	U1_21_4 I : -30 7
+	U1_21_4 I : -30 11
+	U1_21_4 I : -30 16
+	U1_21_4 I : -30 20
+	L1_21_4 I : 26 0
+NetDegree : 7 DVDD_PL0_2
+	C10_23_4 I : 9 0
+	C12_23_4 I : 9 0
+	C13_23_4 I : 9 0
+	C15_23_4 I : 9 0
+	C14_23_4 I : 9 0
+	C9_23_4 I : 9 0
+	L1_23_4 I : -27 0
+NetDegree : 14 HVDD_PL0_2
+	C10_22_4 I : 9 0
+	C12_22_4 I : 9 0
+	C13_22_4 I : 9 0
+	C15_22_4 I : 9 0
+	C14_22_4 I : 9 0
+	C9_22_4 I : 9 0
+	L1_22_4 I : -27 0
+	C10_21_4 I : 9 0
+	C12_21_4 I : 9 0
+	C13_21_4 I : 9 0
+	C15_21_4 I : 9 0
+	C14_21_4 I : 9 0
+	C9_21_4 I : 9 0
+	L1_21_4 I : -27 0
+NetDegree : 1 SNN_PH_NC_1_45
+	U1_23_4 I : 22 -24
+NetDegree : 1 SNN_PH_NC_1_46
+	U1_22_4 I : 22 -24
+NetDegree : 1 SNN_PH_NC_1_47
+	U1_21_4 I : 22 -24
+NetDegree : 1 SNN_PH_NC_31_45
+	U1_23_4 I : 29 16
+NetDegree : 1 SNN_PH_NC_31_46
+	U1_22_4 I : 29 16
+NetDegree : 1 SNN_PH_NC_31_47
+	U1_21_4 I : 29 16
+NetDegree : 1 SNN_PH_NC_37_45
+	U1_23_4 I : 29 -11
+NetDegree : 1 SNN_PH_NC_37_46
+	U1_22_4 I : 29 -11
+NetDegree : 1 SNN_PH_NC_37_47
+	U1_21_4 I : 29 -11
+NetDegree : 1 SNN_PH_NC_41_45
+	U1_23_4 I : -3 -15
+NetDegree : 1 SNN_PH_NC_41_46
+	U1_22_4 I : -3 -15
+NetDegree : 1 SNN_PH_NC_41_47
+	U1_21_4 I : -3 -15
+NetDegree : 1 SNN_PH_NC_6_45
+	U1_23_4 I : 0 -24
+NetDegree : 1 SNN_PH_NC_6_46
+	U1_22_4 I : 0 -24
+NetDegree : 1 SNN_PH_NC_6_47
+	U1_21_4 I : 0 -24
+NetDegree : 1 SNN_PH_REFIN_45
+	U1_23_4 I : 29 -20
+NetDegree : 1 SNN_PH_REFIN_46
+	U1_22_4 I : 29 -20
+NetDegree : 1 SNN_PH_REFIN_47
+	U1_21_4 I : 29 -20
+NetDegree : 1 S_DVDD_PL0_ISEN_PH1_4
+	U1_23_4 I : 29 -16
+NetDegree : 1 S_DVDD_PL0_TAO_4
+	R2_23_4 I : 4 0
+NetDegree : 1 S_HVDD_PL0_ISEN_PH1_4
+	U1_21_4 I : 29 -15
+NetDegree : 1 S_HVDD_PL0_ISEN_PH2_4
+	U1_22_4 I : 29 -15
+NetDegree : 2 S_HVDD_PL0_TAO_4
+	R2_22_4 I : 4 0
+	R2_21_4 I : 4 0
+NetDegree : 2 S_PH_EN_45
+	R3_23_4 I : -4 0
+	U1_23_4 I : 29 -2
+NetDegree : 2 S_PH_EN_46
+	R3_22_4 I : -4 0
+	U1_22_4 I : 29 -2
+NetDegree : 2 S_PH_EN_47
+	R3_21_4 I : -4 0
+	U1_21_4 I : 29 -2
+NetDegree : 2 S_PH_TAO_45
+	R2_23_4 I : -4 0
+	U1_23_4 I : 29 -7
+NetDegree : 2 S_PH_TAO_46
+	R2_22_4 I : -4 0
+	U1_22_4 I : 29 -6
+NetDegree : 2 S_PH_TAO_47
+	R2_21_4 I : -4 0
+	U1_21_4 I : 29 -6
+NetDegree : 4 S_PH_VCC_45
+	R1_23_4 I : 4 0
+	R3_23_4 I : 4 0
+	C7_23_4 I : -4 0
+	U1_23_4 I : 13 -24
+NetDegree : 4 S_PH_VCC_46
+	R1_22_4 I : 4 0
+	R3_22_4 I : 4 0
+	C7_22_4 I : -4 0
+	U1_22_4 I : 13 -24
+NetDegree : 4 S_PH_VCC_47
+	R1_21_4 I : 4 0
+	R3_21_4 I : 4 0
+	C7_21_4 I : -4 0
+	U1_21_4 I : 13 -24
+NetDegree : 9 VDRV
+	C5_23_4 I : 5 0
+	R1_23_4 I : -4 0
+	U1_23_4 I : 9 -24
+	C5_22_4 I : 5 0
+	R1_22_4 I : -4 0
+	U1_22_4 I : 9 -24
+	C5_21_4 I : 5 0
+	R1_21_4 I : -4 0
+	U1_21_4 I : 9 -24

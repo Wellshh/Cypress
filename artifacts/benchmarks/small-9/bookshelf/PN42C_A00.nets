@@ -1,0 +1,3732 @@
+UCLA nets 1.0
+
+NumNets : 1513
+NumPins : 2212
+
+# PN42C_A00.nets generated on 2024-09-13T102845 using /home/scratch.niansongz_research/pcb-util/pcb.py 1.0
+
+NetDegree : 8 NET_3.3V_VCC_P05
+	J103 I : -10 153
+	J103 I : -10 123
+	L42 I : 0 -10
+	C86 I : -9 0
+	R235 I : -4 0
+	R237 I : -4 0
+	R239 I : -4 0
+	C92 I : -4 0
+NetDegree : 8 NET_3.3V_VCC_P06
+	L39 I : 0 -10
+	C83 I : -10 0
+	R234 I : 0 4
+	R236 I : 0 4
+	R238 I : 4 0
+	C89 I : -4 0
+	J103 I : -10 35
+	J103 I : -10 6
+NetDegree : 8 NET_3.3V_VCC_P07
+	L45 I : 0 -11
+	C106 I : -9 0
+	C112 I : -4 0
+	R244 I : 4 0
+	R246 I : 4 0
+	R248 I : -4 0
+	J104 I : 10 35
+	J104 I : 10 6
+NetDegree : 8 NET_3.3V_VCC_P08
+	L48 I : 0 -11
+	C109 I : -10 0
+	R245 I : 4 0
+	R247 I : 4 0
+	R249 I : 4 0
+	C121 I : -4 0
+	J104 I : 10 153
+	J104 I : 10 123
+NetDegree : 8 NET_3.3V_VCC_P09
+	J105 I : -10 153
+	J105 I : -10 123
+	L54 I : 0 -10
+	C144 I : -9 0
+	R255 I : -4 0
+	R257 I : -4 0
+	R259 I : -4 0
+	C155 I : -4 0
+NetDegree : 8 NET_3.3V_VCC_P10
+	L51 I : 0 -10
+	C140 I : -10 0
+	R254 I : 0 4
+	R256 I : 0 4
+	R258 I : 4 0
+	C150 I : -4 0
+	J105 I : -10 35
+	J105 I : -10 6
+NetDegree : 8 NET_3.3V_VCC_P11
+	L57 I : 0 -11
+	C199 I : -9 0
+	C205 I : -4 0
+	R264 I : 4 0
+	R266 I : 4 0
+	R268 I : -4 0
+	J106 I : 10 35
+	J106 I : 10 6
+NetDegree : 8 NET_3.3V_VCC_P12
+	L60 I : 0 -11
+	C202 I : -10 0
+	R265 I : 4 0
+	R267 I : 4 0
+	R269 I : 4 0
+	C223 I : -4 0
+	J106 I : 10 153
+	J106 I : 10 123
+NetDegree : 8 NET_3.3V_VCC_P13
+	J107 I : -10 153
+	J107 I : -10 123
+	L68 I : 0 -10
+	C4285 I : -9 0
+	R275 I : -4 0
+	R283 I : -4 0
+	R285 I : -4 0
+	C4291 I : -4 0
+NetDegree : 8 NET_3.3V_VCC_P14
+	L63 I : 0 -10
+	C4282 I : -10 0
+	R274 I : 0 4
+	R280 I : 0 4
+	R284 I : 4 0
+	C4288 I : -4 0
+	J107 I : -10 35
+	J107 I : -10 6
+NetDegree : 8 NET_3.3V_VCC_P15
+	L71 I : 0 -11
+	C4298 I : -9 0
+	C4304 I : -4 0
+	R297 I : 4 0
+	R299 I : 4 0
+	R301 I : -4 0
+	J108 I : 10 35
+	J108 I : 10 6
+NetDegree : 8 NET_3.3V_VCC_P16
+	L74 I : 0 -11
+	C4301 I : -10 0
+	R298 I : 4 0
+	R300 I : 4 0
+	R302 I : 4 0
+	C4307 I : -4 0
+	J108 I : 10 153
+	J108 I : 10 123
+NetDegree : 8 NET_3.3V_VCC_P17
+	J109 I : -10 153
+	J109 I : -10 123
+	L80 I : 0 -10
+	C334 I : -9 0
+	R308 I : -4 0
+	R310 I : -4 0
+	R312 I : -4 0
+	C340 I : -4 0
+NetDegree : 8 NET_3.3V_VCC_P18
+	L77 I : 0 -10
+	C331 I : -10 0
+	R307 I : 0 4
+	R309 I : 0 4
+	R311 I : 4 0
+	C337 I : -4 0
+	J109 I : -10 35
+	J109 I : -10 6
+NetDegree : 8 NET_3.3V_VCC_P19
+	L83 I : 0 -11
+	C347 I : -9 0
+	C353 I : -4 0
+	R317 I : 4 0
+	R319 I : 4 0
+	R321 I : -4 0
+	J110 I : 10 35
+	J110 I : 10 6
+NetDegree : 8 NET_3.3V_VCC_P20
+	L86 I : 0 -11
+	C350 I : -10 0
+	R318 I : 4 0
+	R320 I : 4 0
+	R322 I : 4 0
+	C356 I : -4 0
+	J110 I : 10 153
+	J110 I : 10 123
+NetDegree : 8 NET_3.3V_VCC_P21
+	J111 I : -10 153
+	J111 I : -10 123
+	L92 I : 0 -10
+	C366 I : -9 0
+	R328 I : -4 0
+	R330 I : -4 0
+	R332 I : -4 0
+	C372 I : -4 0
+NetDegree : 8 NET_3.3V_VCC_P22
+	L89 I : 0 -10
+	C363 I : -10 0
+	R327 I : 0 4
+	R329 I : 0 4
+	R331 I : 4 0
+	C369 I : -4 0
+	J111 I : -10 35
+	J111 I : -10 6
+NetDegree : 8 NET_3.3V_VCC_P23
+	L95 I : 0 -11
+	C379 I : -9 0
+	C385 I : -4 0
+	R337 I : 4 0
+	R339 I : 4 0
+	R341 I : -4 0
+	J112 I : 10 35
+	J112 I : 10 6
+NetDegree : 8 NET_3.3V_VCC_P24
+	L98 I : 0 -11
+	C382 I : -10 0
+	R338 I : 4 0
+	R340 I : 4 0
+	R342 I : 4 0
+	C388 I : -4 0
+	J112 I : 10 153
+	J112 I : 10 123
+NetDegree : 8 NET_3.3V_VCC_P25
+	J113 I : -10 153
+	J113 I : -10 123
+	L104 I : 0 -10
+	C4314 I : -9 0
+	R351 I : -4 0
+	R353 I : -4 0
+	R358 I : -4 0
+	C405 I : -4 0
+NetDegree : 8 NET_3.3V_VCC_P26
+	L101 I : 0 -10
+	C396 I : -10 0
+	R350 I : 0 4
+	R352 I : 0 4
+	R357 I : 4 0
+	C4315 I : -4 0
+	J113 I : -10 35
+	J113 I : -10 6
+NetDegree : 8 NET_3.3V_VCC_P27
+	L107 I : 0 -11
+	C4317 I : -9 0
+	C4320 I : -4 0
+	R363 I : 4 0
+	R379 I : 4 0
+	R381 I : -4 0
+	J114 I : 10 35
+	J114 I : 10 6
+NetDegree : 8 NET_3.3V_VCC_P28
+	L110 I : 0 -11
+	C415 I : -10 0
+	R370 I : 4 0
+	R380 I : 4 0
+	R382 I : 4 0
+	C421 I : -4 0
+	J114 I : 10 153
+	J114 I : 10 123
+NetDegree : 8 NET_3.3V_VCC_P29
+	J115 I : -10 153
+	J115 I : -10 123
+	L116 I : 0 -10
+	C431 I : -9 0
+	R390 I : -4 0
+	R392 I : -4 0
+	R394 I : -4 0
+	C437 I : -4 0
+NetDegree : 8 NET_3.3V_VCC_P30
+	L113 I : 0 -10
+	C428 I : -10 0
+	R389 I : 0 4
+	R391 I : 0 4
+	R393 I : 4 0
+	C434 I : -4 0
+	J115 I : -10 35
+	J115 I : -10 6
+NetDegree : 8 NET_3.3V_VCC_P31
+	L119 I : 0 -11
+	C444 I : -9 0
+	C450 I : -4 0
+	R428 I : 4 0
+	R438 I : 4 0
+	R444 I : -4 0
+	J116 I : 10 35
+	J116 I : 10 6
+NetDegree : 8 NET_3.3V_VCC_P32
+	L122 I : 0 -11
+	C447 I : -10 0
+	R429 I : 4 0
+	R439 I : 4 0
+	R445 I : 4 0
+	C453 I : -4 0
+	J116 I : 10 153
+	J116 I : 10 123
+NetDegree : 5 NET_3.3V_VCC_RX_P05
+	J103 I : 2 65
+	J103 I : 2 94
+	C84 I : -10 0
+	L40 I : 0 -10
+	C90 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P06
+	L37 I : 0 -10
+	C81 I : -9 0
+	J103 I : 2 -52
+	J103 I : 2 -23
+	C87 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P07
+	L43 I : 0 -11
+	C97 I : -10 0
+	C110 I : -4 0
+	J104 I : -2 -52
+	J104 I : -2 -23
+NetDegree : 5 NET_3.3V_VCC_RX_P08
+	C107 I : -9 0
+	L46 I : 0 -10
+	C113 I : -4 0
+	J104 I : -2 65
+	J104 I : -2 94
+NetDegree : 5 NET_3.3V_VCC_RX_P09
+	J105 I : 2 65
+	J105 I : 2 94
+	C141 I : -10 0
+	L52 I : 0 -11
+	C151 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P10
+	L49 I : 0 -10
+	C135 I : -9 0
+	J105 I : 2 -52
+	J105 I : 2 -23
+	C146 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P11
+	L55 I : 0 -11
+	C197 I : -10 0
+	C203 I : -4 0
+	J106 I : -2 -52
+	J106 I : -2 -23
+NetDegree : 5 NET_3.3V_VCC_RX_P12
+	C200 I : -9 0
+	L58 I : 0 -10
+	C206 I : -4 0
+	J106 I : -2 65
+	J106 I : -2 94
+NetDegree : 5 NET_3.3V_VCC_RX_P13
+	J107 I : 2 65
+	J107 I : 2 94
+	C4283 I : -10 0
+	L64 I : 0 -11
+	C4289 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P14
+	L61 I : 0 -10
+	C4280 I : -9 0
+	J107 I : 2 -52
+	J107 I : 2 -23
+	C4286 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P15
+	L69 I : 0 -11
+	C4296 I : -10 0
+	C4302 I : -4 0
+	J108 I : -2 -52
+	J108 I : -2 -23
+NetDegree : 5 NET_3.3V_VCC_RX_P16
+	C4299 I : -9 0
+	L72 I : 0 -10
+	C4305 I : -4 0
+	J108 I : -2 65
+	J108 I : -2 94
+NetDegree : 5 NET_3.3V_VCC_RX_P17
+	J109 I : 2 65
+	J109 I : 2 94
+	C332 I : -10 0
+	L78 I : 0 -10
+	C338 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P18
+	L75 I : 0 -10
+	C4312 I : -9 0
+	J109 I : 2 -52
+	J109 I : 2 -23
+	C335 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P19
+	L81 I : 0 -11
+	C345 I : -10 0
+	C351 I : -4 0
+	J110 I : -2 -52
+	J110 I : -2 -23
+NetDegree : 5 NET_3.3V_VCC_RX_P20
+	C348 I : -9 0
+	L84 I : 0 -10
+	C354 I : -4 0
+	J110 I : -2 65
+	J110 I : -2 94
+NetDegree : 5 NET_3.3V_VCC_RX_P21
+	J111 I : 2 65
+	J111 I : 2 94
+	C364 I : -10 0
+	L90 I : 0 -10
+	C370 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P22
+	L87 I : 0 -10
+	C361 I : -9 0
+	J111 I : 2 -52
+	J111 I : 2 -23
+	C367 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P23
+	L93 I : 0 -11
+	C377 I : -10 0
+	C383 I : -4 0
+	J112 I : -2 -52
+	J112 I : -2 -23
+NetDegree : 5 NET_3.3V_VCC_RX_P24
+	C380 I : -9 0
+	L96 I : 0 -10
+	C386 I : -4 0
+	J112 I : -2 65
+	J112 I : -2 94
+NetDegree : 5 NET_3.3V_VCC_RX_P25
+	J113 I : 2 65
+	J113 I : 2 94
+	C397 I : -10 0
+	L102 I : 0 -11
+	C403 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P26
+	L99 I : 0 -10
+	C393 I : -9 0
+	J113 I : 2 -52
+	J113 I : 2 -23
+	C400 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P27
+	L105 I : 0 -11
+	C4316 I : -10 0
+	C4319 I : -4 0
+	J114 I : -2 -52
+	J114 I : -2 -23
+NetDegree : 5 NET_3.3V_VCC_RX_P28
+	C413 I : -9 0
+	L108 I : 0 -10
+	C419 I : -4 0
+	J114 I : -2 65
+	J114 I : -2 94
+NetDegree : 5 NET_3.3V_VCC_RX_P29
+	J115 I : 2 65
+	J115 I : 2 94
+	C429 I : -10 0
+	L114 I : 0 -10
+	C435 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P30
+	L111 I : 0 -10
+	C426 I : -9 0
+	J115 I : 2 -52
+	J115 I : 2 -23
+	C432 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_RX_P31
+	L117 I : 0 -11
+	C442 I : -10 0
+	C448 I : -4 0
+	J116 I : -2 -52
+	J116 I : -2 -23
+NetDegree : 5 NET_3.3V_VCC_RX_P32
+	C445 I : -9 0
+	L120 I : 0 -10
+	C451 I : -4 0
+	J116 I : -2 65
+	J116 I : -2 94
+NetDegree : 5 NET_3.3V_VCC_TX_P05
+	J103 I : -2 153
+	J103 I : -2 123
+	L41 I : 0 -10
+	C85 I : -9 0
+	C91 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P06
+	L38 I : 0 -11
+	C82 I : -10 0
+	J103 I : -2 35
+	J103 I : -2 6
+	C88 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P07
+	L44 I : 0 -10
+	C98 I : -9 0
+	C111 I : -4 0
+	J104 I : 2 35
+	J104 I : 2 6
+NetDegree : 5 NET_3.3V_VCC_TX_P08
+	L47 I : 0 -11
+	C108 I : -10 0
+	C120 I : -4 0
+	J104 I : 2 153
+	J104 I : 2 123
+NetDegree : 5 NET_3.3V_VCC_TX_P09
+	J105 I : -2 153
+	J105 I : -2 123
+	L53 I : 0 -10
+	C142 I : -9 0
+	C153 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P10
+	L50 I : 0 -11
+	C136 I : -10 0
+	J105 I : -2 35
+	J105 I : -2 6
+	C148 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P11
+	L56 I : 0 -10
+	C198 I : -9 0
+	C204 I : -4 0
+	J106 I : 2 35
+	J106 I : 2 6
+NetDegree : 5 NET_3.3V_VCC_TX_P12
+	L59 I : 0 -11
+	C201 I : -10 0
+	C222 I : -4 0
+	J106 I : 2 153
+	J106 I : 2 123
+NetDegree : 5 NET_3.3V_VCC_TX_P13
+	J107 I : -2 153
+	J107 I : -2 123
+	L65 I : 0 -10
+	C4284 I : -9 0
+	C4290 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P14
+	L62 I : 0 -11
+	C4281 I : -10 0
+	J107 I : -2 35
+	J107 I : -2 6
+	C4287 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P15
+	L70 I : 0 -10
+	C4297 I : -9 0
+	C4303 I : -4 0
+	J108 I : 2 35
+	J108 I : 2 6
+NetDegree : 5 NET_3.3V_VCC_TX_P16
+	L73 I : 0 -11
+	C4300 I : -10 0
+	C4306 I : -4 0
+	J108 I : 2 153
+	J108 I : 2 123
+NetDegree : 5 NET_3.3V_VCC_TX_P17
+	J109 I : -2 153
+	J109 I : -2 123
+	L79 I : 0 -10
+	C333 I : -9 0
+	C339 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P18
+	L76 I : 0 -11
+	C4313 I : -10 0
+	J109 I : -2 35
+	J109 I : -2 6
+	C336 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P19
+	L82 I : 0 -10
+	C346 I : -9 0
+	C352 I : -4 0
+	J110 I : 2 35
+	J110 I : 2 6
+NetDegree : 5 NET_3.3V_VCC_TX_P20
+	L85 I : 0 -11
+	C349 I : -10 0
+	C355 I : -4 0
+	J110 I : 2 153
+	J110 I : 2 123
+NetDegree : 5 NET_3.3V_VCC_TX_P21
+	J111 I : -2 153
+	J111 I : -2 123
+	L91 I : 0 -10
+	C365 I : -9 0
+	C371 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P22
+	L88 I : 0 -11
+	C362 I : -10 0
+	J111 I : -2 35
+	J111 I : -2 6
+	C368 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P23
+	L94 I : 0 -10
+	C378 I : -9 0
+	C384 I : -4 0
+	J112 I : 2 35
+	J112 I : 2 6
+NetDegree : 5 NET_3.3V_VCC_TX_P24
+	L97 I : 0 -11
+	C381 I : -10 0
+	C387 I : -4 0
+	J112 I : 2 153
+	J112 I : 2 123
+NetDegree : 5 NET_3.3V_VCC_TX_P25
+	J113 I : -2 153
+	J113 I : -2 123
+	L103 I : 0 -10
+	C398 I : -9 0
+	C404 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P26
+	L100 I : 0 -11
+	C394 I : -10 0
+	J113 I : -2 35
+	J113 I : -2 6
+	C401 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P27
+	L106 I : 0 -10
+	C411 I : -9 0
+	C417 I : -4 0
+	J114 I : 2 35
+	J114 I : 2 6
+NetDegree : 5 NET_3.3V_VCC_TX_P28
+	L109 I : 0 -11
+	C4318 I : -10 0
+	C420 I : -4 0
+	J114 I : 2 153
+	J114 I : 2 123
+NetDegree : 5 NET_3.3V_VCC_TX_P29
+	J115 I : -2 153
+	J115 I : -2 123
+	L115 I : 0 -10
+	C430 I : -9 0
+	C436 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P30
+	L112 I : 0 -11
+	C427 I : -10 0
+	J115 I : -2 35
+	J115 I : -2 6
+	C433 I : -4 0
+NetDegree : 5 NET_3.3V_VCC_TX_P31
+	L118 I : 0 -10
+	C443 I : -9 0
+	C449 I : -4 0
+	J116 I : 2 35
+	J116 I : 2 6
+NetDegree : 5 NET_3.3V_VCC_TX_P32
+	L121 I : 0 -11
+	C446 I : -10 0
+	C452 I : -4 0
+	J116 I : 2 153
+	J116 I : 2 123
+NetDegree : 28 NET_3V3_AUX
+	R230 I : -4 0
+	R232 I : 0 -4
+	R240 I : 0 -4
+	R242 I : 0 -4
+	R250 I : -4 0
+	R252 I : 4 0
+	R260 I : -4 0
+	R262 I : 0 -4
+	R270 I : 4 0
+	R272 I : 4 0
+	R293 I : 0 -4
+	R295 I : 4 0
+	R303 I : 0 -4
+	R305 I : 4 0
+	R313 I : -4 0
+	R315 I : 4 0
+	R323 I : 0 4
+	R325 I : 4 0
+	R333 I : 0 -4
+	R335 I : -4 0
+	R343 I : -4 0
+	R347 I : -4 0
+	R359 I : 0 -4
+	R361 I : 0 -4
+	R383 I : 4 0
+	R387 I : 4 0
+	R395 I : 0 -4
+	R426 I : 0 4
+NetDegree : 5 NET_3V3_P05
+	C78 I : -9 0
+	L42 I : 0 11
+	C80 I : -4 0
+	L41 I : 0 11
+	L40 I : 0 11
+NetDegree : 5 NET_3V3_P06
+	L39 I : 0 11
+	C77 I : 9 0
+	C79 I : 4 0
+	L38 I : 0 10
+	L37 I : 0 11
+NetDegree : 5 NET_3V3_P07
+	L45 I : 0 10
+	C93 I : -9 0
+	C95 I : -4 0
+	L44 I : 0 11
+	L43 I : 0 10
+NetDegree : 5 NET_3V3_P08
+	C94 I : 9 0
+	C96 I : 4 0
+	L48 I : 0 10
+	L47 I : 0 10
+	L46 I : 0 11
+NetDegree : 5 NET_3V3_P09
+	C129 I : -9 0
+	L54 I : 0 11
+	C133 I : -4 0
+	L53 I : 0 11
+	L52 I : 0 10
+NetDegree : 5 NET_3V3_P10
+	L51 I : 0 11
+	C122 I : 9 0
+	C131 I : 4 0
+	L50 I : 0 10
+	L49 I : 0 11
+NetDegree : 5 NET_3V3_P11
+	L57 I : 0 10
+	C177 I : -9 0
+	C179 I : -4 0
+	L56 I : 0 11
+	L55 I : 0 10
+NetDegree : 5 NET_3V3_P12
+	C178 I : 9 0
+	C196 I : 4 0
+	L60 I : 0 10
+	L59 I : 0 10
+	L58 I : 0 11
+NetDegree : 5 NET_3V3_P13
+	C225 I : -9 0
+	L68 I : 0 11
+	C4279 I : -4 0
+	L65 I : 0 11
+	L64 I : 0 10
+NetDegree : 5 NET_3V3_P14
+	L63 I : 0 11
+	C224 I : 9 0
+	C228 I : 4 0
+	L62 I : 0 10
+	L61 I : 0 11
+NetDegree : 5 NET_3V3_P15
+	L71 I : 0 10
+	C4292 I : -9 0
+	C4294 I : -4 0
+	L70 I : 0 11
+	L69 I : 0 10
+NetDegree : 5 NET_3V3_P16
+	C4293 I : 9 0
+	C4295 I : 4 0
+	L74 I : 0 10
+	L73 I : 0 10
+	L72 I : 0 11
+NetDegree : 5 NET_3V3_P17
+	C4309 I : -9 0
+	L80 I : 0 11
+	C4311 I : -4 0
+	L79 I : 0 11
+	L78 I : 0 11
+NetDegree : 5 NET_3V3_P18
+	L77 I : 0 11
+	C4308 I : 9 0
+	C4310 I : 4 0
+	L76 I : 0 10
+	L75 I : 0 11
+NetDegree : 5 NET_3V3_P19
+	L83 I : 0 10
+	C341 I : -9 0
+	C343 I : -4 0
+	L82 I : 0 11
+	L81 I : 0 10
+NetDegree : 5 NET_3V3_P20
+	C342 I : 9 0
+	C344 I : 4 0
+	L86 I : 0 10
+	L85 I : 0 10
+	L84 I : 0 11
+NetDegree : 5 NET_3V3_P21
+	C358 I : -9 0
+	L92 I : 0 11
+	C360 I : -4 0
+	L91 I : 0 11
+	L90 I : 0 11
+NetDegree : 5 NET_3V3_P22
+	L89 I : 0 11
+	C357 I : 9 0
+	C359 I : 4 0
+	L88 I : 0 10
+	L87 I : 0 11
+NetDegree : 5 NET_3V3_P23
+	L95 I : 0 10
+	C373 I : -9 0
+	C375 I : -4 0
+	L94 I : 0 11
+	L93 I : 0 10
+NetDegree : 5 NET_3V3_P24
+	C374 I : 9 0
+	C376 I : 4 0
+	L98 I : 0 10
+	L97 I : 0 10
+	L96 I : 0 11
+NetDegree : 5 NET_3V3_P25
+	C390 I : -9 0
+	L104 I : 0 11
+	C392 I : -4 0
+	L103 I : 0 11
+	L102 I : 0 10
+NetDegree : 5 NET_3V3_P26
+	L101 I : 0 11
+	C389 I : 9 0
+	C391 I : 4 0
+	L100 I : 0 10
+	L99 I : 0 11
+NetDegree : 5 NET_3V3_P27
+	L107 I : 0 10
+	C406 I : -9 0
+	C408 I : -4 0
+	L106 I : 0 11
+	L105 I : 0 10
+NetDegree : 5 NET_3V3_P28
+	C407 I : 9 0
+	C409 I : 4 0
+	L110 I : 0 10
+	L109 I : 0 10
+	L108 I : 0 11
+NetDegree : 5 NET_3V3_P29
+	C423 I : -9 0
+	L116 I : 0 11
+	C425 I : -4 0
+	L115 I : 0 11
+	L114 I : 0 11
+NetDegree : 5 NET_3V3_P30
+	L113 I : 0 11
+	C422 I : 9 0
+	C424 I : 4 0
+	L112 I : 0 10
+	L111 I : 0 11
+NetDegree : 5 NET_3V3_P31
+	L119 I : 0 10
+	C438 I : -9 0
+	C440 I : -4 0
+	L118 I : 0 11
+	L117 I : 0 10
+NetDegree : 5 NET_3V3_P32
+	C439 I : 9 0
+	C441 I : 4 0
+	L122 I : 0 10
+	L121 I : 0 10
+	L120 I : 0 11
+NetDegree : 2 GP_EPPS_P05
+	J103 I : -18 123
+	R233 I : 0 -4
+NetDegree : 2 GP_EPPS_P06
+	R231 I : 0 -4
+	J103 I : -18 6
+NetDegree : 2 GP_EPPS_P07
+	R241 I : -4 0
+	J104 I : 18 6
+NetDegree : 2 GP_EPPS_P08
+	R243 I : -4 0
+	J104 I : 18 123
+NetDegree : 2 GP_EPPS_P09
+	J105 I : -18 123
+	R253 I : 0 -4
+NetDegree : 2 GP_EPPS_P10
+	R251 I : 0 -4
+	J105 I : -18 6
+NetDegree : 2 GP_EPPS_P11
+	R261 I : 4 0
+	J106 I : 18 6
+NetDegree : 2 GP_EPPS_P12
+	R263 I : -4 0
+	J106 I : 18 123
+NetDegree : 2 GP_EPPS_P13
+	J107 I : -18 123
+	R273 I : 0 -4
+NetDegree : 2 GP_EPPS_P14
+	R271 I : 0 -4
+	J107 I : -18 6
+NetDegree : 2 GP_EPPS_P15
+	R294 I : 4 0
+	J108 I : 18 6
+NetDegree : 2 GP_EPPS_P16
+	R296 I : -4 0
+	J108 I : 18 123
+NetDegree : 2 GP_EPPS_P17
+	J109 I : -18 123
+	R306 I : 0 -4
+NetDegree : 2 GP_EPPS_P18
+	R304 I : 0 -4
+	J109 I : -18 6
+NetDegree : 2 GP_EPPS_P19
+	R314 I : -4 0
+	J110 I : 18 6
+NetDegree : 2 GP_EPPS_P20
+	R316 I : -4 0
+	J110 I : 18 123
+NetDegree : 2 GP_EPPS_P21
+	J111 I : -18 123
+	R326 I : 0 -4
+NetDegree : 2 GP_EPPS_P22
+	R324 I : 0 -4
+	J111 I : -18 6
+NetDegree : 2 GP_EPPS_P23
+	R334 I : -4 0
+	J112 I : 18 6
+NetDegree : 2 GP_EPPS_P24
+	R336 I : -4 0
+	J112 I : 18 123
+NetDegree : 2 GP_EPPS_P25
+	J113 I : -18 123
+	R349 I : 0 -4
+NetDegree : 2 GP_EPPS_P26
+	R345 I : 0 -4
+	J113 I : -18 6
+NetDegree : 2 GP_EPPS_P27
+	R360 I : 4 0
+	J114 I : 18 6
+NetDegree : 2 GP_EPPS_P28
+	R362 I : -4 0
+	J114 I : 18 123
+NetDegree : 2 GP_EPPS_P29
+	J115 I : -18 123
+	R388 I : 0 -4
+NetDegree : 2 GP_EPPS_P30
+	R386 I : 0 -4
+	J115 I : -18 6
+NetDegree : 2 GP_EPPS_P31
+	R425 I : 4 0
+	J116 I : 18 6
+NetDegree : 2 GP_EPPS_P32
+	R427 I : -4 0
+	J116 I : 18 123
+NetDegree : 2 GP_INT_P05_L
+	J103 I : 6 153
+	R239 I : 4 0
+NetDegree : 2 GP_INT_P06_L
+	R238 I : -4 0
+	J103 I : 6 35
+NetDegree : 2 GP_INT_P07_L
+	R248 I : 4 0
+	J104 I : -6 35
+NetDegree : 2 GP_INT_P08_L
+	R249 I : -4 0
+	J104 I : -6 153
+NetDegree : 2 GP_INT_P09_L
+	J105 I : 6 153
+	R259 I : 4 0
+NetDegree : 2 GP_INT_P10_L
+	R258 I : -4 0
+	J105 I : 6 35
+NetDegree : 2 GP_INT_P11_L
+	R268 I : 4 0
+	J106 I : -6 35
+NetDegree : 2 GP_INT_P12_L
+	R269 I : -4 0
+	J106 I : -6 153
+NetDegree : 2 GP_INT_P13_L
+	J107 I : 6 153
+	R285 I : 4 0
+NetDegree : 2 GP_INT_P14_L
+	R284 I : -4 0
+	J107 I : 6 35
+NetDegree : 2 GP_INT_P15_L
+	R301 I : 4 0
+	J108 I : -6 35
+NetDegree : 2 GP_INT_P16_L
+	R302 I : -4 0
+	J108 I : -6 153
+NetDegree : 2 GP_INT_P17_L
+	J109 I : 6 153
+	R312 I : 4 0
+NetDegree : 2 GP_INT_P18_L
+	R311 I : -4 0
+	J109 I : 6 35
+NetDegree : 2 GP_INT_P19_L
+	R321 I : 4 0
+	J110 I : -6 35
+NetDegree : 2 GP_INT_P20_L
+	R322 I : -4 0
+	J110 I : -6 153
+NetDegree : 2 GP_INT_P21_L
+	J111 I : 6 153
+	R332 I : 4 0
+NetDegree : 2 GP_INT_P22_L
+	R331 I : -4 0
+	J111 I : 6 35
+NetDegree : 2 GP_INT_P23_L
+	R341 I : 4 0
+	J112 I : -6 35
+NetDegree : 2 GP_INT_P24_L
+	R342 I : -4 0
+	J112 I : -6 153
+NetDegree : 2 GP_INT_P25_L
+	J113 I : 6 153
+	R358 I : 4 0
+NetDegree : 2 GP_INT_P26_L
+	R357 I : -4 0
+	J113 I : 6 35
+NetDegree : 2 GP_INT_P27_L
+	R381 I : 4 0
+	J114 I : -6 35
+NetDegree : 2 GP_INT_P28_L
+	R382 I : -4 0
+	J114 I : -6 153
+NetDegree : 2 GP_INT_P29_L
+	J115 I : 6 153
+	R394 I : 4 0
+NetDegree : 2 GP_INT_P30_L
+	R393 I : -4 0
+	J115 I : 6 35
+NetDegree : 2 GP_INT_P31_L
+	R444 I : 4 0
+	J116 I : -6 35
+NetDegree : 2 GP_INT_P32_L
+	R445 I : -4 0
+	J116 I : -6 153
+NetDegree : 1 GP_LPMODE_P05
+	J103 I : -18 153
+NetDegree : 1 GP_LPMODE_P06
+	J103 I : -18 35
+NetDegree : 1 GP_LPMODE_P07
+	J104 I : 18 35
+NetDegree : 1 GP_LPMODE_P08
+	J104 I : 18 153
+NetDegree : 1 GP_LPMODE_P09
+	J105 I : -18 153
+NetDegree : 1 GP_LPMODE_P10
+	J105 I : -18 35
+NetDegree : 1 GP_LPMODE_P11
+	J106 I : 18 35
+NetDegree : 1 GP_LPMODE_P12
+	J106 I : 18 153
+NetDegree : 1 GP_LPMODE_P13
+	J107 I : -18 153
+NetDegree : 1 GP_LPMODE_P14
+	J107 I : -18 35
+NetDegree : 1 GP_LPMODE_P15
+	J108 I : 18 35
+NetDegree : 1 GP_LPMODE_P16
+	J108 I : 18 153
+NetDegree : 1 GP_LPMODE_P17
+	J109 I : -18 153
+NetDegree : 1 GP_LPMODE_P18
+	J109 I : -18 35
+NetDegree : 1 GP_LPMODE_P19
+	J110 I : 18 35
+NetDegree : 1 GP_LPMODE_P20
+	J110 I : 18 153
+NetDegree : 1 GP_LPMODE_P21
+	J111 I : -18 153
+NetDegree : 1 GP_LPMODE_P22
+	J111 I : -18 35
+NetDegree : 1 GP_LPMODE_P23
+	J112 I : 18 35
+NetDegree : 1 GP_LPMODE_P24
+	J112 I : 18 153
+NetDegree : 1 GP_LPMODE_P25
+	J113 I : -18 153
+NetDegree : 1 GP_LPMODE_P26
+	J113 I : -18 35
+NetDegree : 1 GP_LPMODE_P27
+	J114 I : 18 35
+NetDegree : 1 GP_LPMODE_P28
+	J114 I : 18 153
+NetDegree : 1 GP_LPMODE_P29
+	J115 I : -18 153
+NetDegree : 1 GP_LPMODE_P30
+	J115 I : -18 35
+NetDegree : 1 GP_LPMODE_P31
+	J116 I : 18 35
+NetDegree : 1 GP_LPMODE_P32
+	J116 I : 18 153
+NetDegree : 2 GP_MOD_PRST_P05_L
+	J103 I : 14 153
+	R232 I : 0 4
+NetDegree : 2 GP_MOD_PRST_P06_L
+	R230 I : 4 0
+	J103 I : 14 35
+NetDegree : 2 GP_MOD_PRST_P07_L
+	R240 I : 0 4
+	J104 I : -14 35
+NetDegree : 2 GP_MOD_PRST_P08_L
+	R242 I : 0 4
+	J104 I : -14 153
+NetDegree : 2 GP_MOD_PRST_P09_L
+	J105 I : 14 153
+	R252 I : -4 0
+NetDegree : 2 GP_MOD_PRST_P10_L
+	R250 I : 4 0
+	J105 I : 14 35
+NetDegree : 2 GP_MOD_PRST_P11_L
+	R260 I : 4 0
+	J106 I : -14 35
+NetDegree : 2 GP_MOD_PRST_P12_L
+	R262 I : 0 4
+	J106 I : -14 153
+NetDegree : 2 GP_MOD_PRST_P13_L
+	J107 I : 14 153
+	R272 I : -4 0
+NetDegree : 2 GP_MOD_PRST_P14_L
+	R270 I : -4 0
+	J107 I : 14 35
+NetDegree : 2 GP_MOD_PRST_P15_L
+	R293 I : 0 4
+	J108 I : -14 35
+NetDegree : 2 GP_MOD_PRST_P16_L
+	R295 I : -4 0
+	J108 I : -14 153
+NetDegree : 2 GP_MOD_PRST_P17_L
+	J109 I : 14 153
+	R305 I : -4 0
+NetDegree : 2 GP_MOD_PRST_P18_L
+	R303 I : 0 4
+	J109 I : 14 35
+NetDegree : 2 GP_MOD_PRST_P19_L
+	R313 I : 4 0
+	J110 I : -14 35
+NetDegree : 2 GP_MOD_PRST_P20_L
+	R315 I : -4 0
+	J110 I : -14 153
+NetDegree : 2 GP_MOD_PRST_P21_L
+	J111 I : 14 153
+	R325 I : -4 0
+NetDegree : 2 GP_MOD_PRST_P22_L
+	R323 I : 0 -4
+	J111 I : 14 35
+NetDegree : 2 GP_MOD_PRST_P23_L
+	R333 I : 0 4
+	J112 I : -14 35
+NetDegree : 2 GP_MOD_PRST_P24_L
+	R335 I : 4 0
+	J112 I : -14 153
+NetDegree : 2 GP_MOD_PRST_P25_L
+	J113 I : 14 153
+	R347 I : 4 0
+NetDegree : 2 GP_MOD_PRST_P26_L
+	R343 I : 4 0
+	J113 I : 14 35
+NetDegree : 2 GP_MOD_PRST_P27_L
+	R359 I : 0 4
+	J114 I : -14 35
+NetDegree : 2 GP_MOD_PRST_P28_L
+	R361 I : 0 4
+	J114 I : -14 153
+NetDegree : 2 GP_MOD_PRST_P29_L
+	J115 I : 14 153
+	R387 I : -4 0
+NetDegree : 2 GP_MOD_PRST_P30_L
+	R383 I : -4 0
+	J115 I : 14 35
+NetDegree : 2 GP_MOD_PRST_P31_L
+	R395 I : 0 4
+	J116 I : -14 35
+NetDegree : 2 GP_MOD_PRST_P32_L
+	R426 I : 0 -4
+	J116 I : -14 153
+NetDegree : 1 HS_ASIC_QSFPDD_05AN
+	J103 I : -66 153
+NetDegree : 1 HS_ASIC_QSFPDD_05AP
+	J103 I : -58 153
+NetDegree : 1 HS_ASIC_QSFPDD_05BN
+	J103 I : -62 65
+NetDegree : 1 HS_ASIC_QSFPDD_05BP
+	J103 I : -54 65
+NetDegree : 1 HS_ASIC_QSFPDD_05CN
+	J103 I : -42 153
+NetDegree : 1 HS_ASIC_QSFPDD_05CP
+	J103 I : -34 153
+NetDegree : 1 HS_ASIC_QSFPDD_05DN
+	J103 I : -38 65
+NetDegree : 1 HS_ASIC_QSFPDD_05DP
+	J103 I : -30 65
+NetDegree : 1 HS_ASIC_QSFPDD_05EN
+	J103 I : -66 123
+NetDegree : 1 HS_ASIC_QSFPDD_05EP
+	J103 I : -58 123
+NetDegree : 1 HS_ASIC_QSFPDD_05FN
+	J103 I : -62 94
+NetDegree : 1 HS_ASIC_QSFPDD_05FP
+	J103 I : -54 94
+NetDegree : 1 HS_ASIC_QSFPDD_05GN
+	J103 I : -42 123
+NetDegree : 1 HS_ASIC_QSFPDD_05GP
+	J103 I : -34 123
+NetDegree : 1 HS_ASIC_QSFPDD_05HN
+	J103 I : -38 94
+NetDegree : 1 HS_ASIC_QSFPDD_05HP
+	J103 I : -30 94
+NetDegree : 1 HS_ASIC_QSFPDD_06AN
+	J103 I : -66 35
+NetDegree : 1 HS_ASIC_QSFPDD_06AP
+	J103 I : -58 35
+NetDegree : 1 HS_ASIC_QSFPDD_06BN
+	J103 I : -62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_06BP
+	J103 I : -54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_06CN
+	J103 I : -42 35
+NetDegree : 1 HS_ASIC_QSFPDD_06CP
+	J103 I : -34 35
+NetDegree : 1 HS_ASIC_QSFPDD_06DN
+	J103 I : -38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_06DP
+	J103 I : -30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_06EN
+	J103 I : -66 6
+NetDegree : 1 HS_ASIC_QSFPDD_06EP
+	J103 I : -58 6
+NetDegree : 1 HS_ASIC_QSFPDD_06FN
+	J103 I : -62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_06FP
+	J103 I : -54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_06GN
+	J103 I : -42 6
+NetDegree : 1 HS_ASIC_QSFPDD_06GP
+	J103 I : -34 6
+NetDegree : 1 HS_ASIC_QSFPDD_06HN
+	J103 I : -38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_06HP
+	J103 I : -30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_07AN
+	J104 I : 66 35
+NetDegree : 1 HS_ASIC_QSFPDD_07AP
+	J104 I : 58 35
+NetDegree : 1 HS_ASIC_QSFPDD_07BN
+	J104 I : 62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_07BP
+	J104 I : 54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_07CN
+	J104 I : 42 35
+NetDegree : 1 HS_ASIC_QSFPDD_07CP
+	J104 I : 34 35
+NetDegree : 1 HS_ASIC_QSFPDD_07DN
+	J104 I : 38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_07DP
+	J104 I : 30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_07EN
+	J104 I : 66 6
+NetDegree : 1 HS_ASIC_QSFPDD_07EP
+	J104 I : 58 6
+NetDegree : 1 HS_ASIC_QSFPDD_07FN
+	J104 I : 62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_07FP
+	J104 I : 54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_07GN
+	J104 I : 42 6
+NetDegree : 1 HS_ASIC_QSFPDD_07GP
+	J104 I : 34 6
+NetDegree : 1 HS_ASIC_QSFPDD_07HN
+	J104 I : 38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_07HP
+	J104 I : 30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_08AN
+	J104 I : 66 153
+NetDegree : 1 HS_ASIC_QSFPDD_08AP
+	J104 I : 58 153
+NetDegree : 1 HS_ASIC_QSFPDD_08BN
+	J104 I : 62 65
+NetDegree : 1 HS_ASIC_QSFPDD_08BP
+	J104 I : 54 65
+NetDegree : 1 HS_ASIC_QSFPDD_08CN
+	J104 I : 42 153
+NetDegree : 1 HS_ASIC_QSFPDD_08CP
+	J104 I : 34 153
+NetDegree : 1 HS_ASIC_QSFPDD_08DN
+	J104 I : 38 65
+NetDegree : 1 HS_ASIC_QSFPDD_08DP
+	J104 I : 30 65
+NetDegree : 1 HS_ASIC_QSFPDD_08EN
+	J104 I : 66 123
+NetDegree : 1 HS_ASIC_QSFPDD_08EP
+	J104 I : 58 123
+NetDegree : 1 HS_ASIC_QSFPDD_08FN
+	J104 I : 62 94
+NetDegree : 1 HS_ASIC_QSFPDD_08FP
+	J104 I : 54 94
+NetDegree : 1 HS_ASIC_QSFPDD_08GN
+	J104 I : 42 123
+NetDegree : 1 HS_ASIC_QSFPDD_08GP
+	J104 I : 34 123
+NetDegree : 1 HS_ASIC_QSFPDD_08HN
+	J104 I : 38 94
+NetDegree : 1 HS_ASIC_QSFPDD_08HP
+	J104 I : 30 94
+NetDegree : 1 HS_ASIC_QSFPDD_09AN
+	J105 I : -66 153
+NetDegree : 1 HS_ASIC_QSFPDD_09AP
+	J105 I : -58 153
+NetDegree : 1 HS_ASIC_QSFPDD_09BN
+	J105 I : -62 65
+NetDegree : 1 HS_ASIC_QSFPDD_09BP
+	J105 I : -54 65
+NetDegree : 1 HS_ASIC_QSFPDD_09CN
+	J105 I : -42 153
+NetDegree : 1 HS_ASIC_QSFPDD_09CP
+	J105 I : -34 153
+NetDegree : 1 HS_ASIC_QSFPDD_09DN
+	J105 I : -38 65
+NetDegree : 1 HS_ASIC_QSFPDD_09DP
+	J105 I : -30 65
+NetDegree : 1 HS_ASIC_QSFPDD_09EN
+	J105 I : -66 123
+NetDegree : 1 HS_ASIC_QSFPDD_09EP
+	J105 I : -58 123
+NetDegree : 1 HS_ASIC_QSFPDD_09FN
+	J105 I : -62 94
+NetDegree : 1 HS_ASIC_QSFPDD_09FP
+	J105 I : -54 94
+NetDegree : 1 HS_ASIC_QSFPDD_09GN
+	J105 I : -42 123
+NetDegree : 1 HS_ASIC_QSFPDD_09GP
+	J105 I : -34 123
+NetDegree : 1 HS_ASIC_QSFPDD_09HN
+	J105 I : -38 94
+NetDegree : 1 HS_ASIC_QSFPDD_09HP
+	J105 I : -30 94
+NetDegree : 1 HS_ASIC_QSFPDD_10AN
+	J105 I : -66 35
+NetDegree : 1 HS_ASIC_QSFPDD_10AP
+	J105 I : -58 35
+NetDegree : 1 HS_ASIC_QSFPDD_10BN
+	J105 I : -62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_10BP
+	J105 I : -54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_10CN
+	J105 I : -42 35
+NetDegree : 1 HS_ASIC_QSFPDD_10CP
+	J105 I : -34 35
+NetDegree : 1 HS_ASIC_QSFPDD_10DN
+	J105 I : -38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_10DP
+	J105 I : -30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_10EN
+	J105 I : -66 6
+NetDegree : 1 HS_ASIC_QSFPDD_10EP
+	J105 I : -58 6
+NetDegree : 1 HS_ASIC_QSFPDD_10FN
+	J105 I : -62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_10FP
+	J105 I : -54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_10GN
+	J105 I : -42 6
+NetDegree : 1 HS_ASIC_QSFPDD_10GP
+	J105 I : -34 6
+NetDegree : 1 HS_ASIC_QSFPDD_10HN
+	J105 I : -38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_10HP
+	J105 I : -30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_11AN
+	J106 I : 66 35
+NetDegree : 1 HS_ASIC_QSFPDD_11AP
+	J106 I : 58 35
+NetDegree : 1 HS_ASIC_QSFPDD_11BN
+	J106 I : 62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_11BP
+	J106 I : 54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_11CN
+	J106 I : 42 35
+NetDegree : 1 HS_ASIC_QSFPDD_11CP
+	J106 I : 34 35
+NetDegree : 1 HS_ASIC_QSFPDD_11DN
+	J106 I : 38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_11DP
+	J106 I : 30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_11EN
+	J106 I : 66 6
+NetDegree : 1 HS_ASIC_QSFPDD_11EP
+	J106 I : 58 6
+NetDegree : 1 HS_ASIC_QSFPDD_11FN
+	J106 I : 62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_11FP
+	J106 I : 54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_11GN
+	J106 I : 42 6
+NetDegree : 1 HS_ASIC_QSFPDD_11GP
+	J106 I : 34 6
+NetDegree : 1 HS_ASIC_QSFPDD_11HN
+	J106 I : 38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_11HP
+	J106 I : 30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_12AN
+	J106 I : 66 153
+NetDegree : 1 HS_ASIC_QSFPDD_12AP
+	J106 I : 58 153
+NetDegree : 1 HS_ASIC_QSFPDD_12BN
+	J106 I : 62 65
+NetDegree : 1 HS_ASIC_QSFPDD_12BP
+	J106 I : 54 65
+NetDegree : 1 HS_ASIC_QSFPDD_12CN
+	J106 I : 42 153
+NetDegree : 1 HS_ASIC_QSFPDD_12CP
+	J106 I : 34 153
+NetDegree : 1 HS_ASIC_QSFPDD_12DN
+	J106 I : 38 65
+NetDegree : 1 HS_ASIC_QSFPDD_12DP
+	J106 I : 30 65
+NetDegree : 1 HS_ASIC_QSFPDD_12EN
+	J106 I : 66 123
+NetDegree : 1 HS_ASIC_QSFPDD_12EP
+	J106 I : 58 123
+NetDegree : 1 HS_ASIC_QSFPDD_12FN
+	J106 I : 62 94
+NetDegree : 1 HS_ASIC_QSFPDD_12FP
+	J106 I : 54 94
+NetDegree : 1 HS_ASIC_QSFPDD_12GN
+	J106 I : 42 123
+NetDegree : 1 HS_ASIC_QSFPDD_12GP
+	J106 I : 34 123
+NetDegree : 1 HS_ASIC_QSFPDD_12HN
+	J106 I : 38 94
+NetDegree : 1 HS_ASIC_QSFPDD_12HP
+	J106 I : 30 94
+NetDegree : 1 HS_ASIC_QSFPDD_13AN
+	J107 I : -66 153
+NetDegree : 1 HS_ASIC_QSFPDD_13AP
+	J107 I : -58 153
+NetDegree : 1 HS_ASIC_QSFPDD_13BN
+	J107 I : -62 65
+NetDegree : 1 HS_ASIC_QSFPDD_13BP
+	J107 I : -54 65
+NetDegree : 1 HS_ASIC_QSFPDD_13CN
+	J107 I : -42 153
+NetDegree : 1 HS_ASIC_QSFPDD_13CP
+	J107 I : -34 153
+NetDegree : 1 HS_ASIC_QSFPDD_13DN
+	J107 I : -38 65
+NetDegree : 1 HS_ASIC_QSFPDD_13DP
+	J107 I : -30 65
+NetDegree : 1 HS_ASIC_QSFPDD_13EN
+	J107 I : -66 123
+NetDegree : 1 HS_ASIC_QSFPDD_13EP
+	J107 I : -58 123
+NetDegree : 1 HS_ASIC_QSFPDD_13FN
+	J107 I : -62 94
+NetDegree : 1 HS_ASIC_QSFPDD_13FP
+	J107 I : -54 94
+NetDegree : 1 HS_ASIC_QSFPDD_13GN
+	J107 I : -42 123
+NetDegree : 1 HS_ASIC_QSFPDD_13GP
+	J107 I : -34 123
+NetDegree : 1 HS_ASIC_QSFPDD_13HN
+	J107 I : -38 94
+NetDegree : 1 HS_ASIC_QSFPDD_13HP
+	J107 I : -30 94
+NetDegree : 1 HS_ASIC_QSFPDD_14AN
+	J107 I : -66 35
+NetDegree : 1 HS_ASIC_QSFPDD_14AP
+	J107 I : -58 35
+NetDegree : 1 HS_ASIC_QSFPDD_14BN
+	J107 I : -62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_14BP
+	J107 I : -54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_14CN
+	J107 I : -42 35
+NetDegree : 1 HS_ASIC_QSFPDD_14CP
+	J107 I : -34 35
+NetDegree : 1 HS_ASIC_QSFPDD_14DN
+	J107 I : -38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_14DP
+	J107 I : -30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_14EN
+	J107 I : -66 6
+NetDegree : 1 HS_ASIC_QSFPDD_14EP
+	J107 I : -58 6
+NetDegree : 1 HS_ASIC_QSFPDD_14FN
+	J107 I : -62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_14FP
+	J107 I : -54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_14GN
+	J107 I : -42 6
+NetDegree : 1 HS_ASIC_QSFPDD_14GP
+	J107 I : -34 6
+NetDegree : 1 HS_ASIC_QSFPDD_14HN
+	J107 I : -38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_14HP
+	J107 I : -30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_15AN
+	J108 I : 66 35
+NetDegree : 1 HS_ASIC_QSFPDD_15AP
+	J108 I : 58 35
+NetDegree : 1 HS_ASIC_QSFPDD_15BN
+	J108 I : 62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_15BP
+	J108 I : 54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_15CN
+	J108 I : 42 35
+NetDegree : 1 HS_ASIC_QSFPDD_15CP
+	J108 I : 34 35
+NetDegree : 1 HS_ASIC_QSFPDD_15DN
+	J108 I : 38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_15DP
+	J108 I : 30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_15EN
+	J108 I : 66 6
+NetDegree : 1 HS_ASIC_QSFPDD_15EP
+	J108 I : 58 6
+NetDegree : 1 HS_ASIC_QSFPDD_15FN
+	J108 I : 62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_15FP
+	J108 I : 54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_15GN
+	J108 I : 42 6
+NetDegree : 1 HS_ASIC_QSFPDD_15GP
+	J108 I : 34 6
+NetDegree : 1 HS_ASIC_QSFPDD_15HN
+	J108 I : 38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_15HP
+	J108 I : 30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_16AN
+	J108 I : 66 153
+NetDegree : 1 HS_ASIC_QSFPDD_16AP
+	J108 I : 58 153
+NetDegree : 1 HS_ASIC_QSFPDD_16BN
+	J108 I : 62 65
+NetDegree : 1 HS_ASIC_QSFPDD_16BP
+	J108 I : 54 65
+NetDegree : 1 HS_ASIC_QSFPDD_16CN
+	J108 I : 42 153
+NetDegree : 1 HS_ASIC_QSFPDD_16CP
+	J108 I : 34 153
+NetDegree : 1 HS_ASIC_QSFPDD_16DN
+	J108 I : 38 65
+NetDegree : 1 HS_ASIC_QSFPDD_16DP
+	J108 I : 30 65
+NetDegree : 1 HS_ASIC_QSFPDD_16EN
+	J108 I : 66 123
+NetDegree : 1 HS_ASIC_QSFPDD_16EP
+	J108 I : 58 123
+NetDegree : 1 HS_ASIC_QSFPDD_16FN
+	J108 I : 62 94
+NetDegree : 1 HS_ASIC_QSFPDD_16FP
+	J108 I : 54 94
+NetDegree : 1 HS_ASIC_QSFPDD_16GN
+	J108 I : 42 123
+NetDegree : 1 HS_ASIC_QSFPDD_16GP
+	J108 I : 34 123
+NetDegree : 1 HS_ASIC_QSFPDD_16HN
+	J108 I : 38 94
+NetDegree : 1 HS_ASIC_QSFPDD_16HP
+	J108 I : 30 94
+NetDegree : 1 HS_ASIC_QSFPDD_17AN
+	J109 I : -66 153
+NetDegree : 1 HS_ASIC_QSFPDD_17AP
+	J109 I : -58 153
+NetDegree : 1 HS_ASIC_QSFPDD_17BN
+	J109 I : -62 65
+NetDegree : 1 HS_ASIC_QSFPDD_17BP
+	J109 I : -54 65
+NetDegree : 1 HS_ASIC_QSFPDD_17CN
+	J109 I : -42 153
+NetDegree : 1 HS_ASIC_QSFPDD_17CP
+	J109 I : -34 153
+NetDegree : 1 HS_ASIC_QSFPDD_17DN
+	J109 I : -38 65
+NetDegree : 1 HS_ASIC_QSFPDD_17DP
+	J109 I : -30 65
+NetDegree : 1 HS_ASIC_QSFPDD_17EN
+	J109 I : -66 123
+NetDegree : 1 HS_ASIC_QSFPDD_17EP
+	J109 I : -58 123
+NetDegree : 1 HS_ASIC_QSFPDD_17FN
+	J109 I : -62 94
+NetDegree : 1 HS_ASIC_QSFPDD_17FP
+	J109 I : -54 94
+NetDegree : 1 HS_ASIC_QSFPDD_17GN
+	J109 I : -42 123
+NetDegree : 1 HS_ASIC_QSFPDD_17GP
+	J109 I : -34 123
+NetDegree : 1 HS_ASIC_QSFPDD_17HN
+	J109 I : -38 94
+NetDegree : 1 HS_ASIC_QSFPDD_17HP
+	J109 I : -30 94
+NetDegree : 1 HS_ASIC_QSFPDD_18AN
+	J109 I : -66 35
+NetDegree : 1 HS_ASIC_QSFPDD_18AP
+	J109 I : -58 35
+NetDegree : 1 HS_ASIC_QSFPDD_18BN
+	J109 I : -62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_18BP
+	J109 I : -54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_18CN
+	J109 I : -42 35
+NetDegree : 1 HS_ASIC_QSFPDD_18CP
+	J109 I : -34 35
+NetDegree : 1 HS_ASIC_QSFPDD_18DN
+	J109 I : -38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_18DP
+	J109 I : -30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_18EN
+	J109 I : -66 6
+NetDegree : 1 HS_ASIC_QSFPDD_18EP
+	J109 I : -58 6
+NetDegree : 1 HS_ASIC_QSFPDD_18FN
+	J109 I : -62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_18FP
+	J109 I : -54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_18GN
+	J109 I : -42 6
+NetDegree : 1 HS_ASIC_QSFPDD_18GP
+	J109 I : -34 6
+NetDegree : 1 HS_ASIC_QSFPDD_18HN
+	J109 I : -38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_18HP
+	J109 I : -30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_19AN
+	J110 I : 66 35
+NetDegree : 1 HS_ASIC_QSFPDD_19AP
+	J110 I : 58 35
+NetDegree : 1 HS_ASIC_QSFPDD_19BN
+	J110 I : 62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_19BP
+	J110 I : 54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_19CN
+	J110 I : 42 35
+NetDegree : 1 HS_ASIC_QSFPDD_19CP
+	J110 I : 34 35
+NetDegree : 1 HS_ASIC_QSFPDD_19DN
+	J110 I : 38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_19DP
+	J110 I : 30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_19EN
+	J110 I : 66 6
+NetDegree : 1 HS_ASIC_QSFPDD_19EP
+	J110 I : 58 6
+NetDegree : 1 HS_ASIC_QSFPDD_19FN
+	J110 I : 62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_19FP
+	J110 I : 54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_19GN
+	J110 I : 42 6
+NetDegree : 1 HS_ASIC_QSFPDD_19GP
+	J110 I : 34 6
+NetDegree : 1 HS_ASIC_QSFPDD_19HN
+	J110 I : 38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_19HP
+	J110 I : 30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_20AN
+	J110 I : 66 153
+NetDegree : 1 HS_ASIC_QSFPDD_20AP
+	J110 I : 58 153
+NetDegree : 1 HS_ASIC_QSFPDD_20BN
+	J110 I : 62 65
+NetDegree : 1 HS_ASIC_QSFPDD_20BP
+	J110 I : 54 65
+NetDegree : 1 HS_ASIC_QSFPDD_20CN
+	J110 I : 42 153
+NetDegree : 1 HS_ASIC_QSFPDD_20CP
+	J110 I : 34 153
+NetDegree : 1 HS_ASIC_QSFPDD_20DN
+	J110 I : 38 65
+NetDegree : 1 HS_ASIC_QSFPDD_20DP
+	J110 I : 30 65
+NetDegree : 1 HS_ASIC_QSFPDD_20EN
+	J110 I : 66 123
+NetDegree : 1 HS_ASIC_QSFPDD_20EP
+	J110 I : 58 123
+NetDegree : 1 HS_ASIC_QSFPDD_20FN
+	J110 I : 62 94
+NetDegree : 1 HS_ASIC_QSFPDD_20FP
+	J110 I : 54 94
+NetDegree : 1 HS_ASIC_QSFPDD_20GN
+	J110 I : 42 123
+NetDegree : 1 HS_ASIC_QSFPDD_20GP
+	J110 I : 34 123
+NetDegree : 1 HS_ASIC_QSFPDD_20HN
+	J110 I : 38 94
+NetDegree : 1 HS_ASIC_QSFPDD_20HP
+	J110 I : 30 94
+NetDegree : 1 HS_ASIC_QSFPDD_21AN
+	J111 I : -66 153
+NetDegree : 1 HS_ASIC_QSFPDD_21AP
+	J111 I : -58 153
+NetDegree : 1 HS_ASIC_QSFPDD_21BN
+	J111 I : -62 65
+NetDegree : 1 HS_ASIC_QSFPDD_21BP
+	J111 I : -54 65
+NetDegree : 1 HS_ASIC_QSFPDD_21CN
+	J111 I : -42 153
+NetDegree : 1 HS_ASIC_QSFPDD_21CP
+	J111 I : -34 153
+NetDegree : 1 HS_ASIC_QSFPDD_21DN
+	J111 I : -38 65
+NetDegree : 1 HS_ASIC_QSFPDD_21DP
+	J111 I : -30 65
+NetDegree : 1 HS_ASIC_QSFPDD_21EN
+	J111 I : -66 123
+NetDegree : 1 HS_ASIC_QSFPDD_21EP
+	J111 I : -58 123
+NetDegree : 1 HS_ASIC_QSFPDD_21FN
+	J111 I : -62 94
+NetDegree : 1 HS_ASIC_QSFPDD_21FP
+	J111 I : -54 94
+NetDegree : 1 HS_ASIC_QSFPDD_21GN
+	J111 I : -42 123
+NetDegree : 1 HS_ASIC_QSFPDD_21GP
+	J111 I : -34 123
+NetDegree : 1 HS_ASIC_QSFPDD_21HN
+	J111 I : -38 94
+NetDegree : 1 HS_ASIC_QSFPDD_21HP
+	J111 I : -30 94
+NetDegree : 1 HS_ASIC_QSFPDD_22AN
+	J111 I : -66 35
+NetDegree : 1 HS_ASIC_QSFPDD_22AP
+	J111 I : -58 35
+NetDegree : 1 HS_ASIC_QSFPDD_22BN
+	J111 I : -62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_22BP
+	J111 I : -54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_22CN
+	J111 I : -42 35
+NetDegree : 1 HS_ASIC_QSFPDD_22CP
+	J111 I : -34 35
+NetDegree : 1 HS_ASIC_QSFPDD_22DN
+	J111 I : -38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_22DP
+	J111 I : -30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_22EN
+	J111 I : -66 6
+NetDegree : 1 HS_ASIC_QSFPDD_22EP
+	J111 I : -58 6
+NetDegree : 1 HS_ASIC_QSFPDD_22FN
+	J111 I : -62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_22FP
+	J111 I : -54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_22GN
+	J111 I : -42 6
+NetDegree : 1 HS_ASIC_QSFPDD_22GP
+	J111 I : -34 6
+NetDegree : 1 HS_ASIC_QSFPDD_22HN
+	J111 I : -38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_22HP
+	J111 I : -30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_23AN
+	J112 I : 66 35
+NetDegree : 1 HS_ASIC_QSFPDD_23AP
+	J112 I : 58 35
+NetDegree : 1 HS_ASIC_QSFPDD_23BN
+	J112 I : 62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_23BP
+	J112 I : 54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_23CN
+	J112 I : 42 35
+NetDegree : 1 HS_ASIC_QSFPDD_23CP
+	J112 I : 34 35
+NetDegree : 1 HS_ASIC_QSFPDD_23DN
+	J112 I : 38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_23DP
+	J112 I : 30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_23EN
+	J112 I : 66 6
+NetDegree : 1 HS_ASIC_QSFPDD_23EP
+	J112 I : 58 6
+NetDegree : 1 HS_ASIC_QSFPDD_23FN
+	J112 I : 62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_23FP
+	J112 I : 54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_23GN
+	J112 I : 42 6
+NetDegree : 1 HS_ASIC_QSFPDD_23GP
+	J112 I : 34 6
+NetDegree : 1 HS_ASIC_QSFPDD_23HN
+	J112 I : 38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_23HP
+	J112 I : 30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_24AN
+	J112 I : 66 153
+NetDegree : 1 HS_ASIC_QSFPDD_24AP
+	J112 I : 58 153
+NetDegree : 1 HS_ASIC_QSFPDD_24BN
+	J112 I : 62 65
+NetDegree : 1 HS_ASIC_QSFPDD_24BP
+	J112 I : 54 65
+NetDegree : 1 HS_ASIC_QSFPDD_24CN
+	J112 I : 42 153
+NetDegree : 1 HS_ASIC_QSFPDD_24CP
+	J112 I : 34 153
+NetDegree : 1 HS_ASIC_QSFPDD_24DN
+	J112 I : 38 65
+NetDegree : 1 HS_ASIC_QSFPDD_24DP
+	J112 I : 30 65
+NetDegree : 1 HS_ASIC_QSFPDD_24EN
+	J112 I : 66 123
+NetDegree : 1 HS_ASIC_QSFPDD_24EP
+	J112 I : 58 123
+NetDegree : 1 HS_ASIC_QSFPDD_24FN
+	J112 I : 62 94
+NetDegree : 1 HS_ASIC_QSFPDD_24FP
+	J112 I : 54 94
+NetDegree : 1 HS_ASIC_QSFPDD_24GN
+	J112 I : 42 123
+NetDegree : 1 HS_ASIC_QSFPDD_24GP
+	J112 I : 34 123
+NetDegree : 1 HS_ASIC_QSFPDD_24HN
+	J112 I : 38 94
+NetDegree : 1 HS_ASIC_QSFPDD_24HP
+	J112 I : 30 94
+NetDegree : 1 HS_ASIC_QSFPDD_25AN
+	J113 I : -66 153
+NetDegree : 1 HS_ASIC_QSFPDD_25AP
+	J113 I : -58 153
+NetDegree : 1 HS_ASIC_QSFPDD_25BN
+	J113 I : -62 65
+NetDegree : 1 HS_ASIC_QSFPDD_25BP
+	J113 I : -54 65
+NetDegree : 1 HS_ASIC_QSFPDD_25CN
+	J113 I : -42 153
+NetDegree : 1 HS_ASIC_QSFPDD_25CP
+	J113 I : -34 153
+NetDegree : 1 HS_ASIC_QSFPDD_25DN
+	J113 I : -38 65
+NetDegree : 1 HS_ASIC_QSFPDD_25DP
+	J113 I : -30 65
+NetDegree : 1 HS_ASIC_QSFPDD_25EN
+	J113 I : -66 123
+NetDegree : 1 HS_ASIC_QSFPDD_25EP
+	J113 I : -58 123
+NetDegree : 1 HS_ASIC_QSFPDD_25FN
+	J113 I : -62 94
+NetDegree : 1 HS_ASIC_QSFPDD_25FP
+	J113 I : -54 94
+NetDegree : 1 HS_ASIC_QSFPDD_25GN
+	J113 I : -42 123
+NetDegree : 1 HS_ASIC_QSFPDD_25GP
+	J113 I : -34 123
+NetDegree : 1 HS_ASIC_QSFPDD_25HN
+	J113 I : -38 94
+NetDegree : 1 HS_ASIC_QSFPDD_25HP
+	J113 I : -30 94
+NetDegree : 1 HS_ASIC_QSFPDD_26AN
+	J113 I : -66 35
+NetDegree : 1 HS_ASIC_QSFPDD_26AP
+	J113 I : -58 35
+NetDegree : 1 HS_ASIC_QSFPDD_26BN
+	J113 I : -62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_26BP
+	J113 I : -54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_26CN
+	J113 I : -42 35
+NetDegree : 1 HS_ASIC_QSFPDD_26CP
+	J113 I : -34 35
+NetDegree : 1 HS_ASIC_QSFPDD_26DN
+	J113 I : -38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_26DP
+	J113 I : -30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_26EN
+	J113 I : -66 6
+NetDegree : 1 HS_ASIC_QSFPDD_26EP
+	J113 I : -58 6
+NetDegree : 1 HS_ASIC_QSFPDD_26FN
+	J113 I : -62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_26FP
+	J113 I : -54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_26GN
+	J113 I : -42 6
+NetDegree : 1 HS_ASIC_QSFPDD_26GP
+	J113 I : -34 6
+NetDegree : 1 HS_ASIC_QSFPDD_26HN
+	J113 I : -38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_26HP
+	J113 I : -30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_27AN
+	J114 I : 66 35
+NetDegree : 1 HS_ASIC_QSFPDD_27AP
+	J114 I : 58 35
+NetDegree : 1 HS_ASIC_QSFPDD_27BN
+	J114 I : 62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_27BP
+	J114 I : 54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_27CN
+	J114 I : 42 35
+NetDegree : 1 HS_ASIC_QSFPDD_27CP
+	J114 I : 34 35
+NetDegree : 1 HS_ASIC_QSFPDD_27DN
+	J114 I : 38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_27DP
+	J114 I : 30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_27EN
+	J114 I : 66 6
+NetDegree : 1 HS_ASIC_QSFPDD_27EP
+	J114 I : 58 6
+NetDegree : 1 HS_ASIC_QSFPDD_27FN
+	J114 I : 62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_27FP
+	J114 I : 54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_27GN
+	J114 I : 42 6
+NetDegree : 1 HS_ASIC_QSFPDD_27GP
+	J114 I : 34 6
+NetDegree : 1 HS_ASIC_QSFPDD_27HN
+	J114 I : 38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_27HP
+	J114 I : 30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_28AN
+	J114 I : 66 153
+NetDegree : 1 HS_ASIC_QSFPDD_28AP
+	J114 I : 58 153
+NetDegree : 1 HS_ASIC_QSFPDD_28BN
+	J114 I : 62 65
+NetDegree : 1 HS_ASIC_QSFPDD_28BP
+	J114 I : 54 65
+NetDegree : 1 HS_ASIC_QSFPDD_28CN
+	J114 I : 42 153
+NetDegree : 1 HS_ASIC_QSFPDD_28CP
+	J114 I : 34 153
+NetDegree : 1 HS_ASIC_QSFPDD_28DN
+	J114 I : 38 65
+NetDegree : 1 HS_ASIC_QSFPDD_28DP
+	J114 I : 30 65
+NetDegree : 1 HS_ASIC_QSFPDD_28EN
+	J114 I : 66 123
+NetDegree : 1 HS_ASIC_QSFPDD_28EP
+	J114 I : 58 123
+NetDegree : 1 HS_ASIC_QSFPDD_28FN
+	J114 I : 62 94
+NetDegree : 1 HS_ASIC_QSFPDD_28FP
+	J114 I : 54 94
+NetDegree : 1 HS_ASIC_QSFPDD_28GN
+	J114 I : 42 123
+NetDegree : 1 HS_ASIC_QSFPDD_28GP
+	J114 I : 34 123
+NetDegree : 1 HS_ASIC_QSFPDD_28HN
+	J114 I : 38 94
+NetDegree : 1 HS_ASIC_QSFPDD_28HP
+	J114 I : 30 94
+NetDegree : 1 HS_ASIC_QSFPDD_29AN
+	J115 I : -66 153
+NetDegree : 1 HS_ASIC_QSFPDD_29AP
+	J115 I : -58 153
+NetDegree : 1 HS_ASIC_QSFPDD_29BN
+	J115 I : -62 65
+NetDegree : 1 HS_ASIC_QSFPDD_29BP
+	J115 I : -54 65
+NetDegree : 1 HS_ASIC_QSFPDD_29CN
+	J115 I : -42 153
+NetDegree : 1 HS_ASIC_QSFPDD_29CP
+	J115 I : -34 153
+NetDegree : 1 HS_ASIC_QSFPDD_29DN
+	J115 I : -38 65
+NetDegree : 1 HS_ASIC_QSFPDD_29DP
+	J115 I : -30 65
+NetDegree : 1 HS_ASIC_QSFPDD_29EN
+	J115 I : -66 123
+NetDegree : 1 HS_ASIC_QSFPDD_29EP
+	J115 I : -58 123
+NetDegree : 1 HS_ASIC_QSFPDD_29FN
+	J115 I : -62 94
+NetDegree : 1 HS_ASIC_QSFPDD_29FP
+	J115 I : -54 94
+NetDegree : 1 HS_ASIC_QSFPDD_29GN
+	J115 I : -42 123
+NetDegree : 1 HS_ASIC_QSFPDD_29GP
+	J115 I : -34 123
+NetDegree : 1 HS_ASIC_QSFPDD_29HN
+	J115 I : -38 94
+NetDegree : 1 HS_ASIC_QSFPDD_29HP
+	J115 I : -30 94
+NetDegree : 1 HS_ASIC_QSFPDD_30AN
+	J115 I : -66 35
+NetDegree : 1 HS_ASIC_QSFPDD_30AP
+	J115 I : -58 35
+NetDegree : 1 HS_ASIC_QSFPDD_30BN
+	J115 I : -62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_30BP
+	J115 I : -54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_30CN
+	J115 I : -42 35
+NetDegree : 1 HS_ASIC_QSFPDD_30CP
+	J115 I : -34 35
+NetDegree : 1 HS_ASIC_QSFPDD_30DN
+	J115 I : -38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_30DP
+	J115 I : -30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_30EN
+	J115 I : -66 6
+NetDegree : 1 HS_ASIC_QSFPDD_30EP
+	J115 I : -58 6
+NetDegree : 1 HS_ASIC_QSFPDD_30FN
+	J115 I : -62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_30FP
+	J115 I : -54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_30GN
+	J115 I : -42 6
+NetDegree : 1 HS_ASIC_QSFPDD_30GP
+	J115 I : -34 6
+NetDegree : 1 HS_ASIC_QSFPDD_30HN
+	J115 I : -38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_30HP
+	J115 I : -30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_31AN
+	J116 I : 66 35
+NetDegree : 1 HS_ASIC_QSFPDD_31AP
+	J116 I : 58 35
+NetDegree : 1 HS_ASIC_QSFPDD_31BN
+	J116 I : 62 -52
+NetDegree : 1 HS_ASIC_QSFPDD_31BP
+	J116 I : 54 -52
+NetDegree : 1 HS_ASIC_QSFPDD_31CN
+	J116 I : 42 35
+NetDegree : 1 HS_ASIC_QSFPDD_31CP
+	J116 I : 34 35
+NetDegree : 1 HS_ASIC_QSFPDD_31DN
+	J116 I : 38 -52
+NetDegree : 1 HS_ASIC_QSFPDD_31DP
+	J116 I : 30 -52
+NetDegree : 1 HS_ASIC_QSFPDD_31EN
+	J116 I : 66 6
+NetDegree : 1 HS_ASIC_QSFPDD_31EP
+	J116 I : 58 6
+NetDegree : 1 HS_ASIC_QSFPDD_31FN
+	J116 I : 62 -23
+NetDegree : 1 HS_ASIC_QSFPDD_31FP
+	J116 I : 54 -23
+NetDegree : 1 HS_ASIC_QSFPDD_31GN
+	J116 I : 42 6
+NetDegree : 1 HS_ASIC_QSFPDD_31GP
+	J116 I : 34 6
+NetDegree : 1 HS_ASIC_QSFPDD_31HN
+	J116 I : 38 -23
+NetDegree : 1 HS_ASIC_QSFPDD_31HP
+	J116 I : 30 -23
+NetDegree : 1 HS_ASIC_QSFPDD_32AN
+	J116 I : 66 153
+NetDegree : 1 HS_ASIC_QSFPDD_32AP
+	J116 I : 58 153
+NetDegree : 1 HS_ASIC_QSFPDD_32BN
+	J116 I : 62 65
+NetDegree : 1 HS_ASIC_QSFPDD_32BP
+	J116 I : 54 65
+NetDegree : 1 HS_ASIC_QSFPDD_32CN
+	J116 I : 42 153
+NetDegree : 1 HS_ASIC_QSFPDD_32CP
+	J116 I : 34 153
+NetDegree : 1 HS_ASIC_QSFPDD_32DN
+	J116 I : 38 65
+NetDegree : 1 HS_ASIC_QSFPDD_32DP
+	J116 I : 30 65
+NetDegree : 1 HS_ASIC_QSFPDD_32EN
+	J116 I : 66 123
+NetDegree : 1 HS_ASIC_QSFPDD_32EP
+	J116 I : 58 123
+NetDegree : 1 HS_ASIC_QSFPDD_32FN
+	J116 I : 62 94
+NetDegree : 1 HS_ASIC_QSFPDD_32FP
+	J116 I : 54 94
+NetDegree : 1 HS_ASIC_QSFPDD_32GN
+	J116 I : 42 123
+NetDegree : 1 HS_ASIC_QSFPDD_32GP
+	J116 I : 34 123
+NetDegree : 1 HS_ASIC_QSFPDD_32HN
+	J116 I : 38 94
+NetDegree : 1 HS_ASIC_QSFPDD_32HP
+	J116 I : 30 94
+NetDegree : 1 HS_QSFPDD_ASIC_05AN
+	J103 I : 66 65
+NetDegree : 1 HS_QSFPDD_ASIC_05AP
+	J103 I : 58 65
+NetDegree : 1 HS_QSFPDD_ASIC_05BN
+	J103 I : 62 153
+NetDegree : 1 HS_QSFPDD_ASIC_05BP
+	J103 I : 54 153
+NetDegree : 1 HS_QSFPDD_ASIC_05CN
+	J103 I : 42 65
+NetDegree : 1 HS_QSFPDD_ASIC_05CP
+	J103 I : 34 65
+NetDegree : 1 HS_QSFPDD_ASIC_05DN
+	J103 I : 38 153
+NetDegree : 1 HS_QSFPDD_ASIC_05DP
+	J103 I : 30 153
+NetDegree : 1 HS_QSFPDD_ASIC_05EN
+	J103 I : 66 94
+NetDegree : 1 HS_QSFPDD_ASIC_05EP
+	J103 I : 58 94
+NetDegree : 1 HS_QSFPDD_ASIC_05FN
+	J103 I : 62 123
+NetDegree : 1 HS_QSFPDD_ASIC_05FP
+	J103 I : 54 123
+NetDegree : 1 HS_QSFPDD_ASIC_05GN
+	J103 I : 42 94
+NetDegree : 1 HS_QSFPDD_ASIC_05GP
+	J103 I : 34 94
+NetDegree : 1 HS_QSFPDD_ASIC_05HN
+	J103 I : 38 123
+NetDegree : 1 HS_QSFPDD_ASIC_05HP
+	J103 I : 30 123
+NetDegree : 1 HS_QSFPDD_ASIC_06AN
+	J103 I : 66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_06AP
+	J103 I : 58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_06BN
+	J103 I : 62 35
+NetDegree : 1 HS_QSFPDD_ASIC_06BP
+	J103 I : 54 35
+NetDegree : 1 HS_QSFPDD_ASIC_06CN
+	J103 I : 42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_06CP
+	J103 I : 34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_06DN
+	J103 I : 38 35
+NetDegree : 1 HS_QSFPDD_ASIC_06DP
+	J103 I : 30 35
+NetDegree : 1 HS_QSFPDD_ASIC_06EN
+	J103 I : 66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_06EP
+	J103 I : 58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_06FN
+	J103 I : 62 6
+NetDegree : 1 HS_QSFPDD_ASIC_06FP
+	J103 I : 54 6
+NetDegree : 1 HS_QSFPDD_ASIC_06GN
+	J103 I : 42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_06GP
+	J103 I : 34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_06HN
+	J103 I : 38 6
+NetDegree : 1 HS_QSFPDD_ASIC_06HP
+	J103 I : 30 6
+NetDegree : 1 HS_QSFPDD_ASIC_07AN
+	J104 I : -66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_07AP
+	J104 I : -58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_07BN
+	J104 I : -62 35
+NetDegree : 1 HS_QSFPDD_ASIC_07BP
+	J104 I : -54 35
+NetDegree : 1 HS_QSFPDD_ASIC_07CN
+	J104 I : -42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_07CP
+	J104 I : -34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_07DN
+	J104 I : -38 35
+NetDegree : 1 HS_QSFPDD_ASIC_07DP
+	J104 I : -30 35
+NetDegree : 1 HS_QSFPDD_ASIC_07EN
+	J104 I : -66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_07EP
+	J104 I : -58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_07FN
+	J104 I : -62 6
+NetDegree : 1 HS_QSFPDD_ASIC_07FP
+	J104 I : -54 6
+NetDegree : 1 HS_QSFPDD_ASIC_07GN
+	J104 I : -42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_07GP
+	J104 I : -34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_07HN
+	J104 I : -38 6
+NetDegree : 1 HS_QSFPDD_ASIC_07HP
+	J104 I : -30 6
+NetDegree : 1 HS_QSFPDD_ASIC_08AN
+	J104 I : -66 65
+NetDegree : 1 HS_QSFPDD_ASIC_08AP
+	J104 I : -58 65
+NetDegree : 1 HS_QSFPDD_ASIC_08BN
+	J104 I : -62 153
+NetDegree : 1 HS_QSFPDD_ASIC_08BP
+	J104 I : -54 153
+NetDegree : 1 HS_QSFPDD_ASIC_08CN
+	J104 I : -42 65
+NetDegree : 1 HS_QSFPDD_ASIC_08CP
+	J104 I : -34 65
+NetDegree : 1 HS_QSFPDD_ASIC_08DN
+	J104 I : -38 153
+NetDegree : 1 HS_QSFPDD_ASIC_08DP
+	J104 I : -30 153
+NetDegree : 1 HS_QSFPDD_ASIC_08EN
+	J104 I : -66 94
+NetDegree : 1 HS_QSFPDD_ASIC_08EP
+	J104 I : -58 94
+NetDegree : 1 HS_QSFPDD_ASIC_08FN
+	J104 I : -62 123
+NetDegree : 1 HS_QSFPDD_ASIC_08FP
+	J104 I : -54 123
+NetDegree : 1 HS_QSFPDD_ASIC_08GN
+	J104 I : -42 94
+NetDegree : 1 HS_QSFPDD_ASIC_08GP
+	J104 I : -34 94
+NetDegree : 1 HS_QSFPDD_ASIC_08HN
+	J104 I : -38 123
+NetDegree : 1 HS_QSFPDD_ASIC_08HP
+	J104 I : -30 123
+NetDegree : 1 HS_QSFPDD_ASIC_09AN
+	J105 I : 66 65
+NetDegree : 1 HS_QSFPDD_ASIC_09AP
+	J105 I : 58 65
+NetDegree : 1 HS_QSFPDD_ASIC_09BN
+	J105 I : 62 153
+NetDegree : 1 HS_QSFPDD_ASIC_09BP
+	J105 I : 54 153
+NetDegree : 1 HS_QSFPDD_ASIC_09CN
+	J105 I : 42 65
+NetDegree : 1 HS_QSFPDD_ASIC_09CP
+	J105 I : 34 65
+NetDegree : 1 HS_QSFPDD_ASIC_09DN
+	J105 I : 38 153
+NetDegree : 1 HS_QSFPDD_ASIC_09DP
+	J105 I : 30 153
+NetDegree : 1 HS_QSFPDD_ASIC_09EN
+	J105 I : 66 94
+NetDegree : 1 HS_QSFPDD_ASIC_09EP
+	J105 I : 58 94
+NetDegree : 1 HS_QSFPDD_ASIC_09FN
+	J105 I : 62 123
+NetDegree : 1 HS_QSFPDD_ASIC_09FP
+	J105 I : 54 123
+NetDegree : 1 HS_QSFPDD_ASIC_09GN
+	J105 I : 42 94
+NetDegree : 1 HS_QSFPDD_ASIC_09GP
+	J105 I : 34 94
+NetDegree : 1 HS_QSFPDD_ASIC_09HN
+	J105 I : 38 123
+NetDegree : 1 HS_QSFPDD_ASIC_09HP
+	J105 I : 30 123
+NetDegree : 1 HS_QSFPDD_ASIC_10AN
+	J105 I : 66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_10AP
+	J105 I : 58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_10BN
+	J105 I : 62 35
+NetDegree : 1 HS_QSFPDD_ASIC_10BP
+	J105 I : 54 35
+NetDegree : 1 HS_QSFPDD_ASIC_10CN
+	J105 I : 42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_10CP
+	J105 I : 34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_10DN
+	J105 I : 38 35
+NetDegree : 1 HS_QSFPDD_ASIC_10DP
+	J105 I : 30 35
+NetDegree : 1 HS_QSFPDD_ASIC_10EN
+	J105 I : 66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_10EP
+	J105 I : 58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_10FN
+	J105 I : 62 6
+NetDegree : 1 HS_QSFPDD_ASIC_10FP
+	J105 I : 54 6
+NetDegree : 1 HS_QSFPDD_ASIC_10GN
+	J105 I : 42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_10GP
+	J105 I : 34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_10HN
+	J105 I : 38 6
+NetDegree : 1 HS_QSFPDD_ASIC_10HP
+	J105 I : 30 6
+NetDegree : 1 HS_QSFPDD_ASIC_11AN
+	J106 I : -66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_11AP
+	J106 I : -58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_11BN
+	J106 I : -62 35
+NetDegree : 1 HS_QSFPDD_ASIC_11BP
+	J106 I : -54 35
+NetDegree : 1 HS_QSFPDD_ASIC_11CN
+	J106 I : -42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_11CP
+	J106 I : -34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_11DN
+	J106 I : -38 35
+NetDegree : 1 HS_QSFPDD_ASIC_11DP
+	J106 I : -30 35
+NetDegree : 1 HS_QSFPDD_ASIC_11EN
+	J106 I : -66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_11EP
+	J106 I : -58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_11FN
+	J106 I : -62 6
+NetDegree : 1 HS_QSFPDD_ASIC_11FP
+	J106 I : -54 6
+NetDegree : 1 HS_QSFPDD_ASIC_11GN
+	J106 I : -42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_11GP
+	J106 I : -34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_11HN
+	J106 I : -38 6
+NetDegree : 1 HS_QSFPDD_ASIC_11HP
+	J106 I : -30 6
+NetDegree : 1 HS_QSFPDD_ASIC_12AN
+	J106 I : -66 65
+NetDegree : 1 HS_QSFPDD_ASIC_12AP
+	J106 I : -58 65
+NetDegree : 1 HS_QSFPDD_ASIC_12BN
+	J106 I : -62 153
+NetDegree : 1 HS_QSFPDD_ASIC_12BP
+	J106 I : -54 153
+NetDegree : 1 HS_QSFPDD_ASIC_12CN
+	J106 I : -42 65
+NetDegree : 1 HS_QSFPDD_ASIC_12CP
+	J106 I : -34 65
+NetDegree : 1 HS_QSFPDD_ASIC_12DN
+	J106 I : -38 153
+NetDegree : 1 HS_QSFPDD_ASIC_12DP
+	J106 I : -30 153
+NetDegree : 1 HS_QSFPDD_ASIC_12EN
+	J106 I : -66 94
+NetDegree : 1 HS_QSFPDD_ASIC_12EP
+	J106 I : -58 94
+NetDegree : 1 HS_QSFPDD_ASIC_12FN
+	J106 I : -62 123
+NetDegree : 1 HS_QSFPDD_ASIC_12FP
+	J106 I : -54 123
+NetDegree : 1 HS_QSFPDD_ASIC_12GN
+	J106 I : -42 94
+NetDegree : 1 HS_QSFPDD_ASIC_12GP
+	J106 I : -34 94
+NetDegree : 1 HS_QSFPDD_ASIC_12HN
+	J106 I : -38 123
+NetDegree : 1 HS_QSFPDD_ASIC_12HP
+	J106 I : -30 123
+NetDegree : 1 HS_QSFPDD_ASIC_13AN
+	J107 I : 66 65
+NetDegree : 1 HS_QSFPDD_ASIC_13AP
+	J107 I : 58 65
+NetDegree : 1 HS_QSFPDD_ASIC_13BN
+	J107 I : 62 153
+NetDegree : 1 HS_QSFPDD_ASIC_13BP
+	J107 I : 54 153
+NetDegree : 1 HS_QSFPDD_ASIC_13CN
+	J107 I : 42 65
+NetDegree : 1 HS_QSFPDD_ASIC_13CP
+	J107 I : 34 65
+NetDegree : 1 HS_QSFPDD_ASIC_13DN
+	J107 I : 38 153
+NetDegree : 1 HS_QSFPDD_ASIC_13DP
+	J107 I : 30 153
+NetDegree : 1 HS_QSFPDD_ASIC_13EN
+	J107 I : 66 94
+NetDegree : 1 HS_QSFPDD_ASIC_13EP
+	J107 I : 58 94
+NetDegree : 1 HS_QSFPDD_ASIC_13FN
+	J107 I : 62 123
+NetDegree : 1 HS_QSFPDD_ASIC_13FP
+	J107 I : 54 123
+NetDegree : 1 HS_QSFPDD_ASIC_13GN
+	J107 I : 42 94
+NetDegree : 1 HS_QSFPDD_ASIC_13GP
+	J107 I : 34 94
+NetDegree : 1 HS_QSFPDD_ASIC_13HN
+	J107 I : 38 123
+NetDegree : 1 HS_QSFPDD_ASIC_13HP
+	J107 I : 30 123
+NetDegree : 1 HS_QSFPDD_ASIC_14AN
+	J107 I : 66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_14AP
+	J107 I : 58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_14BN
+	J107 I : 62 35
+NetDegree : 1 HS_QSFPDD_ASIC_14BP
+	J107 I : 54 35
+NetDegree : 1 HS_QSFPDD_ASIC_14CN
+	J107 I : 42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_14CP
+	J107 I : 34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_14DN
+	J107 I : 38 35
+NetDegree : 1 HS_QSFPDD_ASIC_14DP
+	J107 I : 30 35
+NetDegree : 1 HS_QSFPDD_ASIC_14EN
+	J107 I : 66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_14EP
+	J107 I : 58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_14FN
+	J107 I : 62 6
+NetDegree : 1 HS_QSFPDD_ASIC_14FP
+	J107 I : 54 6
+NetDegree : 1 HS_QSFPDD_ASIC_14GN
+	J107 I : 42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_14GP
+	J107 I : 34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_14HN
+	J107 I : 38 6
+NetDegree : 1 HS_QSFPDD_ASIC_14HP
+	J107 I : 30 6
+NetDegree : 1 HS_QSFPDD_ASIC_15AN
+	J108 I : -66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_15AP
+	J108 I : -58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_15BN
+	J108 I : -62 35
+NetDegree : 1 HS_QSFPDD_ASIC_15BP
+	J108 I : -54 35
+NetDegree : 1 HS_QSFPDD_ASIC_15CN
+	J108 I : -42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_15CP
+	J108 I : -34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_15DN
+	J108 I : -38 35
+NetDegree : 1 HS_QSFPDD_ASIC_15DP
+	J108 I : -30 35
+NetDegree : 1 HS_QSFPDD_ASIC_15EN
+	J108 I : -66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_15EP
+	J108 I : -58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_15FN
+	J108 I : -62 6
+NetDegree : 1 HS_QSFPDD_ASIC_15FP
+	J108 I : -54 6
+NetDegree : 1 HS_QSFPDD_ASIC_15GN
+	J108 I : -42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_15GP
+	J108 I : -34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_15HN
+	J108 I : -38 6
+NetDegree : 1 HS_QSFPDD_ASIC_15HP
+	J108 I : -30 6
+NetDegree : 1 HS_QSFPDD_ASIC_16AN
+	J108 I : -66 65
+NetDegree : 1 HS_QSFPDD_ASIC_16AP
+	J108 I : -58 65
+NetDegree : 1 HS_QSFPDD_ASIC_16BN
+	J108 I : -62 153
+NetDegree : 1 HS_QSFPDD_ASIC_16BP
+	J108 I : -54 153
+NetDegree : 1 HS_QSFPDD_ASIC_16CN
+	J108 I : -42 65
+NetDegree : 1 HS_QSFPDD_ASIC_16CP
+	J108 I : -34 65
+NetDegree : 1 HS_QSFPDD_ASIC_16DN
+	J108 I : -38 153
+NetDegree : 1 HS_QSFPDD_ASIC_16DP
+	J108 I : -30 153
+NetDegree : 1 HS_QSFPDD_ASIC_16EN
+	J108 I : -66 94
+NetDegree : 1 HS_QSFPDD_ASIC_16EP
+	J108 I : -58 94
+NetDegree : 1 HS_QSFPDD_ASIC_16FN
+	J108 I : -62 123
+NetDegree : 1 HS_QSFPDD_ASIC_16FP
+	J108 I : -54 123
+NetDegree : 1 HS_QSFPDD_ASIC_16GN
+	J108 I : -42 94
+NetDegree : 1 HS_QSFPDD_ASIC_16GP
+	J108 I : -34 94
+NetDegree : 1 HS_QSFPDD_ASIC_16HN
+	J108 I : -38 123
+NetDegree : 1 HS_QSFPDD_ASIC_16HP
+	J108 I : -30 123
+NetDegree : 1 HS_QSFPDD_ASIC_17AN
+	J109 I : 66 65
+NetDegree : 1 HS_QSFPDD_ASIC_17AP
+	J109 I : 58 65
+NetDegree : 1 HS_QSFPDD_ASIC_17BN
+	J109 I : 62 153
+NetDegree : 1 HS_QSFPDD_ASIC_17BP
+	J109 I : 54 153
+NetDegree : 1 HS_QSFPDD_ASIC_17CN
+	J109 I : 42 65
+NetDegree : 1 HS_QSFPDD_ASIC_17CP
+	J109 I : 34 65
+NetDegree : 1 HS_QSFPDD_ASIC_17DN
+	J109 I : 38 153
+NetDegree : 1 HS_QSFPDD_ASIC_17DP
+	J109 I : 30 153
+NetDegree : 1 HS_QSFPDD_ASIC_17EN
+	J109 I : 66 94
+NetDegree : 1 HS_QSFPDD_ASIC_17EP
+	J109 I : 58 94
+NetDegree : 1 HS_QSFPDD_ASIC_17FN
+	J109 I : 62 123
+NetDegree : 1 HS_QSFPDD_ASIC_17FP
+	J109 I : 54 123
+NetDegree : 1 HS_QSFPDD_ASIC_17GN
+	J109 I : 42 94
+NetDegree : 1 HS_QSFPDD_ASIC_17GP
+	J109 I : 34 94
+NetDegree : 1 HS_QSFPDD_ASIC_17HN
+	J109 I : 38 123
+NetDegree : 1 HS_QSFPDD_ASIC_17HP
+	J109 I : 30 123
+NetDegree : 1 HS_QSFPDD_ASIC_18AN
+	J109 I : 66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_18AP
+	J109 I : 58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_18BN
+	J109 I : 62 35
+NetDegree : 1 HS_QSFPDD_ASIC_18BP
+	J109 I : 54 35
+NetDegree : 1 HS_QSFPDD_ASIC_18CN
+	J109 I : 42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_18CP
+	J109 I : 34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_18DN
+	J109 I : 38 35
+NetDegree : 1 HS_QSFPDD_ASIC_18DP
+	J109 I : 30 35
+NetDegree : 1 HS_QSFPDD_ASIC_18EN
+	J109 I : 66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_18EP
+	J109 I : 58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_18FN
+	J109 I : 62 6
+NetDegree : 1 HS_QSFPDD_ASIC_18FP
+	J109 I : 54 6
+NetDegree : 1 HS_QSFPDD_ASIC_18GN
+	J109 I : 42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_18GP
+	J109 I : 34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_18HN
+	J109 I : 38 6
+NetDegree : 1 HS_QSFPDD_ASIC_18HP
+	J109 I : 30 6
+NetDegree : 1 HS_QSFPDD_ASIC_19AN
+	J110 I : -66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_19AP
+	J110 I : -58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_19BN
+	J110 I : -62 35
+NetDegree : 1 HS_QSFPDD_ASIC_19BP
+	J110 I : -54 35
+NetDegree : 1 HS_QSFPDD_ASIC_19CN
+	J110 I : -42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_19CP
+	J110 I : -34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_19DN
+	J110 I : -38 35
+NetDegree : 1 HS_QSFPDD_ASIC_19DP
+	J110 I : -30 35
+NetDegree : 1 HS_QSFPDD_ASIC_19EN
+	J110 I : -66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_19EP
+	J110 I : -58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_19FN
+	J110 I : -62 6
+NetDegree : 1 HS_QSFPDD_ASIC_19FP
+	J110 I : -54 6
+NetDegree : 1 HS_QSFPDD_ASIC_19GN
+	J110 I : -42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_19GP
+	J110 I : -34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_19HN
+	J110 I : -38 6
+NetDegree : 1 HS_QSFPDD_ASIC_19HP
+	J110 I : -30 6
+NetDegree : 1 HS_QSFPDD_ASIC_20AN
+	J110 I : -66 65
+NetDegree : 1 HS_QSFPDD_ASIC_20AP
+	J110 I : -58 65
+NetDegree : 1 HS_QSFPDD_ASIC_20BN
+	J110 I : -62 153
+NetDegree : 1 HS_QSFPDD_ASIC_20BP
+	J110 I : -54 153
+NetDegree : 1 HS_QSFPDD_ASIC_20CN
+	J110 I : -42 65
+NetDegree : 1 HS_QSFPDD_ASIC_20CP
+	J110 I : -34 65
+NetDegree : 1 HS_QSFPDD_ASIC_20DN
+	J110 I : -38 153
+NetDegree : 1 HS_QSFPDD_ASIC_20DP
+	J110 I : -30 153
+NetDegree : 1 HS_QSFPDD_ASIC_20EN
+	J110 I : -66 94
+NetDegree : 1 HS_QSFPDD_ASIC_20EP
+	J110 I : -58 94
+NetDegree : 1 HS_QSFPDD_ASIC_20FN
+	J110 I : -62 123
+NetDegree : 1 HS_QSFPDD_ASIC_20FP
+	J110 I : -54 123
+NetDegree : 1 HS_QSFPDD_ASIC_20GN
+	J110 I : -42 94
+NetDegree : 1 HS_QSFPDD_ASIC_20GP
+	J110 I : -34 94
+NetDegree : 1 HS_QSFPDD_ASIC_20HN
+	J110 I : -38 123
+NetDegree : 1 HS_QSFPDD_ASIC_20HP
+	J110 I : -30 123
+NetDegree : 1 HS_QSFPDD_ASIC_21AN
+	J111 I : 66 65
+NetDegree : 1 HS_QSFPDD_ASIC_21AP
+	J111 I : 58 65
+NetDegree : 1 HS_QSFPDD_ASIC_21BN
+	J111 I : 62 153
+NetDegree : 1 HS_QSFPDD_ASIC_21BP
+	J111 I : 54 153
+NetDegree : 1 HS_QSFPDD_ASIC_21CN
+	J111 I : 42 65
+NetDegree : 1 HS_QSFPDD_ASIC_21CP
+	J111 I : 34 65
+NetDegree : 1 HS_QSFPDD_ASIC_21DN
+	J111 I : 38 153
+NetDegree : 1 HS_QSFPDD_ASIC_21DP
+	J111 I : 30 153
+NetDegree : 1 HS_QSFPDD_ASIC_21EN
+	J111 I : 66 94
+NetDegree : 1 HS_QSFPDD_ASIC_21EP
+	J111 I : 58 94
+NetDegree : 1 HS_QSFPDD_ASIC_21FN
+	J111 I : 62 123
+NetDegree : 1 HS_QSFPDD_ASIC_21FP
+	J111 I : 54 123
+NetDegree : 1 HS_QSFPDD_ASIC_21GN
+	J111 I : 42 94
+NetDegree : 1 HS_QSFPDD_ASIC_21GP
+	J111 I : 34 94
+NetDegree : 1 HS_QSFPDD_ASIC_21HN
+	J111 I : 38 123
+NetDegree : 1 HS_QSFPDD_ASIC_21HP
+	J111 I : 30 123
+NetDegree : 1 HS_QSFPDD_ASIC_22AN
+	J111 I : 66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_22AP
+	J111 I : 58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_22BN
+	J111 I : 62 35
+NetDegree : 1 HS_QSFPDD_ASIC_22BP
+	J111 I : 54 35
+NetDegree : 1 HS_QSFPDD_ASIC_22CN
+	J111 I : 42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_22CP
+	J111 I : 34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_22DN
+	J111 I : 38 35
+NetDegree : 1 HS_QSFPDD_ASIC_22DP
+	J111 I : 30 35
+NetDegree : 1 HS_QSFPDD_ASIC_22EN
+	J111 I : 66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_22EP
+	J111 I : 58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_22FN
+	J111 I : 62 6
+NetDegree : 1 HS_QSFPDD_ASIC_22FP
+	J111 I : 54 6
+NetDegree : 1 HS_QSFPDD_ASIC_22GN
+	J111 I : 42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_22GP
+	J111 I : 34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_22HN
+	J111 I : 38 6
+NetDegree : 1 HS_QSFPDD_ASIC_22HP
+	J111 I : 30 6
+NetDegree : 1 HS_QSFPDD_ASIC_23AN
+	J112 I : -66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_23AP
+	J112 I : -58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_23BN
+	J112 I : -62 35
+NetDegree : 1 HS_QSFPDD_ASIC_23BP
+	J112 I : -54 35
+NetDegree : 1 HS_QSFPDD_ASIC_23CN
+	J112 I : -42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_23CP
+	J112 I : -34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_23DN
+	J112 I : -38 35
+NetDegree : 1 HS_QSFPDD_ASIC_23DP
+	J112 I : -30 35
+NetDegree : 1 HS_QSFPDD_ASIC_23EN
+	J112 I : -66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_23EP
+	J112 I : -58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_23FN
+	J112 I : -62 6
+NetDegree : 1 HS_QSFPDD_ASIC_23FP
+	J112 I : -54 6
+NetDegree : 1 HS_QSFPDD_ASIC_23GN
+	J112 I : -42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_23GP
+	J112 I : -34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_23HN
+	J112 I : -38 6
+NetDegree : 1 HS_QSFPDD_ASIC_23HP
+	J112 I : -30 6
+NetDegree : 1 HS_QSFPDD_ASIC_24AN
+	J112 I : -66 65
+NetDegree : 1 HS_QSFPDD_ASIC_24AP
+	J112 I : -58 65
+NetDegree : 1 HS_QSFPDD_ASIC_24BN
+	J112 I : -62 153
+NetDegree : 1 HS_QSFPDD_ASIC_24BP
+	J112 I : -54 153
+NetDegree : 1 HS_QSFPDD_ASIC_24CN
+	J112 I : -42 65
+NetDegree : 1 HS_QSFPDD_ASIC_24CP
+	J112 I : -34 65
+NetDegree : 1 HS_QSFPDD_ASIC_24DN
+	J112 I : -38 153
+NetDegree : 1 HS_QSFPDD_ASIC_24DP
+	J112 I : -30 153
+NetDegree : 1 HS_QSFPDD_ASIC_24EN
+	J112 I : -66 94
+NetDegree : 1 HS_QSFPDD_ASIC_24EP
+	J112 I : -58 94
+NetDegree : 1 HS_QSFPDD_ASIC_24FN
+	J112 I : -62 123
+NetDegree : 1 HS_QSFPDD_ASIC_24FP
+	J112 I : -54 123
+NetDegree : 1 HS_QSFPDD_ASIC_24GN
+	J112 I : -42 94
+NetDegree : 1 HS_QSFPDD_ASIC_24GP
+	J112 I : -34 94
+NetDegree : 1 HS_QSFPDD_ASIC_24HN
+	J112 I : -38 123
+NetDegree : 1 HS_QSFPDD_ASIC_24HP
+	J112 I : -30 123
+NetDegree : 1 HS_QSFPDD_ASIC_25AN
+	J113 I : 66 65
+NetDegree : 1 HS_QSFPDD_ASIC_25AP
+	J113 I : 58 65
+NetDegree : 1 HS_QSFPDD_ASIC_25BN
+	J113 I : 62 153
+NetDegree : 1 HS_QSFPDD_ASIC_25BP
+	J113 I : 54 153
+NetDegree : 1 HS_QSFPDD_ASIC_25CN
+	J113 I : 42 65
+NetDegree : 1 HS_QSFPDD_ASIC_25CP
+	J113 I : 34 65
+NetDegree : 1 HS_QSFPDD_ASIC_25DN
+	J113 I : 38 153
+NetDegree : 1 HS_QSFPDD_ASIC_25DP
+	J113 I : 30 153
+NetDegree : 1 HS_QSFPDD_ASIC_25EN
+	J113 I : 66 94
+NetDegree : 1 HS_QSFPDD_ASIC_25EP
+	J113 I : 58 94
+NetDegree : 1 HS_QSFPDD_ASIC_25FN
+	J113 I : 62 123
+NetDegree : 1 HS_QSFPDD_ASIC_25FP
+	J113 I : 54 123
+NetDegree : 1 HS_QSFPDD_ASIC_25GN
+	J113 I : 42 94
+NetDegree : 1 HS_QSFPDD_ASIC_25GP
+	J113 I : 34 94
+NetDegree : 1 HS_QSFPDD_ASIC_25HN
+	J113 I : 38 123
+NetDegree : 1 HS_QSFPDD_ASIC_25HP
+	J113 I : 30 123
+NetDegree : 1 HS_QSFPDD_ASIC_26AN
+	J113 I : 66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_26AP
+	J113 I : 58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_26BN
+	J113 I : 62 35
+NetDegree : 1 HS_QSFPDD_ASIC_26BP
+	J113 I : 54 35
+NetDegree : 1 HS_QSFPDD_ASIC_26CN
+	J113 I : 42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_26CP
+	J113 I : 34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_26DN
+	J113 I : 38 35
+NetDegree : 1 HS_QSFPDD_ASIC_26DP
+	J113 I : 30 35
+NetDegree : 1 HS_QSFPDD_ASIC_26EN
+	J113 I : 66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_26EP
+	J113 I : 58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_26FN
+	J113 I : 62 6
+NetDegree : 1 HS_QSFPDD_ASIC_26FP
+	J113 I : 54 6
+NetDegree : 1 HS_QSFPDD_ASIC_26GN
+	J113 I : 42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_26GP
+	J113 I : 34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_26HN
+	J113 I : 38 6
+NetDegree : 1 HS_QSFPDD_ASIC_26HP
+	J113 I : 30 6
+NetDegree : 1 HS_QSFPDD_ASIC_27AN
+	J114 I : -66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_27AP
+	J114 I : -58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_27BN
+	J114 I : -62 35
+NetDegree : 1 HS_QSFPDD_ASIC_27BP
+	J114 I : -54 35
+NetDegree : 1 HS_QSFPDD_ASIC_27CN
+	J114 I : -42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_27CP
+	J114 I : -34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_27DN
+	J114 I : -38 35
+NetDegree : 1 HS_QSFPDD_ASIC_27DP
+	J114 I : -30 35
+NetDegree : 1 HS_QSFPDD_ASIC_27EN
+	J114 I : -66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_27EP
+	J114 I : -58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_27FN
+	J114 I : -62 6
+NetDegree : 1 HS_QSFPDD_ASIC_27FP
+	J114 I : -54 6
+NetDegree : 1 HS_QSFPDD_ASIC_27GN
+	J114 I : -42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_27GP
+	J114 I : -34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_27HN
+	J114 I : -38 6
+NetDegree : 1 HS_QSFPDD_ASIC_27HP
+	J114 I : -30 6
+NetDegree : 1 HS_QSFPDD_ASIC_28AN
+	J114 I : -66 65
+NetDegree : 1 HS_QSFPDD_ASIC_28AP
+	J114 I : -58 65
+NetDegree : 1 HS_QSFPDD_ASIC_28BN
+	J114 I : -62 153
+NetDegree : 1 HS_QSFPDD_ASIC_28BP
+	J114 I : -54 153
+NetDegree : 1 HS_QSFPDD_ASIC_28CN
+	J114 I : -42 65
+NetDegree : 1 HS_QSFPDD_ASIC_28CP
+	J114 I : -34 65
+NetDegree : 1 HS_QSFPDD_ASIC_28DN
+	J114 I : -38 153
+NetDegree : 1 HS_QSFPDD_ASIC_28DP
+	J114 I : -30 153
+NetDegree : 1 HS_QSFPDD_ASIC_28EN
+	J114 I : -66 94
+NetDegree : 1 HS_QSFPDD_ASIC_28EP
+	J114 I : -58 94
+NetDegree : 1 HS_QSFPDD_ASIC_28FN
+	J114 I : -62 123
+NetDegree : 1 HS_QSFPDD_ASIC_28FP
+	J114 I : -54 123
+NetDegree : 1 HS_QSFPDD_ASIC_28GN
+	J114 I : -42 94
+NetDegree : 1 HS_QSFPDD_ASIC_28GP
+	J114 I : -34 94
+NetDegree : 1 HS_QSFPDD_ASIC_28HN
+	J114 I : -38 123
+NetDegree : 1 HS_QSFPDD_ASIC_28HP
+	J114 I : -30 123
+NetDegree : 1 HS_QSFPDD_ASIC_29AN
+	J115 I : 66 65
+NetDegree : 1 HS_QSFPDD_ASIC_29AP
+	J115 I : 58 65
+NetDegree : 1 HS_QSFPDD_ASIC_29BN
+	J115 I : 62 153
+NetDegree : 1 HS_QSFPDD_ASIC_29BP
+	J115 I : 54 153
+NetDegree : 1 HS_QSFPDD_ASIC_29CN
+	J115 I : 42 65
+NetDegree : 1 HS_QSFPDD_ASIC_29CP
+	J115 I : 34 65
+NetDegree : 1 HS_QSFPDD_ASIC_29DN
+	J115 I : 38 153
+NetDegree : 1 HS_QSFPDD_ASIC_29DP
+	J115 I : 30 153
+NetDegree : 1 HS_QSFPDD_ASIC_29EN
+	J115 I : 66 94
+NetDegree : 1 HS_QSFPDD_ASIC_29EP
+	J115 I : 58 94
+NetDegree : 1 HS_QSFPDD_ASIC_29FN
+	J115 I : 62 123
+NetDegree : 1 HS_QSFPDD_ASIC_29FP
+	J115 I : 54 123
+NetDegree : 1 HS_QSFPDD_ASIC_29GN
+	J115 I : 42 94
+NetDegree : 1 HS_QSFPDD_ASIC_29GP
+	J115 I : 34 94
+NetDegree : 1 HS_QSFPDD_ASIC_29HN
+	J115 I : 38 123
+NetDegree : 1 HS_QSFPDD_ASIC_29HP
+	J115 I : 30 123
+NetDegree : 1 HS_QSFPDD_ASIC_30AN
+	J115 I : 66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_30AP
+	J115 I : 58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_30BN
+	J115 I : 62 35
+NetDegree : 1 HS_QSFPDD_ASIC_30BP
+	J115 I : 54 35
+NetDegree : 1 HS_QSFPDD_ASIC_30CN
+	J115 I : 42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_30CP
+	J115 I : 34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_30DN
+	J115 I : 38 35
+NetDegree : 1 HS_QSFPDD_ASIC_30DP
+	J115 I : 30 35
+NetDegree : 1 HS_QSFPDD_ASIC_30EN
+	J115 I : 66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_30EP
+	J115 I : 58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_30FN
+	J115 I : 62 6
+NetDegree : 1 HS_QSFPDD_ASIC_30FP
+	J115 I : 54 6
+NetDegree : 1 HS_QSFPDD_ASIC_30GN
+	J115 I : 42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_30GP
+	J115 I : 34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_30HN
+	J115 I : 38 6
+NetDegree : 1 HS_QSFPDD_ASIC_30HP
+	J115 I : 30 6
+NetDegree : 1 HS_QSFPDD_ASIC_31AN
+	J116 I : -66 -52
+NetDegree : 1 HS_QSFPDD_ASIC_31AP
+	J116 I : -58 -52
+NetDegree : 1 HS_QSFPDD_ASIC_31BN
+	J116 I : -62 35
+NetDegree : 1 HS_QSFPDD_ASIC_31BP
+	J116 I : -54 35
+NetDegree : 1 HS_QSFPDD_ASIC_31CN
+	J116 I : -42 -52
+NetDegree : 1 HS_QSFPDD_ASIC_31CP
+	J116 I : -34 -52
+NetDegree : 1 HS_QSFPDD_ASIC_31DN
+	J116 I : -38 35
+NetDegree : 1 HS_QSFPDD_ASIC_31DP
+	J116 I : -30 35
+NetDegree : 1 HS_QSFPDD_ASIC_31EN
+	J116 I : -66 -23
+NetDegree : 1 HS_QSFPDD_ASIC_31EP
+	J116 I : -58 -23
+NetDegree : 1 HS_QSFPDD_ASIC_31FN
+	J116 I : -62 6
+NetDegree : 1 HS_QSFPDD_ASIC_31FP
+	J116 I : -54 6
+NetDegree : 1 HS_QSFPDD_ASIC_31GN
+	J116 I : -42 -23
+NetDegree : 1 HS_QSFPDD_ASIC_31GP
+	J116 I : -34 -23
+NetDegree : 1 HS_QSFPDD_ASIC_31HN
+	J116 I : -38 6
+NetDegree : 1 HS_QSFPDD_ASIC_31HP
+	J116 I : -30 6
+NetDegree : 1 HS_QSFPDD_ASIC_32AN
+	J116 I : -66 65
+NetDegree : 1 HS_QSFPDD_ASIC_32AP
+	J116 I : -58 65
+NetDegree : 1 HS_QSFPDD_ASIC_32BN
+	J116 I : -62 153
+NetDegree : 1 HS_QSFPDD_ASIC_32BP
+	J116 I : -54 153
+NetDegree : 1 HS_QSFPDD_ASIC_32CN
+	J116 I : -42 65
+NetDegree : 1 HS_QSFPDD_ASIC_32CP
+	J116 I : -34 65
+NetDegree : 1 HS_QSFPDD_ASIC_32DN
+	J116 I : -38 153
+NetDegree : 1 HS_QSFPDD_ASIC_32DP
+	J116 I : -30 153
+NetDegree : 1 HS_QSFPDD_ASIC_32EN
+	J116 I : -66 94
+NetDegree : 1 HS_QSFPDD_ASIC_32EP
+	J116 I : -58 94
+NetDegree : 1 HS_QSFPDD_ASIC_32FN
+	J116 I : -62 123
+NetDegree : 1 HS_QSFPDD_ASIC_32FP
+	J116 I : -54 123
+NetDegree : 1 HS_QSFPDD_ASIC_32GN
+	J116 I : -42 94
+NetDegree : 1 HS_QSFPDD_ASIC_32GP
+	J116 I : -34 94
+NetDegree : 1 HS_QSFPDD_ASIC_32HN
+	J116 I : -38 123
+NetDegree : 1 HS_QSFPDD_ASIC_32HP
+	J116 I : -30 123
+NetDegree : 2 I2C_SCL_QSFPDD_P05
+	J103 I : 10 65
+	R235 I : 4 0
+NetDegree : 2 I2C_SCL_QSFPDD_P06
+	R234 I : 0 -4
+	J103 I : 10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P07
+	R244 I : -4 0
+	J104 I : -10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P08
+	R245 I : -4 0
+	J104 I : -10 65
+NetDegree : 2 I2C_SCL_QSFPDD_P09
+	J105 I : 10 65
+	R255 I : 4 0
+NetDegree : 2 I2C_SCL_QSFPDD_P10
+	R254 I : 0 -4
+	J105 I : 10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P11
+	R264 I : -4 0
+	J106 I : -10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P12
+	R265 I : -4 0
+	J106 I : -10 65
+NetDegree : 2 I2C_SCL_QSFPDD_P13
+	J107 I : 10 65
+	R275 I : 4 0
+NetDegree : 2 I2C_SCL_QSFPDD_P14
+	R274 I : 0 -4
+	J107 I : 10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P15
+	R297 I : -4 0
+	J108 I : -10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P16
+	R298 I : -4 0
+	J108 I : -10 65
+NetDegree : 2 I2C_SCL_QSFPDD_P17
+	J109 I : 10 65
+	R308 I : 4 0
+NetDegree : 2 I2C_SCL_QSFPDD_P18
+	R307 I : 0 -4
+	J109 I : 10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P19
+	R317 I : -4 0
+	J110 I : -10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P20
+	R318 I : -4 0
+	J110 I : -10 65
+NetDegree : 2 I2C_SCL_QSFPDD_P21
+	J111 I : 10 65
+	R328 I : 4 0
+NetDegree : 2 I2C_SCL_QSFPDD_P22
+	R327 I : 0 -4
+	J111 I : 10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P23
+	R337 I : -4 0
+	J112 I : -10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P24
+	R338 I : -4 0
+	J112 I : -10 65
+NetDegree : 2 I2C_SCL_QSFPDD_P25
+	J113 I : 10 65
+	R351 I : 4 0
+NetDegree : 2 I2C_SCL_QSFPDD_P26
+	R350 I : 0 -4
+	J113 I : 10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P27
+	R363 I : -4 0
+	J114 I : -10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P28
+	R370 I : -4 0
+	J114 I : -10 65
+NetDegree : 2 I2C_SCL_QSFPDD_P29
+	J115 I : 10 65
+	R390 I : 4 0
+NetDegree : 2 I2C_SCL_QSFPDD_P30
+	R389 I : 0 -4
+	J115 I : 10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P31
+	R428 I : -4 0
+	J116 I : -10 -52
+NetDegree : 2 I2C_SCL_QSFPDD_P32
+	R429 I : -4 0
+	J116 I : -10 65
+NetDegree : 2 I2C_SDA_QSFPDD_P05
+	J103 I : 18 65
+	R237 I : 4 0
+NetDegree : 2 I2C_SDA_QSFPDD_P06
+	R236 I : 0 -4
+	J103 I : 18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P07
+	R246 I : -4 0
+	J104 I : -18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P08
+	R247 I : -4 0
+	J104 I : -18 65
+NetDegree : 2 I2C_SDA_QSFPDD_P09
+	J105 I : 18 65
+	R257 I : 4 0
+NetDegree : 2 I2C_SDA_QSFPDD_P10
+	R256 I : 0 -4
+	J105 I : 18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P11
+	R266 I : -4 0
+	J106 I : -18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P12
+	R267 I : -4 0
+	J106 I : -18 65
+NetDegree : 2 I2C_SDA_QSFPDD_P13
+	J107 I : 18 65
+	R283 I : 4 0
+NetDegree : 2 I2C_SDA_QSFPDD_P14
+	R280 I : 0 -4
+	J107 I : 18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P15
+	R299 I : -4 0
+	J108 I : -18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P16
+	R300 I : -4 0
+	J108 I : -18 65
+NetDegree : 2 I2C_SDA_QSFPDD_P17
+	J109 I : 18 65
+	R310 I : 4 0
+NetDegree : 2 I2C_SDA_QSFPDD_P18
+	R309 I : 0 -4
+	J109 I : 18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P19
+	R319 I : -4 0
+	J110 I : -18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P20
+	R320 I : -4 0
+	J110 I : -18 65
+NetDegree : 2 I2C_SDA_QSFPDD_P21
+	J111 I : 18 65
+	R330 I : 4 0
+NetDegree : 2 I2C_SDA_QSFPDD_P22
+	R329 I : 0 -4
+	J111 I : 18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P23
+	R339 I : -4 0
+	J112 I : -18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P24
+	R340 I : -4 0
+	J112 I : -18 65
+NetDegree : 2 I2C_SDA_QSFPDD_P25
+	J113 I : 18 65
+	R353 I : 4 0
+NetDegree : 2 I2C_SDA_QSFPDD_P26
+	R352 I : 0 -4
+	J113 I : 18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P27
+	R379 I : -4 0
+	J114 I : -18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P28
+	R380 I : -4 0
+	J114 I : -18 65
+NetDegree : 2 I2C_SDA_QSFPDD_P29
+	J115 I : 18 65
+	R392 I : 4 0
+NetDegree : 2 I2C_SDA_QSFPDD_P30
+	R391 I : 0 -4
+	J115 I : 18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P31
+	R438 I : -4 0
+	J116 I : -18 -52
+NetDegree : 2 I2C_SDA_QSFPDD_P32
+	R439 I : -4 0
+	J116 I : -18 65
+NetDegree : 1 L_RSVD_P05
+	J103 I : 6 123
+NetDegree : 1 L_RSVD_P06
+	J103 I : 6 6
+NetDegree : 1 L_RSVD_P07
+	J104 I : -6 6
+NetDegree : 1 L_RSVD_P08
+	J104 I : -6 123
+NetDegree : 1 L_RSVD_P09
+	J105 I : 6 123
+NetDegree : 1 L_RSVD_P10
+	J105 I : 6 6
+NetDegree : 1 L_RSVD_P11
+	J106 I : -6 6
+NetDegree : 1 L_RSVD_P12
+	J106 I : -6 123
+NetDegree : 1 L_RSVD_P13
+	J107 I : 6 123
+NetDegree : 1 L_RSVD_P14
+	J107 I : 6 6
+NetDegree : 1 L_RSVD_P15
+	J108 I : -6 6
+NetDegree : 1 L_RSVD_P16
+	J108 I : -6 123
+NetDegree : 1 L_RSVD_P17
+	J109 I : 6 123
+NetDegree : 1 L_RSVD_P18
+	J109 I : 6 6
+NetDegree : 1 L_RSVD_P19
+	J110 I : -6 6
+NetDegree : 1 L_RSVD_P20
+	J110 I : -6 123
+NetDegree : 1 L_RSVD_P21
+	J111 I : 6 123
+NetDegree : 1 L_RSVD_P22
+	J111 I : 6 6
+NetDegree : 1 L_RSVD_P23
+	J112 I : -6 6
+NetDegree : 1 L_RSVD_P24
+	J112 I : -6 123
+NetDegree : 1 L_RSVD_P25
+	J113 I : 6 123
+NetDegree : 1 L_RSVD_P26
+	J113 I : 6 6
+NetDegree : 1 L_RSVD_P27
+	J114 I : -6 6
+NetDegree : 1 L_RSVD_P28
+	J114 I : -6 123
+NetDegree : 1 L_RSVD_P29
+	J115 I : 6 123
+NetDegree : 1 L_RSVD_P30
+	J115 I : 6 6
+NetDegree : 1 L_RSVD_P31
+	J116 I : -6 6
+NetDegree : 1 L_RSVD_P32
+	J116 I : -6 123
+NetDegree : 1 L_VS1_QSFPDD_P05
+	J103 I : -6 94
+NetDegree : 1 L_VS1_QSFPDD_P06
+	J103 I : -6 -23
+NetDegree : 1 L_VS1_QSFPDD_P07
+	J104 I : 6 -23
+NetDegree : 1 L_VS1_QSFPDD_P08
+	J104 I : 6 94
+NetDegree : 1 L_VS1_QSFPDD_P09
+	J105 I : -6 94
+NetDegree : 1 L_VS1_QSFPDD_P10
+	J105 I : -6 -23
+NetDegree : 1 L_VS1_QSFPDD_P11
+	J106 I : 6 -23
+NetDegree : 1 L_VS1_QSFPDD_P12
+	J106 I : 6 94
+NetDegree : 1 L_VS1_QSFPDD_P13
+	J107 I : -6 94
+NetDegree : 1 L_VS1_QSFPDD_P14
+	J107 I : -6 -23
+NetDegree : 1 L_VS1_QSFPDD_P15
+	J108 I : 6 -23
+NetDegree : 1 L_VS1_QSFPDD_P16
+	J108 I : 6 94
+NetDegree : 1 L_VS1_QSFPDD_P17
+	J109 I : -6 94
+NetDegree : 1 L_VS1_QSFPDD_P18
+	J109 I : -6 -23
+NetDegree : 1 L_VS1_QSFPDD_P19
+	J110 I : 6 -23
+NetDegree : 1 L_VS1_QSFPDD_P20
+	J110 I : 6 94
+NetDegree : 1 L_VS1_QSFPDD_P21
+	J111 I : -6 94
+NetDegree : 1 L_VS1_QSFPDD_P22
+	J111 I : -6 -23
+NetDegree : 1 L_VS1_QSFPDD_P23
+	J112 I : 6 -23
+NetDegree : 1 L_VS1_QSFPDD_P24
+	J112 I : 6 94
+NetDegree : 1 L_VS1_QSFPDD_P25
+	J113 I : -6 94
+NetDegree : 1 L_VS1_QSFPDD_P26
+	J113 I : -6 -23
+NetDegree : 1 L_VS1_QSFPDD_P27
+	J114 I : 6 -23
+NetDegree : 1 L_VS1_QSFPDD_P28
+	J114 I : 6 94
+NetDegree : 1 L_VS1_QSFPDD_P29
+	J115 I : -6 94
+NetDegree : 1 L_VS1_QSFPDD_P30
+	J115 I : -6 -23
+NetDegree : 1 L_VS1_QSFPDD_P31
+	J116 I : 6 -23
+NetDegree : 1 L_VS1_QSFPDD_P32
+	J116 I : 6 94
+NetDegree : 1 L_VS2_QSFPDD_P05
+	J103 I : 10 94
+NetDegree : 1 L_VS2_QSFPDD_P06
+	J103 I : 10 -23
+NetDegree : 1 L_VS2_QSFPDD_P07
+	J104 I : -10 -23
+NetDegree : 1 L_VS2_QSFPDD_P08
+	J104 I : -10 94
+NetDegree : 1 L_VS2_QSFPDD_P09
+	J105 I : 10 94
+NetDegree : 1 L_VS2_QSFPDD_P10
+	J105 I : 10 -23
+NetDegree : 1 L_VS2_QSFPDD_P11
+	J106 I : -10 -23
+NetDegree : 1 L_VS2_QSFPDD_P12
+	J106 I : -10 94
+NetDegree : 1 L_VS2_QSFPDD_P13
+	J107 I : 10 94
+NetDegree : 1 L_VS2_QSFPDD_P14
+	J107 I : 10 -23
+NetDegree : 1 L_VS2_QSFPDD_P15
+	J108 I : -10 -23
+NetDegree : 1 L_VS2_QSFPDD_P16
+	J108 I : -10 94
+NetDegree : 1 L_VS2_QSFPDD_P17
+	J109 I : 10 94
+NetDegree : 1 L_VS2_QSFPDD_P18
+	J109 I : 10 -23
+NetDegree : 1 L_VS2_QSFPDD_P19
+	J110 I : -10 -23
+NetDegree : 1 L_VS2_QSFPDD_P20
+	J110 I : -10 94
+NetDegree : 1 L_VS2_QSFPDD_P21
+	J111 I : 10 94
+NetDegree : 1 L_VS2_QSFPDD_P22
+	J111 I : 10 -23
+NetDegree : 1 L_VS2_QSFPDD_P23
+	J112 I : -10 -23
+NetDegree : 1 L_VS2_QSFPDD_P24
+	J112 I : -10 94
+NetDegree : 1 L_VS2_QSFPDD_P25
+	J113 I : 10 94
+NetDegree : 1 L_VS2_QSFPDD_P26
+	J113 I : 10 -23
+NetDegree : 1 L_VS2_QSFPDD_P27
+	J114 I : -10 -23
+NetDegree : 1 L_VS2_QSFPDD_P28
+	J114 I : -10 94
+NetDegree : 1 L_VS2_QSFPDD_P29
+	J115 I : 10 94
+NetDegree : 1 L_VS2_QSFPDD_P30
+	J115 I : 10 -23
+NetDegree : 1 L_VS2_QSFPDD_P31
+	J116 I : -10 -23
+NetDegree : 1 L_VS2_QSFPDD_P32
+	J116 I : -10 94
+NetDegree : 1 L_VS3_QSFPDD_P05
+	J103 I : 18 94
+NetDegree : 1 L_VS3_QSFPDD_P06
+	J103 I : 18 -23
+NetDegree : 1 L_VS3_QSFPDD_P07
+	J104 I : -18 -23
+NetDegree : 1 L_VS3_QSFPDD_P08
+	J104 I : -18 94
+NetDegree : 1 L_VS3_QSFPDD_P09
+	J105 I : 18 94
+NetDegree : 1 L_VS3_QSFPDD_P10
+	J105 I : 18 -23
+NetDegree : 1 L_VS3_QSFPDD_P11
+	J106 I : -18 -23
+NetDegree : 1 L_VS3_QSFPDD_P12
+	J106 I : -18 94
+NetDegree : 1 L_VS3_QSFPDD_P13
+	J107 I : 18 94
+NetDegree : 1 L_VS3_QSFPDD_P14
+	J107 I : 18 -23
+NetDegree : 1 L_VS3_QSFPDD_P15
+	J108 I : -18 -23
+NetDegree : 1 L_VS3_QSFPDD_P16
+	J108 I : -18 94
+NetDegree : 1 L_VS3_QSFPDD_P17
+	J109 I : 18 94
+NetDegree : 1 L_VS3_QSFPDD_P18
+	J109 I : 18 -23
+NetDegree : 1 L_VS3_QSFPDD_P19
+	J110 I : -18 -23
+NetDegree : 1 L_VS3_QSFPDD_P20
+	J110 I : -18 94
+NetDegree : 1 L_VS3_QSFPDD_P21
+	J111 I : 18 94
+NetDegree : 1 L_VS3_QSFPDD_P22
+	J111 I : 18 -23
+NetDegree : 1 L_VS3_QSFPDD_P23
+	J112 I : -18 -23
+NetDegree : 1 L_VS3_QSFPDD_P24
+	J112 I : -18 94
+NetDegree : 1 L_VS3_QSFPDD_P25
+	J113 I : 18 94
+NetDegree : 1 L_VS3_QSFPDD_P26
+	J113 I : 18 -23
+NetDegree : 1 L_VS3_QSFPDD_P27
+	J114 I : -18 -23
+NetDegree : 1 L_VS3_QSFPDD_P28
+	J114 I : -18 94
+NetDegree : 1 L_VS3_QSFPDD_P29
+	J115 I : 18 94
+NetDegree : 1 L_VS3_QSFPDD_P30
+	J115 I : 18 -23
+NetDegree : 1 L_VS3_QSFPDD_P31
+	J116 I : -18 -23
+NetDegree : 1 L_VS3_QSFPDD_P32
+	J116 I : -18 94
+NetDegree : 1 L_VS4_QSFPDD_P05
+	J103 I : -14 94
+NetDegree : 1 L_VS4_QSFPDD_P06
+	J103 I : -14 -23
+NetDegree : 1 L_VS4_QSFPDD_P07
+	J104 I : 14 -23
+NetDegree : 1 L_VS4_QSFPDD_P08
+	J104 I : 14 94
+NetDegree : 1 L_VS4_QSFPDD_P09
+	J105 I : -14 94
+NetDegree : 1 L_VS4_QSFPDD_P10
+	J105 I : -14 -23
+NetDegree : 1 L_VS4_QSFPDD_P11
+	J106 I : 14 -23
+NetDegree : 1 L_VS4_QSFPDD_P12
+	J106 I : 14 94
+NetDegree : 1 L_VS4_QSFPDD_P13
+	J107 I : -14 94
+NetDegree : 1 L_VS4_QSFPDD_P14
+	J107 I : -14 -23
+NetDegree : 1 L_VS4_QSFPDD_P15
+	J108 I : 14 -23
+NetDegree : 1 L_VS4_QSFPDD_P16
+	J108 I : 14 94
+NetDegree : 1 L_VS4_QSFPDD_P17
+	J109 I : -14 94
+NetDegree : 1 L_VS4_QSFPDD_P18
+	J109 I : -14 -23
+NetDegree : 1 L_VS4_QSFPDD_P19
+	J110 I : 14 -23
+NetDegree : 1 L_VS4_QSFPDD_P20
+	J110 I : 14 94
+NetDegree : 1 L_VS4_QSFPDD_P21
+	J111 I : -14 94
+NetDegree : 1 L_VS4_QSFPDD_P22
+	J111 I : -14 -23
+NetDegree : 1 L_VS4_QSFPDD_P23
+	J112 I : 14 -23
+NetDegree : 1 L_VS4_QSFPDD_P24
+	J112 I : 14 94
+NetDegree : 1 L_VS4_QSFPDD_P25
+	J113 I : -14 94
+NetDegree : 1 L_VS4_QSFPDD_P26
+	J113 I : -14 -23
+NetDegree : 1 L_VS4_QSFPDD_P27
+	J114 I : 14 -23
+NetDegree : 1 L_VS4_QSFPDD_P28
+	J114 I : 14 94
+NetDegree : 1 L_VS4_QSFPDD_P29
+	J115 I : -14 94
+NetDegree : 1 L_VS4_QSFPDD_P30
+	J115 I : -14 -23
+NetDegree : 1 L_VS4_QSFPDD_P31
+	J116 I : 14 -23
+NetDegree : 1 L_VS4_QSFPDD_P32
+	J116 I : 14 94
+NetDegree : 1 SNN_CAGE_P05_1
+	J203 I : -95 78
+NetDegree : 1 SNN_CAGE_P05_10
+	J203 I : 95 118
+NetDegree : 1 SNN_CAGE_P05_2
+	J203 I : -95 158
+NetDegree : 1 SNN_CAGE_P05_3
+	J203 I : -95 238
+NetDegree : 1 SNN_CAGE_P05_4
+	J203 I : -95 318
+NetDegree : 1 SNN_CAGE_P05_5
+	J203 I : -50 432
+NetDegree : 1 SNN_CAGE_P05_6
+	J203 I : 22 432
+NetDegree : 1 SNN_CAGE_P05_7
+	J203 I : 95 358
+NetDegree : 1 SNN_CAGE_P05_8
+	J203 I : 95 278
+NetDegree : 1 SNN_CAGE_P05_9
+	J203 I : 95 198
+NetDegree : 1 SNN_CAGE_P07_1
+	J204 I : 95 78
+NetDegree : 1 SNN_CAGE_P07_10
+	J204 I : -95 118
+NetDegree : 1 SNN_CAGE_P07_2
+	J204 I : 95 158
+NetDegree : 1 SNN_CAGE_P07_3
+	J204 I : 95 238
+NetDegree : 1 SNN_CAGE_P07_4
+	J204 I : 95 318
+NetDegree : 1 SNN_CAGE_P07_5
+	J204 I : 50 432
+NetDegree : 1 SNN_CAGE_P07_6
+	J204 I : -22 432
+NetDegree : 1 SNN_CAGE_P07_7
+	J204 I : -95 358
+NetDegree : 1 SNN_CAGE_P07_8
+	J204 I : -95 278
+NetDegree : 1 SNN_CAGE_P07_9
+	J204 I : -95 198
+NetDegree : 1 SNN_CAGE_P09_1
+	J205 I : -95 78
+NetDegree : 1 SNN_CAGE_P09_10
+	J205 I : 95 118
+NetDegree : 1 SNN_CAGE_P09_2
+	J205 I : -95 158
+NetDegree : 1 SNN_CAGE_P09_3
+	J205 I : -95 238
+NetDegree : 1 SNN_CAGE_P09_4
+	J205 I : -95 318
+NetDegree : 1 SNN_CAGE_P09_5
+	J205 I : -50 432
+NetDegree : 1 SNN_CAGE_P09_6
+	J205 I : 22 432
+NetDegree : 1 SNN_CAGE_P09_7
+	J205 I : 95 358
+NetDegree : 1 SNN_CAGE_P09_8
+	J205 I : 95 278
+NetDegree : 1 SNN_CAGE_P09_9
+	J205 I : 95 198
+NetDegree : 1 SNN_CAGE_P11_1
+	J206 I : 95 78
+NetDegree : 1 SNN_CAGE_P11_10
+	J206 I : -95 118
+NetDegree : 1 SNN_CAGE_P11_2
+	J206 I : 95 158
+NetDegree : 1 SNN_CAGE_P11_3
+	J206 I : 95 238
+NetDegree : 1 SNN_CAGE_P11_4
+	J206 I : 95 318
+NetDegree : 1 SNN_CAGE_P11_5
+	J206 I : 50 432
+NetDegree : 1 SNN_CAGE_P11_6
+	J206 I : -22 432
+NetDegree : 1 SNN_CAGE_P11_7
+	J206 I : -95 358
+NetDegree : 1 SNN_CAGE_P11_8
+	J206 I : -95 278
+NetDegree : 1 SNN_CAGE_P11_9
+	J206 I : -95 198
+NetDegree : 1 SNN_CAGE_P13_1
+	J207 I : -95 78
+NetDegree : 1 SNN_CAGE_P13_10
+	J207 I : 95 118
+NetDegree : 1 SNN_CAGE_P13_2
+	J207 I : -95 158
+NetDegree : 1 SNN_CAGE_P13_3
+	J207 I : -95 238
+NetDegree : 1 SNN_CAGE_P13_4
+	J207 I : -95 318
+NetDegree : 1 SNN_CAGE_P13_5
+	J207 I : -50 432
+NetDegree : 1 SNN_CAGE_P13_6
+	J207 I : 22 432
+NetDegree : 1 SNN_CAGE_P13_7
+	J207 I : 95 358
+NetDegree : 1 SNN_CAGE_P13_8
+	J207 I : 95 278
+NetDegree : 1 SNN_CAGE_P13_9
+	J207 I : 95 198
+NetDegree : 1 SNN_CAGE_P15_1
+	J208 I : 95 78
+NetDegree : 1 SNN_CAGE_P15_10
+	J208 I : -95 118
+NetDegree : 1 SNN_CAGE_P15_2
+	J208 I : 95 158
+NetDegree : 1 SNN_CAGE_P15_3
+	J208 I : 95 238
+NetDegree : 1 SNN_CAGE_P15_4
+	J208 I : 95 318
+NetDegree : 1 SNN_CAGE_P15_5
+	J208 I : 50 432
+NetDegree : 1 SNN_CAGE_P15_6
+	J208 I : -22 432
+NetDegree : 1 SNN_CAGE_P15_7
+	J208 I : -95 358
+NetDegree : 1 SNN_CAGE_P15_8
+	J208 I : -95 278
+NetDegree : 1 SNN_CAGE_P15_9
+	J208 I : -95 198
+NetDegree : 1 SNN_CAGE_P17_1
+	J209 I : -95 78
+NetDegree : 1 SNN_CAGE_P17_10
+	J209 I : 95 118
+NetDegree : 1 SNN_CAGE_P17_2
+	J209 I : -95 158
+NetDegree : 1 SNN_CAGE_P17_3
+	J209 I : -95 238
+NetDegree : 1 SNN_CAGE_P17_4
+	J209 I : -95 318
+NetDegree : 1 SNN_CAGE_P17_5
+	J209 I : -50 432
+NetDegree : 1 SNN_CAGE_P17_6
+	J209 I : 22 432
+NetDegree : 1 SNN_CAGE_P17_7
+	J209 I : 95 358
+NetDegree : 1 SNN_CAGE_P17_8
+	J209 I : 95 278
+NetDegree : 1 SNN_CAGE_P17_9
+	J209 I : 95 198
+NetDegree : 1 SNN_CAGE_P19_1
+	J210 I : 95 78
+NetDegree : 1 SNN_CAGE_P19_10
+	J210 I : -95 118
+NetDegree : 1 SNN_CAGE_P19_2
+	J210 I : 95 158
+NetDegree : 1 SNN_CAGE_P19_3
+	J210 I : 95 238
+NetDegree : 1 SNN_CAGE_P19_4
+	J210 I : 95 318
+NetDegree : 1 SNN_CAGE_P19_5
+	J210 I : 50 432
+NetDegree : 1 SNN_CAGE_P19_6
+	J210 I : -22 432
+NetDegree : 1 SNN_CAGE_P19_7
+	J210 I : -95 358
+NetDegree : 1 SNN_CAGE_P19_8
+	J210 I : -95 278
+NetDegree : 1 SNN_CAGE_P19_9
+	J210 I : -95 198
+NetDegree : 1 SNN_CAGE_P21_1
+	J211 I : -95 78
+NetDegree : 1 SNN_CAGE_P21_10
+	J211 I : 95 118
+NetDegree : 1 SNN_CAGE_P21_2
+	J211 I : -95 158
+NetDegree : 1 SNN_CAGE_P21_3
+	J211 I : -95 238
+NetDegree : 1 SNN_CAGE_P21_4
+	J211 I : -95 318
+NetDegree : 1 SNN_CAGE_P21_5
+	J211 I : -50 432
+NetDegree : 1 SNN_CAGE_P21_6
+	J211 I : 22 432
+NetDegree : 1 SNN_CAGE_P21_7
+	J211 I : 95 358
+NetDegree : 1 SNN_CAGE_P21_8
+	J211 I : 95 278
+NetDegree : 1 SNN_CAGE_P21_9
+	J211 I : 95 198
+NetDegree : 1 SNN_CAGE_P23_1
+	J212 I : 95 78
+NetDegree : 1 SNN_CAGE_P23_10
+	J212 I : -95 118
+NetDegree : 1 SNN_CAGE_P23_2
+	J212 I : 95 158
+NetDegree : 1 SNN_CAGE_P23_3
+	J212 I : 95 238
+NetDegree : 1 SNN_CAGE_P23_4
+	J212 I : 95 318
+NetDegree : 1 SNN_CAGE_P23_5
+	J212 I : 50 432
+NetDegree : 1 SNN_CAGE_P23_6
+	J212 I : -22 432
+NetDegree : 1 SNN_CAGE_P23_7
+	J212 I : -95 358
+NetDegree : 1 SNN_CAGE_P23_8
+	J212 I : -95 278
+NetDegree : 1 SNN_CAGE_P23_9
+	J212 I : -95 198
+NetDegree : 1 SNN_CAGE_P25_1
+	J213 I : -95 78
+NetDegree : 1 SNN_CAGE_P25_10
+	J213 I : 95 118
+NetDegree : 1 SNN_CAGE_P25_2
+	J213 I : -95 158
+NetDegree : 1 SNN_CAGE_P25_3
+	J213 I : -95 238
+NetDegree : 1 SNN_CAGE_P25_4
+	J213 I : -95 318
+NetDegree : 1 SNN_CAGE_P25_5
+	J213 I : -50 432
+NetDegree : 1 SNN_CAGE_P25_6
+	J213 I : 22 432
+NetDegree : 1 SNN_CAGE_P25_7
+	J213 I : 95 358
+NetDegree : 1 SNN_CAGE_P25_8
+	J213 I : 95 278
+NetDegree : 1 SNN_CAGE_P25_9
+	J213 I : 95 198
+NetDegree : 1 SNN_CAGE_P27_1
+	J214 I : 95 78
+NetDegree : 1 SNN_CAGE_P27_10
+	J214 I : -95 118
+NetDegree : 1 SNN_CAGE_P27_2
+	J214 I : 95 158
+NetDegree : 1 SNN_CAGE_P27_3
+	J214 I : 95 238
+NetDegree : 1 SNN_CAGE_P27_4
+	J214 I : 95 318
+NetDegree : 1 SNN_CAGE_P27_5
+	J214 I : 50 432
+NetDegree : 1 SNN_CAGE_P27_6
+	J214 I : -22 432
+NetDegree : 1 SNN_CAGE_P27_7
+	J214 I : -95 358
+NetDegree : 1 SNN_CAGE_P27_8
+	J214 I : -95 278
+NetDegree : 1 SNN_CAGE_P27_9
+	J214 I : -95 198
+NetDegree : 1 SNN_CAGE_P29_1
+	J215 I : -95 78
+NetDegree : 1 SNN_CAGE_P29_10
+	J215 I : 95 118
+NetDegree : 1 SNN_CAGE_P29_2
+	J215 I : -95 158
+NetDegree : 1 SNN_CAGE_P29_3
+	J215 I : -95 238
+NetDegree : 1 SNN_CAGE_P29_4
+	J215 I : -95 318
+NetDegree : 1 SNN_CAGE_P29_5
+	J215 I : -50 432
+NetDegree : 1 SNN_CAGE_P29_6
+	J215 I : 22 432
+NetDegree : 1 SNN_CAGE_P29_7
+	J215 I : 95 358
+NetDegree : 1 SNN_CAGE_P29_8
+	J215 I : 95 278
+NetDegree : 1 SNN_CAGE_P29_9
+	J215 I : 95 198
+NetDegree : 1 SNN_CAGE_P31_1
+	J216 I : 95 78
+NetDegree : 1 SNN_CAGE_P31_10
+	J216 I : -95 118
+NetDegree : 1 SNN_CAGE_P31_2
+	J216 I : 95 158
+NetDegree : 1 SNN_CAGE_P31_3
+	J216 I : 95 238
+NetDegree : 1 SNN_CAGE_P31_4
+	J216 I : 95 318
+NetDegree : 1 SNN_CAGE_P31_5
+	J216 I : 50 432
+NetDegree : 1 SNN_CAGE_P31_6
+	J216 I : -22 432
+NetDegree : 1 SNN_CAGE_P31_7
+	J216 I : -95 358
+NetDegree : 1 SNN_CAGE_P31_8
+	J216 I : -95 278
+NetDegree : 1 SNN_CAGE_P31_9
+	J216 I : -95 198
+NetDegree : 1 SNN_QSFPDD_P05
+	J103 I : 14 123
+NetDegree : 1 SNN_QSFPDD_P06
+	J103 I : 14 6
+NetDegree : 1 SNN_QSFPDD_P07
+	J104 I : -14 6
+NetDegree : 1 SNN_QSFPDD_P08
+	J104 I : -14 123
+NetDegree : 1 SNN_QSFPDD_P09
+	J105 I : 14 123
+NetDegree : 1 SNN_QSFPDD_P10
+	J105 I : 14 6
+NetDegree : 1 SNN_QSFPDD_P11
+	J106 I : -14 6
+NetDegree : 1 SNN_QSFPDD_P12
+	J106 I : -14 123
+NetDegree : 1 SNN_QSFPDD_P13
+	J107 I : 14 123
+NetDegree : 1 SNN_QSFPDD_P14
+	J107 I : 14 6
+NetDegree : 1 SNN_QSFPDD_P15
+	J108 I : -14 6
+NetDegree : 1 SNN_QSFPDD_P16
+	J108 I : -14 123
+NetDegree : 1 SNN_QSFPDD_P17
+	J109 I : 14 123
+NetDegree : 1 SNN_QSFPDD_P18
+	J109 I : 14 6
+NetDegree : 1 SNN_QSFPDD_P19
+	J110 I : -14 6
+NetDegree : 1 SNN_QSFPDD_P20
+	J110 I : -14 123
+NetDegree : 1 SNN_QSFPDD_P21
+	J111 I : 14 123
+NetDegree : 1 SNN_QSFPDD_P22
+	J111 I : 14 6
+NetDegree : 1 SNN_QSFPDD_P23
+	J112 I : -14 6
+NetDegree : 1 SNN_QSFPDD_P24
+	J112 I : -14 123
+NetDegree : 1 SNN_QSFPDD_P25
+	J113 I : 14 123
+NetDegree : 1 SNN_QSFPDD_P26
+	J113 I : 14 6
+NetDegree : 1 SNN_QSFPDD_P27
+	J114 I : -14 6
+NetDegree : 1 SNN_QSFPDD_P28
+	J114 I : -14 123
+NetDegree : 1 SNN_QSFPDD_P29
+	J115 I : 14 123
+NetDegree : 1 SNN_QSFPDD_P30
+	J115 I : 14 6
+NetDegree : 1 SNN_QSFPDD_P31
+	J116 I : -14 6
+NetDegree : 1 SNN_QSFPDD_P32
+	J116 I : -14 123
+NetDegree : 1 S_RESET_P05_L
+	J103 I : -6 65
+NetDegree : 1 S_RESET_P06_L
+	J103 I : -6 -52
+NetDegree : 1 S_RESET_P07_L
+	J104 I : 6 -52
+NetDegree : 1 S_RESET_P08_L
+	J104 I : 6 65
+NetDegree : 1 S_RESET_P09_L
+	J105 I : -6 65
+NetDegree : 1 S_RESET_P10_L
+	J105 I : -6 -52
+NetDegree : 1 S_RESET_P11_L
+	J106 I : 6 -52
+NetDegree : 1 S_RESET_P12_L
+	J106 I : 6 65
+NetDegree : 1 S_RESET_P13_L
+	J107 I : -6 65
+NetDegree : 1 S_RESET_P14_L
+	J107 I : -6 -52
+NetDegree : 1 S_RESET_P15_L
+	J108 I : 6 -52
+NetDegree : 1 S_RESET_P16_L
+	J108 I : 6 65
+NetDegree : 1 S_RESET_P17_L
+	J109 I : -6 65
+NetDegree : 1 S_RESET_P18_L
+	J109 I : -6 -52
+NetDegree : 1 S_RESET_P19_L
+	J110 I : 6 -52
+NetDegree : 1 S_RESET_P20_L
+	J110 I : 6 65
+NetDegree : 1 S_RESET_P21_L
+	J111 I : -6 65
+NetDegree : 1 S_RESET_P22_L
+	J111 I : -6 -52
+NetDegree : 1 S_RESET_P23_L
+	J112 I : 6 -52
+NetDegree : 1 S_RESET_P24_L
+	J112 I : 6 65
+NetDegree : 1 S_RESET_P25_L
+	J113 I : -6 65
+NetDegree : 1 S_RESET_P26_L
+	J113 I : -6 -52
+NetDegree : 1 S_RESET_P27_L
+	J114 I : 6 -52
+NetDegree : 1 S_RESET_P28_L
+	J114 I : 6 65
+NetDegree : 1 S_RESET_P29_L
+	J115 I : -6 65
+NetDegree : 1 S_RESET_P30_L
+	J115 I : -6 -52
+NetDegree : 1 S_RESET_P31_L
+	J116 I : 6 -52
+NetDegree : 1 S_RESET_P32_L
+	J116 I : 6 65

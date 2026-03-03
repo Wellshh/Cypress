@@ -1,0 +1,992 @@
+UCLA nets 1.0
+
+NumNets : 403
+NumPins : 582
+
+# PN42C_A00.nets generated on 2024-09-13T102849 using /home/scratch.niansongz_research/pcb-util/pcb.py 1.0
+
+NetDegree : 6 NET_1.8V_CPLD_MAIN
+	C255 I : 0 4
+	C253 I : -4 0
+	LB9 I : -7 0
+	C251 I : -4 0
+	U55 I : 28 -12
+	U55 I : 20 -12
+NetDegree : 4 NET_1V8_VDDIO
+	LB9 I : 7 0
+	C248 I : 0 4
+	C246 I : 0 7
+	C244 I : 0 4
+NetDegree : 58 NET_3.3V_CPLD_MAIN
+	C254 I : 4 0
+	C252 I : 0 -4
+	C250 I : 0 4
+	C249 I : 0 4
+	C247 I : 0 -4
+	C245 I : -4 0
+	C243 I : 0 -4
+	C242 I : 0 -4
+	C241 I : 0 -4
+	C240 I : 0 4
+	C239 I : 0 -4
+	C238 I : 0 4
+	C237 I : 0 4
+	C236 I : 0 4
+	C235 I : 5 0
+	LB8 I : 7 0
+	U55 I : -12 -20
+	U55 I : 4 -12
+	U55 I : -4 -12
+	U55 I : 12 -12
+	U55 I : -12 -4
+	U55 I : -12 4
+	U55 I : 12 4
+	U55 I : 4 12
+	U55 I : -12 12
+	U55 I : -20 -20
+	U55 I : 4 -20
+	U55 I : -4 -20
+	U55 I : 20 -20
+	U55 I : 12 -20
+	U55 I : -12 -12
+	U55 I : -20 -12
+	U55 I : -20 -4
+	U55 I : -20 4
+	U55 I : -20 12
+	U55 I : -20 20
+	U55 I : 4 20
+	U55 I : -4 20
+	U55 I : -12 20
+	U55 I : 20 20
+	U55 I : 12 20
+	U55 I : 20 12
+	U55 I : 12 12
+	U55 I : 20 -4
+	U55 I : 12 -4
+	C4423 I : 0 -4
+	C4422 I : 4 0
+	C4421 I : -4 0
+	C4420 I : 4 0
+	C4419 I : 0 -4
+	C4418 I : 0 -4
+	C4417 I : 0 -4
+	C4416 I : 0 -4
+	C4415 I : 0 -4
+	C4414 I : -4 0
+	C4413 I : 0 -4
+	C4412 I : 0 4
+	C4411 I : 4 0
+NetDegree : 19 NET_3V3_AUX
+	LB31 I : 7 0
+	C3706 I : 7 0
+	R3340 I : 4 0
+	R1196 I : 4 0
+	R1195 I : 0 -4
+	R1194 I : 0 -4
+	R1193 I : 0 -4
+	R1192 I : 0 4
+	R1191 I : 0 -4
+	DS171 I : 0 8
+	DS172 I : 0 8
+	LB8 I : -7 0
+	C234 I : -4 0
+	C233 I : -7 0
+	C232 I : -5 0
+	R3830 I : 4 0
+	J169 I : 13 25
+	J169 I : 13 -26
+	R1253 I : -4 0
+NetDegree : 1 AG_CPLD_FAN_PWM1
+	R1217 I : -4 0
+NetDegree : 2 AG_CPLD_FAN_PWM1_R
+	U55 I : -68 52
+	R1217 I : 4 0
+NetDegree : 1 AG_CPLD_FAN_PWM2
+	R1218 I : 0 4
+NetDegree : 2 AG_CPLD_FAN_PWM2_R
+	R1218 I : 0 -4
+	U55 I : -60 68
+NetDegree : 1 AG_CPLD_FAN_PWM3
+	R1219 I : -4 0
+NetDegree : 2 AG_CPLD_FAN_PWM3_R
+	U55 I : -60 44
+	R1219 I : 4 0
+NetDegree : 1 AG_CPLD_FAN_PWM4
+	R1220 I : 0 4
+NetDegree : 2 AG_CPLD_FAN_PWM4_R
+	U55 I : -60 52
+	R1220 I : 0 -4
+NetDegree : 1 AG_FAN1_FRONT_TACHO
+	U55 I : -44 60
+NetDegree : 1 AG_FAN1_REAR_TACHO
+	U55 I : -52 60
+NetDegree : 1 AG_FAN2_FRONT_TACHO
+	U55 I : -76 52
+NetDegree : 1 AG_FAN2_REAR_TACHO
+	U55 I : -76 44
+NetDegree : 1 AG_FAN3_FRONT_TACHO
+	U55 I : -68 60
+NetDegree : 1 AG_FAN3_REAR_TACHO
+	U55 I : -76 60
+NetDegree : 1 AG_FAN4_FRONT_TACHO
+	U55 I : -68 68
+NetDegree : 1 AG_FAN4_REAR_TACHO
+	U55 I : -68 76
+NetDegree : 1 GP_ASIC_GPIO8
+	U55 I : 44 -12
+NetDegree : 1 GP_ASIC_SOC_JTAG_BUF_EN_L
+	U55 I : 4 -52
+NetDegree : 1 GP_CEX_FU_EN_L
+	U55 I : -60 -68
+NetDegree : 1 GP_CEX_FU_REQ
+	U55 I : 44 44
+NetDegree : 1 GP_CEX_GPIO0_L
+	U55 I : 44 52
+NetDegree : 1 GP_CEX_GPIO1_L
+	U55 I : 52 60
+NetDegree : 1 GP_CEX_PRESENT_L
+	U55 I : 20 36
+NetDegree : 2 GP_CEX_REFCLK1_EN
+	R3829 I : 4 0
+	U55 I : -20 -76
+NetDegree : 1 GP_CLKS_I2C_SRC_SEL
+	U55 I : -28 68
+NetDegree : 1 GP_CLK_BRD1_HW_ID0
+	U55 I : 20 -36
+NetDegree : 1 GP_CLK_BRD1_HW_ID1
+	U55 I : 20 -28
+NetDegree : 1 GP_CLK_BRD1_HW_ID2
+	U55 I : 12 -28
+NetDegree : 1 GP_CLK_BRD1_RSRVD1
+	R2824 I : 4 0
+NetDegree : 2 GP_CLK_BRD1_RSRVD1_R
+	U55 I : 76 28
+	R2824 I : -4 0
+NetDegree : 1 GP_CLK_BRD1_RSRVD2
+	R4695 I : 0 4
+NetDegree : 2 GP_CLK_BRD1_RSRVD2_R
+	U55 I : 52 52
+	R4695 I : 0 -4
+NetDegree : 1 GP_CLK_BRD2_HW_ID0
+	U55 I : -12 -36
+NetDegree : 1 GP_CLK_BRD2_HW_ID1
+	U55 I : -12 -76
+NetDegree : 1 GP_CLK_BRD2_HW_ID2
+	U55 I : -12 -52
+NetDegree : 1 GP_CLK_BRD2_RSRVD1
+	R4106 I : 0 -4
+NetDegree : 2 GP_CLK_BRD2_RSRVD1_R
+	U55 I : -20 -36
+	R4106 I : 0 4
+NetDegree : 1 GP_CLK_BRD2_RSRVD2
+	R4697 I : 0 -4
+NetDegree : 2 GP_CLK_BRD2_RSRVD2_R
+	U55 I : -20 -28
+	R4697 I : 0 4
+NetDegree : 1 GP_CLK_BUF_CLKOUT_TYPE0
+	U55 I : -60 -60
+NetDegree : 1 GP_CLK_BUF_CLKOUT_TYPE1
+	U55 I : 20 -68
+NetDegree : 1 GP_CPLD_CEX_BIOS_DIS0_L
+	U55 I : 28 12
+NetDegree : 1 GP_CPLD_CEX_BIOS_DIS1_L
+	U55 I : 20 -60
+NetDegree : 1 GP_CPLD_CEX_GPI1
+	R1208 I : 0 -4
+NetDegree : 2 GP_CPLD_CEX_GPI1_R
+	U55 I : -4 -68
+	R1208 I : 0 4
+NetDegree : 1 GP_CPLD_CEX_GPI2_RTC_TYPE
+	U55 I : 36 52
+NetDegree : 1 GP_CPLD_CEX_GPI3
+	R1206 I : 4 0
+NetDegree : 2 GP_CPLD_CEX_GPI3_R
+	U55 I : 44 20
+	R1206 I : -4 0
+NetDegree : 1 GP_CPLD_MAIN_PORTS1_RSVD1
+	U55 I : -28 -4
+NetDegree : 1 GP_CPLD_MAIN_PORTS1_RSVD2
+	U55 I : -60 -12
+NetDegree : 1 GP_CPLD_MAIN_PORTS2_RSVD1
+	U55 I : 68 28
+NetDegree : 1 GP_CPLD_MAIN_PORTS2_RSVD2
+	U55 I : -36 -76
+NetDegree : 1 GP_CPLD_MAIN_PORTS3_RSVD1
+	U55 I : -44 4
+NetDegree : 1 GP_CPLD_MAIN_PORTS3_RSVD2
+	U55 I : -68 12
+NetDegree : 1 GP_DCDC_DVDD_T01_CPLD_ALERT_L
+	U55 I : -76 -60
+NetDegree : 1 GP_DCDC_DVDD_T23_CPLD_ALERT_L
+	U55 I : 36 -44
+NetDegree : 1 GP_DCDC_DVDD_T45_CPLD_ALERT_L
+	U55 I : 36 4
+NetDegree : 1 GP_DCDC_DVDD_T67_CPLD_ALERT_L
+	U55 I : 76 12
+NetDegree : 1 GP_DCDC_HVDD_T_CPLD_ALERT_L
+	U55 I : 36 28
+NetDegree : 1 GP_DCDC_VDDSCC_DVDD_M_CPLD_ALERT_L
+	U55 I : -28 -60
+NetDegree : 1 GP_DCDC_VDD_M_CPLD_ALERT_L
+	U55 I : -44 12
+NetDegree : 1 GP_DCDC_VDD_T01_CPLD_ALERT_L
+	U55 I : -60 -52
+NetDegree : 1 GP_DCDC_VDD_T23_CPLD_ALERT_L
+	U55 I : -52 -52
+NetDegree : 1 GP_DCDC_VDD_T45_CPLD_ALERT_L
+	U55 I : -76 -20
+NetDegree : 1 GP_DCDC_VDD_T67_CPLD_ALERT_L
+	U55 I : 44 68
+NetDegree : 1 GP_FAN1_DIR_INSIDE_L
+	U55 I : -60 -4
+NetDegree : 1 GP_FAN1_PRESENT
+	U55 I : -52 -28
+NetDegree : 1 GP_FAN2_DIR_INSIDE_L
+	U55 I : -36 20
+NetDegree : 1 GP_FAN2_PRESENT
+	U55 I : -52 -20
+NetDegree : 1 GP_FAN3_DIR_INSIDE_L
+	U55 I : -52 -12
+NetDegree : 1 GP_FAN3_PRESENT
+	U55 I : -36 12
+NetDegree : 1 GP_FAN4_DIR_INSIDE_L
+	U55 I : -28 20
+NetDegree : 1 GP_FAN4_PRESENT
+	U55 I : -20 28
+NetDegree : 1 GP_GBE0_ACT_L
+	U55 I : 36 12
+NetDegree : 1 GP_GBE0_LINK1000_L
+	U55 I : 44 12
+NetDegree : 1 GP_GBE0_LINK100_L
+	U55 I : 52 12
+NetDegree : 1 GP_GBE0_LINK_L
+	U55 I : 52 20
+NetDegree : 1 GP_GBE0_SDP
+	U55 I : 52 68
+NetDegree : 1 GP_GPIO_OE_L
+	U55 I : -60 76
+NetDegree : 1 GP_GPIO_RESET_L
+	U55 I : -44 20
+NetDegree : 1 GP_HUB_CLKS_MUX_SEL
+	U55 I : 36 60
+NetDegree : 1 GP_I2C_AUTHENTICATION_EN
+	U55 I : 20 76
+NetDegree : 1 GP_I2C_CPLD_M_DCDC_EN
+	U55 I : 28 44
+NetDegree : 1 GP_I2C_FAE_EN
+	U55 I : 36 36
+NetDegree : 1 GP_I2C_P01_P08_EN_L
+	U55 I : -52 28
+NetDegree : 1 GP_I2C_P01_P08_SEL_A
+	U55 I : -68 4
+NetDegree : 1 GP_I2C_P01_P08_SEL_B
+	U55 I : -44 -52
+NetDegree : 1 GP_I2C_P01_P08_SEL_C
+	U55 I : -76 -44
+NetDegree : 1 GP_I2C_P09_P16_EN_L
+	U55 I : -60 12
+NetDegree : 1 GP_I2C_P09_P16_SEL_A
+	U55 I : -52 -36
+NetDegree : 1 GP_I2C_P09_P16_SEL_B
+	U55 I : -76 12
+NetDegree : 1 GP_I2C_P09_P16_SEL_C
+	U55 I : -44 -36
+NetDegree : 1 GP_I2C_P17_P24_EN_L
+	U55 I : -68 20
+NetDegree : 1 GP_I2C_P17_P24_SEL_A
+	U55 I : -52 36
+NetDegree : 1 GP_I2C_P17_P24_SEL_B
+	U55 I : -68 -20
+NetDegree : 1 GP_I2C_P17_P24_SEL_C
+	U55 I : -52 -44
+NetDegree : 1 GP_I2C_P25_P32_EN_L
+	U55 I : -60 28
+NetDegree : 1 GP_I2C_P25_P32_SEL_A
+	U55 I : -28 12
+NetDegree : 1 GP_I2C_P25_P32_SEL_B
+	U55 I : -60 -20
+NetDegree : 1 GP_I2C_P25_P32_SEL_C
+	U55 I : -28 36
+NetDegree : 1 GP_I2C_P33_P40_EN_L
+	U55 I : 28 68
+NetDegree : 1 GP_I2C_P33_P40_SEL_A
+	U55 I : 12 76
+NetDegree : 1 GP_I2C_P33_P40_SEL_B
+	U55 I : 68 -68
+NetDegree : 1 GP_I2C_P33_P40_SEL_C
+	U55 I : 68 36
+NetDegree : 1 GP_I2C_P41_P48_EN_L
+	U55 I : 28 28
+NetDegree : 1 GP_I2C_P41_P48_SEL_A
+	U55 I : -20 68
+NetDegree : 1 GP_I2C_P41_P48_SEL_B
+	U55 I : -4 52
+NetDegree : 1 GP_I2C_P41_P48_SEL_C
+	U55 I : 20 68
+NetDegree : 1 GP_I2C_P49_P56_EN_L
+	U55 I : -12 -68
+NetDegree : 1 GP_I2C_P49_P56_SEL_A
+	U55 I : 28 -68
+NetDegree : 1 GP_I2C_P49_P56_SEL_B
+	U55 I : 60 -68
+NetDegree : 1 GP_I2C_P49_P56_SEL_C
+	U55 I : 52 -68
+NetDegree : 1 GP_I2C_P57_P64_EN_L
+	U55 I : 76 76
+NetDegree : 1 GP_I2C_P57_P64_SEL_A
+	U55 I : -44 -68
+NetDegree : 1 GP_I2C_P57_P64_SEL_B
+	U55 I : -52 -68
+NetDegree : 1 GP_I2C_P57_P64_SEL_C
+	U55 I : -28 -76
+NetDegree : 1 GP_I2C_TESTING_CEX_EN
+	U55 I : -44 44
+NetDegree : 1 GP_I2C_TESTING_CON_EN
+	U55 I : 12 36
+NetDegree : 1 GP_JTAG_CPLD_BURN_EN_L
+	U55 I : 76 20
+NetDegree : 2 GP_MAIN_CPLD_HW_REV1
+	R1234 I : -4 0
+	U55 I : 28 -76
+NetDegree : 2 GP_MAIN_CPLD_HW_REV2
+	R1236 I : -4 0
+	U55 I : 20 -76
+NetDegree : 2 GP_MAIN_CPLD_HW_REV3
+	R1238 I : -4 0
+	U55 I : 12 -76
+NetDegree : 2 GP_MAIN_PORTS1_CPLD_FW_RST_L
+	U55 I : -36 -12
+	R1212 I : 4 0
+NetDegree : 2 GP_MAIN_PORTS1_CPLD_RST_L
+	U55 I : -28 -20
+	R2379 I : 4 0
+NetDegree : 2 GP_MAIN_PORTS2_CPLD_FW_RST_L
+	U55 I : -20 76
+	R1213 I : 0 -4
+NetDegree : 2 GP_MAIN_PORTS2_CPLD_RST_L
+	R2380 I : -4 0
+	U55 I : 76 36
+NetDegree : 2 GP_MAIN_PORTS3_CPLD_FW_RST_L
+	U55 I : -36 -20
+	R4652 I : -4 0
+NetDegree : 2 GP_MAIN_PORTS3_CPLD_RST_L
+	U55 I : -68 -60
+	R4653 I : 0 4
+NetDegree : 1 GP_PMBUS_DONGLE_PRESENT_L
+	U55 I : -60 -36
+NetDegree : 1 GP_PPS_IN_LVL_EN_L
+	R4730 I : -4 0
+NetDegree : 2 GP_PPS_IN_LVL_EN_L_R
+	U55 I : 52 -12
+	R4730 I : 4 0
+NetDegree : 1 GP_PPS_OUT_LVL_EN_L
+	R4732 I : -4 0
+NetDegree : 2 GP_PPS_OUT_LVL_EN_L_R
+	U55 I : 60 -12
+	R4732 I : 4 0
+NetDegree : 1 GP_PS1_ALERT
+	U55 I : -76 4
+NetDegree : 1 GP_PS1_PRESENT_L
+	U55 I : -68 36
+NetDegree : 1 GP_PS1_PWOK_L
+	U55 I : -36 52
+NetDegree : 1 GP_PS2_ALERT
+	U55 I : -76 -12
+NetDegree : 1 GP_PS2_PRESENT_L
+	U55 I : -68 28
+NetDegree : 1 GP_PS2_PWOK_L
+	U55 I : -12 52
+NetDegree : 1 GP_RJ45_ACTIVITY_LED
+	U55 I : 44 -68
+NetDegree : 1 GP_RJ45_LINK_LED
+	U55 I : -12 76
+NetDegree : 2 GP_SECURED_DIS_JUMPER
+	R4327 I : 0 4
+	U55 I : -28 -44
+NetDegree : 3 GP_SECURED_DIS_JUMPER_IN
+	J169 I : -18 0
+	R4329 I : 0 -4
+	R4327 I : 0 -4
+NetDegree : 1 GP_SPI_COMEX_BURN_EN_L
+	U55 I : -20 36
+NetDegree : 1 GP_SPI_COMEX_BURN_SEL
+	U55 I : -60 20
+NetDegree : 3 GP_SPI_JUMPER1
+	R1192 I : 0 -4
+	J10 I : -11 -38
+	U55 I : -36 -44
+NetDegree : 3 GP_SPI_JUMPER2
+	R1191 I : 0 4
+	J10 I : -11 12
+	U55 I : -36 -52
+NetDegree : 1 GP_STRAP_FLASH_PRESENT
+	R1249 I : 0 -4
+NetDegree : 2 GP_STRAP_FLASH_PRESENT_R
+	U55 I : 76 -52
+	R1249 I : 0 4
+NetDegree : 1 GP_SW1_I2C_MUX_EN_L
+	U55 I : -52 68
+NetDegree : 1 GP_SW2_I2C_MUX_EN_L
+	U55 I : 36 44
+NetDegree : 1 GP_SW3_I2C_MUX_EN_L
+	U55 I : -44 -60
+NetDegree : 1 GP_SW_I2C_MUX_SEL_A
+	U55 I : -4 36
+NetDegree : 1 GP_SW_I2C_MUX_SEL_B
+	U55 I : -12 44
+NetDegree : 1 GP_SW_I2C_MUX_SEL_C
+	U55 I : -20 44
+NetDegree : 1 GP_TEMP_SNS_FAN_BOARD_OS_0X49_L
+	U55 I : -36 -28
+NetDegree : 1 GP_T_SNS_MAIN_BOARD_OTS_L
+	U55 I : 4 68
+NetDegree : 1 GP_T_SNS_OCXO_OTS_L
+	U55 I : 12 -36
+NetDegree : 1 GP_USB_COMEX_EN_L
+	U55 I : 36 -68
+NetDegree : 1 I2C_ASIC_CPLD_M_MDC5
+	R1226 I : 0 -4
+NetDegree : 2 I2C_ASIC_CPLD_M_MDC5_R
+	U55 I : 60 -60
+	R1226 I : 0 4
+NetDegree : 1 I2C_ASIC_CPLD_M_MDIO5
+	R1225 I : 0 -4
+NetDegree : 2 I2C_ASIC_CPLD_M_MDIO5_R
+	U55 I : 52 -60
+	R1225 I : 0 4
+NetDegree : 1 I2C_ASIC_SCL1
+	U55 I : 52 -36
+NetDegree : 1 I2C_ASIC_SDA1
+	U55 I : 60 -36
+NetDegree : 1 I2C_CPLD_M_DCDC_SCL
+	U55 I : -28 60
+NetDegree : 1 I2C_CPLD_M_DCDC_SDA
+	U55 I : -36 60
+NetDegree : 1 I2C_FAE_CPLD_SCL
+	U55 I : 12 60
+NetDegree : 1 I2C_FAE_CPLD_SDA
+	U55 I : 20 60
+NetDegree : 1 I2C_SW_SCL
+	U55 I : 4 -68
+NetDegree : 1 I2C_SW_SDA
+	U55 I : 4 -76
+NetDegree : 1 I2C_TESTING_GPIO_SCL
+	U55 I : -4 76
+NetDegree : 1 I2C_TESTING_GPIO_SDA
+	U55 I : -4 68
+NetDegree : 1 JTAG_CPLD_MAIN_TCK
+	U55 I : 12 -60
+NetDegree : 1 JTAG_CPLD_MAIN_TDI
+	U55 I : 28 -60
+NetDegree : 1 JTAG_CPLD_MAIN_TDO
+	U55 I : 20 -44
+NetDegree : 1 JTAG_CPLD_MAIN_TMS
+	U55 I : 12 -52
+NetDegree : 2 L_CPLD_JTAG_ENB
+	R1195 I : 0 4
+	U55 I : -20 -60
+NetDegree : 2 L_CPLD_MAIN_SN_PU
+	U55 I : -76 76
+	R1253 I : 4 0
+NetDegree : 2 L_CPLD_M_DONE
+	R1194 I : 0 4
+	U55 I : -68 -76
+NetDegree : 3 L_CPLD_M_INITN_L
+	R1193 I : 0 4
+	C226 I : 0 4
+	U55 I : -52 -60
+NetDegree : 2 L_CPLD_M_PROGRAMN_L
+	R1196 I : -4 0
+	U55 I : -20 -52
+NetDegree : 1 L_FAN1_LED
+	U55 I : -36 -4
+NetDegree : 1 L_FAN2_LED
+	U55 I : -28 4
+NetDegree : 1 L_FAN3_LED
+	U55 I : -28 -12
+NetDegree : 1 L_FAN4_LED
+	U55 I : -28 28
+NetDegree : 1 L_FANS_FLT_L
+	U55 I : -44 -28
+NetDegree : 1 L_LS1_LED_L
+	U55 I : -12 68
+NetDegree : 1 L_LS2_LED_L
+	U55 I : 52 -76
+NetDegree : 1 L_LS3_LED_L
+	U55 I : -28 -68
+NetDegree : 1 L_LS4_LED_L
+	U55 I : -36 -68
+NetDegree : 1 L_LS5_LED_L
+	U55 I : 4 60
+NetDegree : 1 L_LS6_LED_L
+	U55 I : 28 -52
+NetDegree : 1 L_LS7_LED_L
+	U55 I : 4 76
+NetDegree : 1 L_LS8_LED_L
+	U55 I : 36 -60
+NetDegree : 2 L_MAIN_CPLD_LED0_L
+	R1180 I : 0 4
+	U55 I : -52 -76
+NetDegree : 2 L_MAIN_CPLD_LED0_L_R
+	DS171 I : 0 -8
+	R1180 I : 0 -4
+NetDegree : 2 L_MAIN_CPLD_LIVE_LED_L
+	R1181 I : 0 4
+	U55 I : -60 -76
+NetDegree : 2 L_MAIN_CPLD_LIVE_LED_L_R
+	DS172 I : 0 -8
+	R1181 I : 0 -4
+NetDegree : 1 L_STATUS_FAN_LED
+	U55 I : -4 -76
+NetDegree : 1 L_STATUS_PS_LED
+	U55 I : -4 -60
+NetDegree : 1 L_STATUS_SYSTEM_LED
+	U55 I : -44 -76
+NetDegree : 1 L_STATUS_UID_LED_L
+	U55 I : 4 -60
+NetDegree : 1 PRESENT_P01_P03
+	U55 I : -44 36
+NetDegree : 1 SE_CEX_CPLD_SUS_S3_L
+	U55 I : 60 20
+NetDegree : 1 SE_CEX_CPLD_SUS_S4_L
+	U55 I : 4 -28
+NetDegree : 1 SE_CEX_CPLD_SUS_S5_L
+	U55 I : 60 12
+NetDegree : 1 SE_CEX_CPLD_THRMTRIP_L
+	U55 I : 60 28
+NetDegree : 1 SE_CLK_BRD1_OE_L
+	R4733 I : 0 4
+NetDegree : 2 SE_CLK_BRD1_OE_L_R
+	U55 I : -44 68
+	R4733 I : 0 -4
+NetDegree : 1 SE_CLK_BRD1_PROGRAM_EN_L
+	R4740 I : 0 4
+NetDegree : 2 SE_CLK_BRD1_PROGRAM_EN_L_R
+	U55 I : 4 44
+	R4740 I : 0 -4
+NetDegree : 1 SE_CLK_BRD1_PWR_EN
+	R4736 I : 0 4
+NetDegree : 2 SE_CLK_BRD1_PWR_EN_R
+	U55 I : -44 28
+	R4736 I : 0 -4
+NetDegree : 1 SE_CLK_BRD2_OE_L
+	R4734 I : 0 -4
+NetDegree : 2 SE_CLK_BRD2_OE_L_R
+	U55 I : 12 28
+	R4734 I : 0 4
+NetDegree : 1 SE_CLK_BRD2_PROGRAM_EN_L
+	R4739 I : 0 -4
+NetDegree : 2 SE_CLK_BRD2_PROGRAM_EN_L_R
+	U55 I : 4 -36
+	R4739 I : 0 4
+NetDegree : 1 SE_CLK_BRD2_PWR_EN
+	R4735 I : 0 -4
+NetDegree : 2 SE_CLK_BRD2_PWR_EN_R
+	U55 I : -4 -52
+	R4735 I : 0 4
+NetDegree : 2 SE_CPLD_LPC_AD0
+	U55 I : 68 44
+	R1199 I : 0 -4
+NetDegree : 2 SE_CPLD_LPC_AD1
+	U55 I : 60 44
+	R1200 I : 0 -4
+NetDegree : 2 SE_CPLD_LPC_AD2
+	U55 I : 76 60
+	R1201 I : -4 0
+NetDegree : 2 SE_CPLD_LPC_AD3
+	U55 I : 68 60
+	R1202 I : 0 -4
+NetDegree : 2 SE_CPLD_LPC_CLK
+	U55 I : 76 52
+	R1203 I : -4 0
+NetDegree : 2 SE_CPLD_LPC_FRAME_L
+	U55 I : 76 44
+	R1198 I : -4 0
+NetDegree : 2 SE_CPLD_LPC_SERIRQ
+	U55 I : 68 52
+	R1197 I : 0 -4
+NetDegree : 2 SE_CPLD_MAIN_OSC_OE
+	Y4 I : 13 11
+	R3340 I : -4 0
+NetDegree : 1 SE_LPC_AD0_R
+	R1199 I : 0 4
+NetDegree : 1 SE_LPC_AD1_R
+	R1200 I : 0 4
+NetDegree : 1 SE_LPC_AD2_R
+	R1201 I : 4 0
+NetDegree : 1 SE_LPC_AD3_R
+	R1202 I : 0 4
+NetDegree : 1 SE_LPC_CLK_R
+	R1203 I : 4 0
+NetDegree : 1 SE_LPC_FRAME_L_R
+	R1198 I : 4 0
+NetDegree : 1 SE_LPC_SERIRQ
+	R1197 I : 0 4
+NetDegree : 1 SE_OCXO_CLK_STATUS
+	U55 I : -36 76
+NetDegree : 2 SE_OSC_CPLD_OUT
+	R3341 I : -4 0
+	U55 I : 12 68
+NetDegree : 2 SE_OSC_CPLD_OUT_R
+	R3341 I : 4 0
+	Y4 I : -12 -11
+NetDegree : 1 SE_SR_CAPTURE_ASIC_CPLD_MAIN
+	U55 I : 68 -36
+NetDegree : 1 SE_SR_CAPTURE_CPLD_MAIN_PORTS1
+	R4766 I : 4 0
+NetDegree : 2 SE_SR_CAPTURE_CPLD_MAIN_PORTS1_R
+	U55 I : 68 -12
+	R4766 I : -4 0
+NetDegree : 1 SE_SR_CAPTURE_CPLD_MAIN_PORTS2
+	R4767 I : 4 0
+NetDegree : 2 SE_SR_CAPTURE_CPLD_MAIN_PORTS2_R
+	U55 I : 76 -12
+	R4767 I : -4 0
+NetDegree : 1 SE_SR_CAPTURE_CPLD_MAIN_PORTS3
+	R4768 I : 4 0
+NetDegree : 2 SE_SR_CAPTURE_CPLD_MAIN_PORTS3_R
+	U55 I : 52 4
+	R4768 I : -4 0
+NetDegree : 1 SE_SR_CLK_ASIC_CPLD_MAIN
+	U55 I : 68 -44
+NetDegree : 1 SE_SR_CLK_CPLD_MAIN_PORTS1
+	R1243 I : 0 -4
+NetDegree : 2 SE_SR_CLK_CPLD_MAIN_PORTS1_R
+	U55 I : 68 -4
+	R1243 I : 0 4
+NetDegree : 1 SE_SR_CLK_CPLD_MAIN_PORTS2
+	R3286 I : 0 -4
+NetDegree : 2 SE_SR_CLK_CPLD_MAIN_PORTS2_R
+	U55 I : 76 -4
+	R3286 I : 0 4
+NetDegree : 1 SE_SR_CLK_CPLD_MAIN_PORTS3
+	R4649 I : 4 0
+NetDegree : 2 SE_SR_CLK_CPLD_MAIN_PORTS3_R
+	U55 I : 36 -4
+	R4649 I : -4 0
+NetDegree : 1 SE_SR_DATA_ASIC_CPLD_MAIN
+	U55 I : 76 -44
+NetDegree : 1 SE_SR_DATA_CPLD_MAIN_PORTS1
+	R1221 I : 0 -4
+NetDegree : 2 SE_SR_DATA_CPLD_MAIN_PORTS1_R
+	U55 I : 52 -4
+	R1221 I : 0 4
+NetDegree : 1 SE_SR_OK_IN_CPLD_PORTS1
+	R1241 I : 0 -4
+NetDegree : 2 SE_SR_OK_OUT_CPLD_MAIN_PORTS1
+	U55 I : 44 -4
+	R1241 I : 0 4
+NetDegree : 1 SE_SR_UPDATE_EN_CPLD_MAIN
+	U55 I : 28 -4
+NetDegree : 1 SE_SYNCB_CEX_CPLD_M_CLK
+	U55 I : 76 4
+NetDegree : 1 SE_SYNCB_CEX_CPLD_M_DATA
+	U55 I : 68 4
+NetDegree : 1 SE_SYNCB_CPLD_M_CEX_DATA
+	R1204 I : 4 0
+NetDegree : 2 SE_SYNCB_CPLD_M_CEX_DATA_R
+	U55 I : 60 4
+	R1204 I : -4 0
+NetDegree : 1 SE_SYNCB_CPLD_M_P1_CLK
+	R1244 I : -4 0
+NetDegree : 2 SE_SYNCB_CPLD_M_P1_CLK_R
+	U55 I : -68 -44
+	R1244 I : 4 0
+NetDegree : 1 SE_SYNCB_CPLD_M_P1_DATA
+	R1223 I : -4 0
+NetDegree : 2 SE_SYNCB_CPLD_M_P1_DATA_R
+	U55 I : -76 -52
+	R1223 I : 4 0
+NetDegree : 1 SE_SYNCB_CPLD_M_P2_CLK
+	R1302 I : 4 0
+NetDegree : 2 SE_SYNCB_CPLD_M_P2_CLK_R
+	U55 I : 60 36
+	R1302 I : -4 0
+NetDegree : 1 SE_SYNCB_CPLD_M_P2_DATA
+	R1301 I : 4 0
+NetDegree : 2 SE_SYNCB_CPLD_M_P2_DATA_R
+	U55 I : 52 36
+	R1301 I : -4 0
+NetDegree : 1 SE_SYNCB_CPLD_M_P3_CLK
+	R4655 I : -4 0
+NetDegree : 2 SE_SYNCB_CPLD_M_P3_CLK_R
+	U55 I : -68 -12
+	R4655 I : 4 0
+NetDegree : 1 SE_SYNCB_CPLD_M_P3_DATA
+	R4654 I : -4 0
+NetDegree : 2 SE_SYNCB_CPLD_M_P3_DATA_R
+	U55 I : -52 4
+	R4654 I : 4 0
+NetDegree : 1 SE_SYNCB_CPLD_P1_M_DATA
+	U55 I : -68 -52
+NetDegree : 1 SE_SYNCB_CPLD_P2_M_DATA
+	U55 I : 52 44
+NetDegree : 1 SE_SYNCB_CPLD_P3_M_DATA
+	U55 I : -44 -4
+NetDegree : 1 SE_UART0_CEX_CPLD
+	U55 I : 28 -44
+NetDegree : 1 SE_UART0_CPLD_CEX
+	R1246 I : 4 0
+NetDegree : 2 SE_UART0_CPLD_CEX_R
+	R1246 I : -4 0
+	U55 I : 36 -52
+NetDegree : 1 SE_UART0_CPLD_RJ45
+	R3342 I : 0 4
+NetDegree : 2 SE_UART0_CPLD_RJ45_R
+	U55 I : 52 76
+	R3342 I : 0 -4
+NetDegree : 1 SE_UART0_RJ45_CPLD
+	U55 I : 36 -76
+NetDegree : 1 SNN_U55_B1
+	U55 I : 76 -68
+NetDegree : 1 SNN_U55_C2
+	U55 I : 68 -60
+NetDegree : 1 SNN_U55_D2
+	U55 I : 68 -52
+NetDegree : 1 SNN_U55_E3
+	U55 I : 60 -44
+NetDegree : 1 SNN_U55_E4
+	U55 I : 52 -44
+NetDegree : 1 SNN_U55_F1
+	U55 I : 76 -36
+NetDegree : 1 SNN_U55_F5
+	U55 I : 44 -36
+NetDegree : 1 SNN_U55_F6
+	U55 I : 36 -36
+NetDegree : 1 SNN_U55_G1
+	U55 I : 76 -28
+NetDegree : 1 SNN_U55_G6
+	U55 I : 36 -28
+NetDegree : 1 SNN_U55_H16
+	U55 I : -44 -20
+NetDegree : 1 SNN_U55_H2
+	U55 I : 68 -20
+NetDegree : 1 SNN_U55_H3
+	U55 I : 60 -20
+NetDegree : 1 SNN_U55_H4
+	U55 I : 52 -20
+NetDegree : 1 SNN_U55_J16
+	U55 I : -44 -12
+NetDegree : 1 SNN_U55_L15
+	U55 I : -36 4
+NetDegree : 1 SNN_U55_M17
+	U55 I : -52 12
+NetDegree : 1 SNN_U55_N17
+	U55 I : -52 20
+NetDegree : 1 SNN_U55_W2
+	U55 I : 68 68
+NetDegree : 1 SNN_U55_W20
+	U55 I : -76 68
+NetDegree : 1 SNN_U55_W6
+	U55 I : 36 68
+NetDegree : 1 SNN_U55_Y6
+	U55 I : 36 76
+NetDegree : 1 S_1V8_VDDIO_EN
+	U55 I : 28 76
+NetDegree : 1 S_1V8_VDDIO_PG
+	U55 I : 12 44
+NetDegree : 1 S_3V3_AUX_PG
+	U55 I : 20 44
+NetDegree : 1 S_3V3_DRV_EN
+	U55 I : 52 28
+NetDegree : 1 S_3V3_DRV_PG
+	U55 I : -52 -4
+NetDegree : 1 S_3V3_OSC_EN
+	U55 I : -36 68
+NetDegree : 1 S_3V3_OSC_PG
+	U55 I : -4 -36
+NetDegree : 1 S_3V3_SSD_EN
+	U55 I : 4 36
+NetDegree : 1 S_3V3_SSD_PG
+	U55 I : 60 68
+NetDegree : 1 S_5V_CEX_EN
+	U55 I : 76 -76
+NetDegree : 1 S_5V_CEX_PG
+	U55 I : 12 52
+NetDegree : 1 S_5V_CLK_EN
+	U55 I : -44 76
+NetDegree : 1 S_5V_CLK_PG
+	U55 I : -76 28
+NetDegree : 1 S_5V_USB_PG
+	U55 I : 44 36
+NetDegree : 1 S_ALL_PPB_PG_PORTS1_MAIN
+	U55 I : -36 36
+NetDegree : 1 S_ALL_PPB_PG_PORTS2_MAIN
+	U55 I : -68 -68
+NetDegree : 1 S_ALL_PPB_PG_PORTS3_MAIN
+	U55 I : -28 -28
+NetDegree : 1 S_ASIC_OC_WARN
+	U55 I : 36 -12
+NetDegree : 1 S_ASIC_PERST_L
+	R1248 I : -4 0
+NetDegree : 2 S_ASIC_PERST_L_R
+	U55 I : 44 -28
+	R1248 I : 4 0
+NetDegree : 1 S_ASIC_PRE_RST_L
+	R1250 I : -4 0
+NetDegree : 2 S_ASIC_PRE_RST_L_R
+	U55 I : 52 -28
+	R1250 I : 4 0
+NetDegree : 1 S_ASIC_RST_L
+	R4226 I : 4 0
+NetDegree : 1 S_ASIC_TEMP_SHTDN
+	U55 I : 36 -20
+NetDegree : 1 S_ASIC_TEMP_WARN
+	U55 I : 28 -20
+NetDegree : 1 S_CEX_CPLD_CB_RESET_L
+	U55 I : 28 4
+NetDegree : 2 S_CEX_PWRBTN_L
+	R1207 I : -4 0
+	U55 I : 60 -76
+NetDegree : 1 S_CEX_PWRBTN_L_R
+	R1207 I : 4 0
+NetDegree : 1 S_CLK_BRD1_BOOT_DONE_I2C_EN_L
+	R4737 I : 4 0
+NetDegree : 2 S_CLK_BRD1_BOOT_DONE_I2C_EN_L_R
+	U55 I : 28 -36
+	R4737 I : -4 0
+NetDegree : 1 S_CLK_BRD1_CI_SEL_L
+	R4500 I : 4 0
+NetDegree : 2 S_CLK_BRD1_CI_SEL_L_R
+	R4500 I : -4 0
+	U55 I : 28 -28
+NetDegree : 1 S_CLK_BRD1_INT_CPLD_L
+	U55 I : -52 76
+NetDegree : 1 S_CLK_BRD1_LOL_CPLD_L
+	U55 I : 20 -52
+NetDegree : 1 S_CLK_BRD1_PG
+	U55 I : 68 76
+NetDegree : 1 S_CLK_BRD1_PRSNT_L
+	U55 I : -28 44
+NetDegree : 1 S_CLK_BRD1_RST_L
+	R2823 I : 4 0
+NetDegree : 2 S_CLK_BRD1_RST_L_R
+	U55 I : -12 36
+	R2823 I : -4 0
+NetDegree : 1 S_CLK_BRD2_BOOT_DONE_I2C_EN_L
+	R4738 I : 0 -4
+NetDegree : 2 S_CLK_BRD2_BOOT_DONE_I2C_EN_L_R
+	U55 I : -12 -28
+	R4738 I : 0 4
+NetDegree : 1 S_CLK_BRD2_CI_SEL_L
+	R4501 I : 0 -4
+NetDegree : 2 S_CLK_BRD2_CI_SEL_L_R
+	U55 I : -28 -36
+	R4501 I : 0 4
+NetDegree : 1 S_CLK_BRD2_INT_CPLD_L
+	U55 I : 76 68
+NetDegree : 1 S_CLK_BRD2_LOL_CPLD_L
+	U55 I : 12 -68
+NetDegree : 1 S_CLK_BRD2_PG
+	U55 I : 20 28
+NetDegree : 1 S_CLK_BRD2_PRSNT_L
+	U55 I : -12 -60
+NetDegree : 1 S_CLK_BRD2_RST_L
+	R2827 I : 4 0
+NetDegree : 2 S_CLK_BRD2_RST_L_R
+	U55 I : -12 28
+	R2827 I : -4 0
+NetDegree : 2 S_CPLD_ASIC_RST_L
+	U55 I : 60 -28
+	R4226 I : -4 0
+NetDegree : 1 S_CPLD_CEX_PWR_OK
+	U55 I : 36 20
+NetDegree : 1 S_CPLD_CEX_SYS_RESET_L
+	R1222 I : 0 4
+NetDegree : 2 S_CPLD_CEX_SYS_RESET_L_R
+	U55 I : 60 76
+	R1222 I : 0 -4
+NetDegree : 1 S_DVDD_M_EN
+	U55 I : -4 28
+NetDegree : 1 S_DVDD_M_PG
+	U55 I : -68 44
+NetDegree : 2 S_DVDD_T_EN
+	R2482 I : -4 0
+	U55 I : 60 60
+NetDegree : 1 S_DVDD_T_PG
+	U55 I : 44 4
+NetDegree : 2 S_EN_ALL_PPB_MAIN_PORTS1
+	U55 I : -36 -36
+	R4414 I : 4 0
+NetDegree : 2 S_EN_ALL_PPB_MAIN_PORTS2
+	U55 I : -76 -76
+	R4413 I : 0 4
+NetDegree : 2 S_EN_ALL_PPB_MAIN_PORTS3
+	U55 I : -76 -68
+	R4685 I : 4 0
+NetDegree : 1 S_HEALTH0
+	U55 I : 68 -28
+NetDegree : 1 S_HEALTH1
+	U55 I : 76 -60
+NetDegree : 1 S_HVDD_T_EN
+	U55 I : 28 36
+NetDegree : 1 S_HVDD_T_PG
+	U55 I : -12 60
+NetDegree : 1 S_PB_LS_L
+	U55 I : -28 76
+NetDegree : 1 S_PB_RST_L
+	U55 I : 44 -76
+NetDegree : 2 S_POWER_CTRL_VR_FAULT_L
+	R3830 I : -4 0
+	U55 I : 68 -76
+NetDegree : 1 S_PS1_AC_OK_L
+	U55 I : -76 20
+NetDegree : 1 S_PS1_ON
+	U55 I : -68 -4
+NetDegree : 1 S_PS2_AC_OK_L
+	U55 I : -52 44
+NetDegree : 1 S_PS2_ON
+	U55 I : -76 -28
+NetDegree : 1 S_PWR_CONVERTER1_EN
+	U55 I : -76 -4
+NetDegree : 1 S_PWR_CONVERTER1_PG
+	U55 I : -76 -36
+NetDegree : 1 S_PWR_CONVERTER2_EN
+	U55 I : -68 -36
+NetDegree : 1 S_PWR_CONVERTER2_PG
+	U55 I : -76 36
+NetDegree : 1 S_PWR_CONVERTER3_EN
+	U55 I : -52 52
+NetDegree : 1 S_PWR_CONVERTER3_PG
+	U55 I : -28 52
+NetDegree : 1 S_PWR_CONVERTER4_EN
+	U55 I : -20 60
+NetDegree : 1 S_PWR_CONVERTER4_PG
+	U55 I : -4 44
+NetDegree : 1 S_RS232_EN_L
+	U55 I : 44 -52
+NetDegree : 1 S_RS232_FORCEOFF_L
+	U55 I : 44 76
+NetDegree : 1 S_SPI_ASIC_FW_FLASH_EN_L
+	U55 I : -36 28
+NetDegree : 1 S_SSD_NVME_I2C_ALERT_L
+	U55 I : 68 20
+NetDegree : 1 S_SSD_NVME_PERST_L
+	U55 I : 68 12
+NetDegree : 1 S_TILES_PRE_RST_L
+	R4497 I : 0 -4
+NetDegree : 2 S_TILES_PRE_RST_L_R
+	U55 I : 76 -20
+	R4497 I : 0 4
+NetDegree : 1 S_USB_PWR_EN
+	U55 I : -20 -68
+NetDegree : 1 S_VDDSCC_EN
+	U55 I : -28 -52
+NetDegree : 1 S_VDDSCC_PG
+	U55 I : 4 52
+NetDegree : 1 S_VDD_M_EN
+	U55 I : -4 -28
+NetDegree : 1 S_VDD_M_PG
+	U55 I : 44 28
+NetDegree : 2 S_VDD_T_EN
+	U55 I : -68 -28
+	R2453 I : 4 0
+NetDegree : 1 S_VDD_T_PG
+	U55 I : 4 28
+NetDegree : 1 S_VPD_WP
+	U55 I : -36 -60
+NetDegree : 4 VIN_CPLD_EXT_OSC
+	C3708 I : 0 4
+	C3707 I : 0 7
+	Y4 I : 13 -11
+	LB31 I : -7 0
