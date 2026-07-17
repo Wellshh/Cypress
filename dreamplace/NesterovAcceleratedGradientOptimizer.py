@@ -82,6 +82,39 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
     def __setstate__(self, state):
         super(NesterovAcceleratedGradientOptimizer, self).__setstate__(state)
 
+    @staticmethod
+    def _all_finite(*tensors):
+        return all(bool(torch.isfinite(tensor).all().item()) for tensor in tensors)
+
+    @staticmethod
+    def _bounded_bb_step(delta_position, delta_gradient, fallback):
+        """Estimate a finite BB step without allowing abrupt scale changes."""
+        device = delta_position.device
+        fallback64 = torch.as_tensor(fallback, dtype=torch.float64, device=device)
+        fallback64 = torch.abs(fallback64).reshape(())
+        epsilon = torch.finfo(torch.float64).eps
+        fallback64 = torch.clamp(fallback64, min=epsilon)
+
+        position_norm = torch.linalg.vector_norm(delta_position.double())
+        gradient_norm = torch.linalg.vector_norm(delta_gradient.double())
+        if (
+            not NesterovAcceleratedGradientOptimizer._all_finite(
+                position_norm, gradient_norm
+            )
+            or gradient_norm <= epsilon
+        ):
+            candidate = fallback64
+        else:
+            candidate = position_norm / gradient_norm
+
+        lower = torch.clamp(fallback64 * 0.1, min=epsilon)
+        upper = torch.maximum(fallback64 * 10.0, lower)
+        if not NesterovAcceleratedGradientOptimizer._all_finite(candidate):
+            candidate = fallback64
+        return torch.clamp(candidate, min=lower, max=upper).to(
+            dtype=delta_position.dtype
+        )
+
     def step(self, closure=None):
         """
         @brief Performs a single optimization step.
@@ -100,6 +133,10 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
                     # group['v_k'].append(torch.autograd.Variable(p.data, requires_grad=True))
                     group["v_k"].append(p)
                     obj, grad = obj_and_grad_fn(group["v_k"][i])
+                    if not self._all_finite(obj, grad):
+                        raise FloatingPointError(
+                            "Nesterov received a non-finite initial objective or gradient"
+                        )
                     group["g_k"].append(grad.data.clone())  # must clone
                     group["obj_k"].append(obj.data.clone())
                 u_k = group["u_k"][i]
@@ -117,7 +154,11 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
                     )
                     group["v_k_1"][i].data.copy_(group["v_k"][i] - group["lr"] * g_k)
                     obj, grad = obj_and_grad_fn(group["v_k_1"][i])
-                    group["g_k_1"].append(grad.data)
+                    if not self._all_finite(obj, grad):
+                        raise FloatingPointError(
+                            "Nesterov received a non-finite bootstrap objective or gradient"
+                        )
+                    group["g_k_1"].append(grad.data.clone())
                     group["obj_k_1"].append(obj.data.clone())
                 a_k = group["a_k"][i]
                 v_k_1 = group["v_k_1"][i]
@@ -125,7 +166,7 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
                 obj_k_1 = group["obj_k_1"][i]
                 if not group["alpha_k"]:
                     group["alpha_k"].append(
-                        (v_k - v_k_1).norm(p=2) / (g_k - g_k_1).norm(p=2)
+                        self._bounded_bb_step(v_k - v_k_1, g_k - g_k_1, group["lr"])
                     )
                 alpha_k = group["alpha_k"][i]
 
@@ -138,27 +179,37 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
                 # line search with alpha_k as hint
                 a_kp1 = (1 + (4 * a_k.pow(2) + 1).sqrt()) / 2
                 coef = (a_k - 1) / a_kp1
-                alpha_kp1 = 0
+                alpha_kp1 = alpha_k.detach().clone()
+                trial_alpha = alpha_k.detach().clone()
                 backtrack_cnt = 0
                 max_backtrack_cnt = 10
+                accepted = False
 
                 # ttt = time.time()
                 while True:
                     # with torch.autograd.profiler.profile(use_cuda=True) as prof:
-                    u_kp1 = v_k - alpha_k * g_k
+                    u_kp1 = v_k - trial_alpha * g_k
                     # constraint_fn(u_kp1)
                     v_kp1.data.copy_(u_kp1 + coef * (u_kp1 - u_k))
                     # make sure v_kp1 subjects to constraints
                     # g_kp1 must correspond to v_kp1
-                    constraint_fn(v_kp1)
+                    if constraint_fn is not None:
+                        constraint_fn(v_kp1)
 
                     f_kp1, g_kp1 = obj_and_grad_fn(v_kp1)
 
                     # tt = time.time()
-                    alpha_kp1 = torch.sqrt(
-                        torch.sum((v_kp1.data - v_k.data) ** 2)
-                        / torch.sum((g_kp1.data - g_k.data) ** 2)
+                    finite_candidate = self._all_finite(
+                        u_kp1, v_kp1, f_kp1, g_kp1
                     )
+                    if finite_candidate:
+                        alpha_kp1 = self._bounded_bb_step(
+                            v_kp1.data - v_k.data,
+                            g_kp1.data - g_k.data,
+                            trial_alpha,
+                        )
+                    else:
+                        alpha_kp1 = trial_alpha * 0.5
                     # alpha_kp1 = torch.dist(v_kp1.data, v_k.data, p=2) / torch.dist(g_kp1.data, g_k.data, p=2)
                     backtrack_cnt += 1
                     group["obj_eval_count"] += 1
@@ -168,11 +219,21 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
 
                     # logging.debug("alpha_kp1 = %g, line_search_count = %d, obj_eval_count = %d" % (alpha_kp1, backtrack_cnt, group['obj_eval_count']))
                     # logging.debug("|g_k| = %.6E, |g_kp1| = %.6E" % (g_k.norm(p=2), g_kp1.norm(p=2)))
-                    if alpha_kp1 > 0.95 * alpha_k or backtrack_cnt >= max_backtrack_cnt:
-                        alpha_k.data.copy_(alpha_kp1.data)
+                    if finite_candidate and (
+                        alpha_kp1 > 0.95 * trial_alpha
+                        or backtrack_cnt >= max_backtrack_cnt
+                    ):
+                        accepted = True
                         break
-                    else:
-                        alpha_k.data.copy_(alpha_kp1.data)
+                    if backtrack_cnt >= max_backtrack_cnt:
+                        break
+                    trial_alpha = alpha_kp1
+
+                if not accepted:
+                    raise FloatingPointError(
+                        "Nesterov line search could not find a finite candidate"
+                    )
+                alpha_k.data.copy_(alpha_kp1.data)
                 # if v_k.is_cuda:
                 #    torch.cuda.synchronize()
                 # logging.debug("\tline search %.3f ms" % ((time.time()-ttt)*1000))

@@ -65,18 +65,22 @@ class PinPosFunction(Function):
     def backward(ctx, grad_pin_pos):
         # grad_pin_pos is not contiguous
         if grad_pin_pos.is_cuda:
-            func = pin_pos_cuda.backward
+            output = pin_pos_cuda.backward(
+                grad_pin_pos.contiguous(), ctx.pos, ctx.pin_offset_x,
+                ctx.pin_offset_y, ctx.theta, ctx.pin2node_map,
+                ctx.flat_node2pin_map, ctx.flat_node2pin_start_map,
+                ctx.h, ctx.w, ctx.num_physical_nodes)
+            num_nodes = ctx.pos.numel() // 2
+            grad_pos = output[:num_nodes * 2]
+            grad_theta = output[
+                num_nodes * 2 : num_nodes * 2 + ctx.theta.numel()
+            ]
         else:
-            func = pin_pos_cpp.backward
-        output = func(grad_pin_pos.contiguous(), ctx.pos, ctx.pin_offset_x,
-                      ctx.pin_offset_y, ctx.theta, ctx.pin2node_map,
-                      ctx.flat_node2pin_map, ctx.flat_node2pin_start_map,
-                      ctx.h, ctx.w,
-                      ctx.num_physical_nodes)
-        # split pos and theta gradients
-        num_nodes = ctx.pos.numel() // 2
-        grad_pos = output[:num_nodes * 2]
-        grad_theta = output[num_nodes * 2 : num_nodes * 2 + ctx.theta.numel()]
+            grad_pos = pin_pos_cpp.backward(
+                grad_pin_pos.contiguous(), ctx.pos, ctx.pin_offset_x,
+                ctx.pin_offset_y, ctx.pin2node_map, ctx.flat_node2pin_map,
+                ctx.flat_node2pin_start_map, ctx.num_physical_nodes)
+            grad_theta = None
         return grad_pos, None, None, grad_theta, None, None, None, None, None, None
 
 
@@ -137,7 +141,7 @@ class PinPos(nn.Module):
                  flat_node2pin_map,
                  flat_node2pin_start_map,
                  num_physical_nodes,
-                 h, w,
+                 h=None, w=None,
                  algorithm='segment',
                  orient_logits=None,
                  best_theta=None):
@@ -187,6 +191,10 @@ class PinPos(nn.Module):
                     self.pin2node_map, self.flat_node2pin_map,
                     self.flat_node2pin_start_map, self.num_physical_nodes)
             else:
+                if self.theta is None or self.h is None or self.w is None:
+                    raise ValueError(
+                        "node-by-node CUDA pin position requires theta, h, and w"
+                    )
                 return PinPosFunction.apply(pos, self.pin_offset_x,
                                             self.pin_offset_y,
                                             self.theta,
@@ -197,7 +205,9 @@ class PinPos(nn.Module):
                                             self.h, self.w)
         else:
             return PinPosFunction.apply(pos, self.pin_offset_x,
-                                        self.pin_offset_y, self.pin2node_map,
+                                        self.pin_offset_y, self.theta,
+                                        self.pin2node_map,
                                         self.flat_node2pin_map,
                                         self.flat_node2pin_start_map,
-                                        self.num_physical_nodes)
+                                        self.num_physical_nodes,
+                                        self.h, self.w)

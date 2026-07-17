@@ -1,0 +1,211 @@
+import math
+import os
+import sys
+import unittest
+
+import numpy as np
+import torch
+from shapely.geometry import Polygon, box
+
+sys.path.append(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+
+from dreamplace.constraints.pcb_geometry import (
+    GeometryAlignment,
+    conservative_region_boxes,
+    dbu_to_mm,
+    load_pcb_geometry,
+    polygon_from_segments,
+)
+from dreamplace.constraints.region_assignment import (
+    load_clusters,
+    split_side_subgroups,
+)
+from dreamplace.constraints.region_projection import (
+    FeasibleDomain,
+    NodeConstraint,
+    RegionProjector,
+    zero_optimizer_state,
+)
+from dreamplace.constraints.region_validation import (
+    ComponentPlacement,
+    validate_placement,
+)
+from dreamplace.ops.anchor_keepin.anchor_keepin import AnchorKeepInLoss
+
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+INPUT_DIR = os.path.join(REPO_ROOT, "experiments", "m336", "input")
+
+
+class AnchorKeepInTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.geometry = load_pcb_geometry(
+            os.path.join(INPUT_DIR, "pcb_geometry_keepin.json")
+        )
+
+    def test_cluster_manifest_integrity(self):
+        clusters = load_clusters(os.path.join(INPUT_DIR, "m336_clusters.json"))
+        members = [member for cluster in clusters for member in cluster.members]
+        self.assertEqual(len(clusters), 25)
+        self.assertEqual(len(members), 125)
+        self.assertEqual(len(set(members)), 125)
+        subgroups = split_side_subgroups(
+            clusters,
+            {name: symbol.side for name, symbol in self.geometry.symbols.items()},
+        )
+        self.assertEqual(len(subgroups), 31)
+
+    def test_geometry_dbu_to_mm(self):
+        np.testing.assert_allclose(dbu_to_mm([10000, -2500], 10000), [1.0, -0.25])
+
+    def test_geometry_alignment(self):
+        source = {
+            "A": (0.0, 0.0),
+            "B": (2.0, 0.0),
+            "C": (0.0, 3.0),
+            "D": (2.0, 3.0),
+        }
+        target = {
+            name: (4.0 * point[0] + 7.0, -4.0 * point[1] - 2.0)
+            for name, point in source.items()
+        }
+        alignment = GeometryAlignment.fit(source, target, max_residual_mm=1e-9)
+        self.assertTrue(alignment.flip_y)
+        self.assertAlmostEqual(alignment.scale, 4.0)
+        self.assertLess(alignment.max_residual_mm, 1e-12)
+
+    def test_arc_polygon_reconstruction(self):
+        segments = [
+            {"obj_type": "line", "start_end": [[0, 0], [10000, 0]]},
+            {
+                "obj_type": "arc",
+                "start_end": [[10000, 0], [20000, 10000]],
+                "center": [10000, 10000],
+                "radius": 10000,
+                "is_clockwise": False,
+            },
+            {"obj_type": "line", "start_end": [[20000, 10000], [20000, 20000]]},
+            {"obj_type": "line", "start_end": [[20000, 20000], [0, 20000]]},
+            {"obj_type": "line", "start_end": [[0, 20000], [0, 0]]},
+        ]
+        polygon = polygon_from_segments(segments, 10000, chord_error_mm=0.0001)
+        self.assertAlmostEqual(polygon.area, 3.0 + math.pi / 4, places=3)
+
+    def test_region_decomposition_is_conservative(self):
+        region = Polygon([(0, 0), (3, 0), (3, 1), (1, 1), (1, 3), (0, 3)])
+        boxes = conservative_region_boxes(region, 0.25)
+        decomposed = [box(*bounds) for bounds in boxes]
+        self.assertTrue(decomposed)
+        self.assertLessEqual(sum(piece.difference(region).area for piece in decomposed), 1e-12)
+
+    def test_region_boxes_are_non_overlapping(self):
+        region = Polygon([(0, 0), (2, 0), (2, 2), (0, 2)])
+        pieces = [box(*bounds) for bounds in conservative_region_boxes(region, 0.5)]
+        for index, first in enumerate(pieces):
+            for second in pieces[index + 1 :]:
+                self.assertLessEqual(first.intersection(second).area, 1e-12)
+
+    def test_component_feasible_domain(self):
+        region = Polygon([(0, 0), (3, 0), (3, 1), (1, 1), (1, 3), (0, 3)])
+        domain = FeasibleDomain.build(region, width=0.8, height=0.8, grid=0.1)
+        self.assertTrue(domain.contains((0.5, 2.0)))
+        self.assertFalse(domain.contains((1.5, 1.5)))
+        self.assertGreater(len(domain.valid_centers), 0)
+
+    def test_projected_anchor_target(self):
+        domain = FeasibleDomain.build(box(0, 0, 2, 2), 0.5, 0.5, 0.1)
+        projected, distance = domain.project((-1.0, 1.0))
+        self.assertTrue(domain.contains(projected))
+        self.assertGreater(distance, 1.0)
+
+    def test_hard_projector_inside_domain(self):
+        domain = FeasibleDomain.build(box(0, 0, 2, 2), 0.5, 0.5, 0.1)
+        constraint = NodeConstraint(
+            node_id=0,
+            refdes="U1",
+            side="TOP",
+            group_id="G",
+            subgroup_id="G__top",
+            region_id="top_0",
+            domain=domain,
+            target_center=(0.5, 0.5),
+            node_width=0.5,
+            node_height=0.5,
+        )
+        pos = torch.tensor([-2.0, 0.75])
+        stats = RegionProjector(1, [constraint])(pos)
+        center = (float(pos[0]) + 0.25, float(pos[1]) + 0.25)
+        self.assertEqual(stats.count, 1)
+        self.assertTrue(domain.contains(center))
+
+    def test_exact_validator_detects_violation(self):
+        component = ComponentPlacement(
+            refdes="U1",
+            side="TOP",
+            center=(1.9, 1.0),
+            width=0.5,
+            height=0.5,
+            region_id="top_0",
+        )
+        report = validate_placement([component], {"top_0": box(0, 0, 2, 2)})
+        self.assertEqual(report["keepin_violation_count"], 1)
+        self.assertGreater(report["keepin_violation_area"], 0)
+
+    def test_anchor_loss_zero_at_target(self):
+        sizes = torch.tensor([2.0])
+        loss_op = AnchorKeepInLoss(
+            node_ids=[0],
+            target_centers=[[3.0, 4.0]],
+            node_size_x=sizes,
+            node_size_y=sizes,
+            num_nodes=1,
+            board_diagonal=10.0,
+        )
+        pos = torch.tensor([2.0, 3.0], requires_grad=True)
+        self.assertEqual(loss_op(pos).item(), 0.0)
+
+    def test_anchor_loss_gradient_direction(self):
+        sizes = torch.tensor([1.0])
+        loss_op = AnchorKeepInLoss(
+            node_ids=[0],
+            target_centers=[[0.5, 0.5]],
+            node_size_x=sizes,
+            node_size_y=sizes,
+            num_nodes=1,
+            board_diagonal=10.0,
+        )
+        pos = torch.tensor([1.0, 0.0], requires_grad=True)
+        loss_op(pos).backward()
+        self.assertGreater(pos.grad[0].item(), 0.0)
+        self.assertAlmostEqual(pos.grad[1].item(), 0.0)
+
+    def test_feature_flag_off_is_noop(self):
+        pos = torch.tensor([-1.0, 3.0])
+        original = pos.clone()
+        projector = RegionProjector(num_nodes=1, constraints=(), enabled=False)
+        self.assertEqual(projector(pos).count, 0)
+        self.assertTrue(torch.equal(pos, original))
+
+    def test_optimizer_state_reset_does_not_modify_position(self):
+        pos = torch.nn.Parameter(torch.tensor([1.0, 2.0, 3.0, 4.0]))
+        optimizer = torch.optim.Adam([pos], lr=0.1)
+        pos.grad = torch.ones_like(pos)
+        optimizer.step()
+        expected = pos.detach().clone()
+
+        zero_optimizer_state(optimizer, pos, node_ids=[1], num_nodes=2)
+
+        self.assertTrue(torch.equal(pos.detach(), expected))
+        for name in ("exp_avg", "exp_avg_sq"):
+            state = optimizer.state[pos][name]
+            self.assertEqual(state[1].item(), 0.0)
+            self.assertEqual(state[3].item(), 0.0)
+            self.assertNotEqual(state[0].item(), 0.0)
+            self.assertNotEqual(state[2].item(), 0.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -64,6 +64,31 @@ def golden_netcrossing(pin_x, pin_y, pin2net_map, net2pin_map, _lambda, _mu, _si
 
 
 class NetCrossingOpTest(unittest.TestCase):
+    def test_rejects_node_coordinate_vector(self):
+        custom = net_crossing.NetCrossing(
+            flat_netpin=torch.tensor([0, 1], dtype=torch.int32),
+            netpin_start=torch.tensor([0, 2], dtype=torch.int32),
+            net_mask=torch.tensor([1], dtype=torch.uint8),
+            pin_side=torch.tensor([0, 0], dtype=torch.int32),
+            _lambda=torch.tensor(2.0),
+            _mu=torch.tensor(2.0),
+            _sigma=torch.tensor(1.0),
+        )
+        with self.assertRaisesRegex(ValueError, "expected 4"):
+            custom(torch.zeros(2))
+
+    def test_rejects_out_of_range_pin_id(self):
+        with self.assertRaisesRegex(ValueError, "out-of-range pin ID"):
+            net_crossing.NetCrossing(
+                flat_netpin=torch.tensor([0, 2], dtype=torch.int32),
+                netpin_start=torch.tensor([0, 2], dtype=torch.int32),
+                net_mask=torch.tensor([1], dtype=torch.uint8),
+                pin_side=torch.tensor([0, 0], dtype=torch.int32),
+                _lambda=torch.tensor(2.0),
+                _mu=torch.tensor(2.0),
+                _sigma=torch.tensor(1.0),
+            )
+
     def test_net_crossing_random(self):
         dtype = torch.float32
         # pin_pos = np.array(
@@ -79,10 +104,14 @@ class NetCrossingOpTest(unittest.TestCase):
         
         
         pin_pos = np.array(
-            [[0, 0], [2, 2], [2, -1], [-2, -2], [-1, 1], [2, 1], [-1, -2]],
-            dtype=np.float32
+            [[0, 0], [3, 3], [0, 3], [3, 0],
+             [1, -1], [1, 4], [-1, 1], [4, 1]],
+            dtype=np.float32,
         )
-        net2pin_map = np.array([np.array([0, 1, 2, 3]), np.array([4, 5, 6])])
+        net2pin_map = np.array([
+            np.array([0, 1]), np.array([2, 3]),
+            np.array([4, 5]), np.array([6, 7]),
+        ])
 
 
         pin2net_map = np.zeros(len(pin_pos), dtype=np.int32)
@@ -94,6 +123,7 @@ class NetCrossingOpTest(unittest.TestCase):
         pin_y = pin_pos[:, 1]
         ignore_net_degree = 5
         pin_mask = np.zeros(len(pin2net_map), dtype=np.uint8)
+        pin_side = np.zeros(len(pin2net_map), dtype=np.int32)
 
         # net mask
         net_mask = np.ones(len(net2pin_map), dtype=np.uint8)
@@ -147,6 +177,7 @@ class NetCrossingOpTest(unittest.TestCase):
             flat_netpin=Variable(torch.from_numpy(flat_net2pin_map)),
             netpin_start=Variable(torch.from_numpy(flat_net2pin_start_map)),
             net_mask=torch.from_numpy(net_mask),
+            pin_side=torch.from_numpy(pin_side),
             _lambda=torch.tensor(_lambda, dtype=dtype),
             _mu=torch.tensor(_mu, dtype=dtype),
             _sigma=torch.tensor(_sigma, dtype=dtype),
@@ -169,26 +200,33 @@ class NetCrossingOpTest(unittest.TestCase):
 
         # test gpu
         if torch.cuda.device_count():
-            pin_pos_var.grad.zero_()
             custom_cuda = net_crossing.NetCrossing(
                 flat_netpin=Variable(torch.from_numpy(flat_net2pin_map)).cuda(),
                 netpin_start=Variable(torch.from_numpy(flat_net2pin_start_map)).cuda(),
                 net_mask=torch.from_numpy(net_mask).cuda(),
+                pin_side=torch.from_numpy(pin_side).cuda(),
                 _lambda=torch.tensor(_lambda, dtype=dtype).cuda(),
                 _mu=torch.tensor(_mu, dtype=dtype).cuda(),
                 _sigma=torch.tensor(_sigma, dtype=dtype).cuda(),
+                deterministic=True,
             )
-            result_cuda = custom_cuda.forward(pin_pos_var.cuda())
-            print("custom_cuda_result = ", result_cuda.data.cpu())
-            result_cuda.backward()
-            grad_cuda = pin_pos_var.grad.clone()
-            print("custom_cuda_grad = ", grad_cuda.data.cpu())
+            repeated = []
+            for _ in range(20):
+                cuda_pos = pin_pos_var.detach().cuda().requires_grad_(True)
+                result_cuda = custom_cuda(cuda_pos)
+                result_cuda.backward()
+                repeated.append((result_cuda.detach().cpu(), cuda_pos.grad.detach().cpu()))
+            grad_cuda = repeated[0][1]
+
+            for repeated_result, repeated_grad in repeated[1:]:
+                self.assertTrue(torch.equal(repeated_result, repeated[0][0]))
+                self.assertTrue(torch.equal(repeated_grad, grad_cuda))
 
             np.testing.assert_allclose(
                 result_cuda.data.cpu().numpy(), golden.data.detach().numpy(), atol=1e-5
             )
             np.testing.assert_allclose(
-                grad_cuda.data.cpu().numpy(), grad.data.numpy(), atol=1e-5
+                grad_cuda.numpy(), grad.data.numpy(), atol=1e-5
             )
             print("\033[92mGPU test passed!\033[0m")
 

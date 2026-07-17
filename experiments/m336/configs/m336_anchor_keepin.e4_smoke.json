@@ -1,0 +1,28 @@
+{
+  "schema": "m336_anchor_keepin_config_v1",
+  "enabled": true,
+  "geometry_file": "experiments/m336/input/pcb_geometry_keepin.json",
+  "cluster_file": "experiments/m336/input/m336_clusters.json",
+  "region_assignment_file": "experiments/m336/configs/m336_region_assignment.final.json",
+  "allow_region_reassignment": false,
+  "feature_flags": {
+    "enable_anchor_loss": true,
+    "enable_hard_keepin_projection": true,
+    "enable_exact_repair": true,
+    "enable_rotation": false
+  },
+  "geometry": {
+    "placement_region_field": "component_placeable_regions",
+    "constraint_grid_mm": 0.1,
+    "clearance_mm": 0.0,
+    "alignment_max_residual_mm": 0.05,
+    "no_board_bbox_fallback": true
+  },
+  "reporting": {
+    "output_dir": "results/m336/e4_smoke",
+    "area_epsilon_mm2": 1e-5,
+    "emit_per_group_metrics": true,
+    "emit_exact_legality_report": true,
+    "emit_input_alignment_report": true
+  }
+}

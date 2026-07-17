@@ -116,6 +116,7 @@ class Dispatcher(object):
 
 		self.waiting_jobs = queue.Queue()
 		self.running_jobs = {}
+		self.completed_jobs = set()
 		self.idle_workers = set()
 
 
@@ -297,6 +298,8 @@ class Dispatcher(object):
 		
 			job.time_it('started')
 			worker.runs_job = job.id
+			job.worker_name = wn
+			self.running_jobs[job.id] = job
 
 			try:
 				busy = worker.proxy.is_busy()
@@ -309,13 +312,11 @@ class Dispatcher(object):
 				print('DISPATCHER: start_computation call succeeded for job %s'%str(job.id))
 			except Exception as e:
 				print('DISPATCHER: start_computation call FAILED for job %s: %s'%(str(job.id), str(e)))
+				del self.running_jobs[job.id]
 				worker.runs_job = None
 				self.idle_workers.add(wn)
 				self.waiting_jobs.put(job)
 				continue
-
-			job.worker_name = wn
-			self.running_jobs[job.id] = job
 
 			self.logger.debug('DISPATCHER: job %s dispatched on %s'%(str(job.id),worker.name))
 
@@ -332,11 +333,14 @@ class Dispatcher(object):
 
 	@Pyro4.expose
 	@Pyro4.callback
-	@Pyro4.oneway
 	def register_result(self, id=None, result=None):
 		self.logger.debug('DISPATCHER: job %s finished'%(str(id)))
 		with self.runner_cond:
 			self.logger.debug('DISPATCHER: register_result: lock acquired')
+			if id in self.completed_jobs:
+				return True
+			if id not in self.running_jobs:
+				raise KeyError('Unknown running job %s' % str(id))
 			# fill in missing information
 			job = self.running_jobs[id]
 			job.time_it('finished')
@@ -346,23 +350,19 @@ class Dispatcher(object):
 			self.logger.debug('DISPATCHER: job %s on %s finished'%(str(job.id),job.worker_name))
 			self.logger.debug(str(job))
 			
-			# delete job
-			del self.running_jobs[id]
-
-			# label worker as idle again
-			try:
-				self.worker_pool[job.worker_name].runs_job = None
-				self.worker_pool[job.worker_name].proxy._pyroRelease()
-				self.idle_workers.add(job.worker_name)
-				# notify the job_runner to check for more jobs to run
-				self.runner_cond.notify()
-			except KeyError:
-				# happens for crashed workers, but we can just continue
-				pass
-			except:
-				raise
-
 		# call users callback function to register the result
 		# needs to be with the condition released, as the master can call
 		# submit_job quickly enough to cause a dead-lock
 		self.new_result_callback(job)
+
+		with self.runner_cond:
+			del self.running_jobs[id]
+			self.completed_jobs.add(id)
+			try:
+				self.worker_pool[job.worker_name].runs_job = None
+				self.worker_pool[job.worker_name].proxy._pyroRelease()
+				self.idle_workers.add(job.worker_name)
+			except KeyError:
+				pass
+			self.runner_cond.notify()
+		return True

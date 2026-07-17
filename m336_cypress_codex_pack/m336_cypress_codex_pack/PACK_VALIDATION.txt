@@ -1,0 +1,25 @@
+M336 input validation: PASS
+  enumerated modules: 25
+  declared modules:   27
+  clustered members:  125
+  unique members:     125
+  assignment rows:    31
+  region IDs:         ['bottom_0', 'bottom_1', 'bottom_2', 'top_0']
+  geometry symbols:   140
+  geometry nets:      76
+  cluster sha256:     274955bdd85ee8a3659a47dc70e16737341a3210b0016ade03691f558e7e2c93
+  geometry sha256:    a7c2c788a7df386db9f94df76bfe64a21d49f21beacb0e233ebedac75cc4ad8d
+  assignment sha256:  0bcf4bf300c6f6069902d754fc967663dbba1f2ff8b244c99c24d006af658ef2
+
+STDERR:
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 720, in _warm_feature_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/spreadsheet_warmup.py", line 704, in _warm_collaboration_flows
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/generated/interface/models.py", line 30820, in hydrate_crdt_from_proto
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/remote.py", line 749, in __call__
+  File "/tmp/tmp.yTcnQsZYiA/artifact_tool_v2-2.8.4/artifact_tool/rpc/client.py", line 150, in call
+artifact_tool.rpc.client.RemoteError: hydrateCrdtFromProto requires an empty collaborative document.
+WARNING: declared module count is 27 but the supplied table enumerates 25. The enumerated rows contain the declared 125 clustered members. Do not invent missing modules.

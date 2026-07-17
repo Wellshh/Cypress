@@ -15,8 +15,10 @@
 
 import os
 import argparse
+import random
 import time
 import torch
+import numpy as np
 import shutil
 import re
 import sys
@@ -69,7 +71,7 @@ parser.add_argument(
     "--max_budget",
     type=int,
     help="Maximum budget used during the optimization.",
-    default=1,
+    default=3,
 )
 parser.add_argument(
     "--n_iterations",
@@ -98,6 +100,9 @@ parser.add_argument(
 parser.add_argument("--log_dir", help="Result log dir", default="logs_tuner")
 parser.add_argument("--run_id", help="Run id for communication", default="0")
 parser.add_argument(
+    "--study_seed", type=int, help="Seed for search and placement replicates", default=0
+)
+parser.add_argument(
     "--run_args", nargs="*", help="Args for AutoDMP", action=parse_dictionary
 )
 parser.add_argument(
@@ -111,6 +116,10 @@ parser.add_argument(
     default="-1",
 )
 args = parser.parse_args()
+
+random.seed(args.study_seed)
+np.random.seed(args.study_seed)
+torch.manual_seed(args.study_seed)
 
 
 # Worker
@@ -153,6 +162,7 @@ if args.worker:
         density_ratio=args.density_ratio,
         default_config=args.run_args,
         multiobj=args.multiobj,
+        study_seed=args.study_seed,
     )
     w.run(background=False)
     exit(0)
@@ -184,7 +194,7 @@ if args.multiobj:
         "gamma": 0.10,
     }
     bohb = MOBOHB(
-        configspace=AutoDMPWorker.get_configspace(args.cfgSearchFile),
+        configspace=AutoDMPWorker.get_configspace(args.cfgSearchFile, args.study_seed),
         parameters=motpe_params,
         run_id=args.run_id,
         nameserver="127.0.0.1",
@@ -197,7 +207,7 @@ if args.multiobj:
     )
 else:
     bohb = BOHB(
-        configspace=AutoDMPWorker.get_configspace(args.cfgSearchFile),
+        configspace=AutoDMPWorker.get_configspace(args.cfgSearchFile, args.study_seed),
         run_id=args.run_id,
         nameserver="127.0.0.1",
         nameserver_port=NS.port,

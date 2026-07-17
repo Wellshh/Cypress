@@ -5,10 +5,14 @@ import os
 import subprocess
 import sys
 import time
+import ast
+import statistics
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-REPO_ROOT = Path("/home/jybai/pcb-placement/research/gpu-used/Cypress")
+REPO_ROOT = Path(__file__).resolve().parent
+STUDY_SEED = int(os.environ.get("CYPRESS_STUDY_SEED", "0"))
+EVALUATION_SEEDS = [STUDY_SEED + offset for offset in range(3)]
 
 def load_base_config(bench_name):
     config_path = REPO_ROOT / "benchmark_configs" / f"{bench_name}.json"
@@ -17,12 +21,23 @@ def load_base_config(bench_name):
 
 def run_variant(args):
     """Run a single variant on a specific GPU. Returns (variant_id, result dict)."""
-    bench_name, variant_id, config, gpu_id = args
+    bench_name, variant_id, config, gpu_id, seed = args
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT / "install") + ":" + env.get("PYTHONPATH", "")
     env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    env["PYTHONHASHSEED"] = str(seed)
 
-    tmp_path = REPO_ROOT / f"tmp_{bench_name}_v{variant_id}_gpu{gpu_id}.json"
+    config = dict(config)
+    config["random_seed"] = seed
+    config["result_dir"] = str(
+        REPO_ROOT
+        / "results"
+        / "tune"
+        / bench_name
+        / f"v{variant_id}"
+        / f"seed-{seed}"
+    )
+    tmp_path = REPO_ROOT / f"tmp_{bench_name}_v{variant_id}_seed{seed}.json"
     with open(tmp_path, "w") as f:
         json.dump(config, f, indent=2)
 
@@ -45,7 +60,7 @@ def run_variant(args):
     else:
         log_path = REPO_ROOT / "DREAMPlace.log"
 
-    if log_path.exists():
+    if proc.returncode == 0 and log_path.exists():
         with open(log_path) as f:
             for line in f:
                 if "Final PPA:" in line:
@@ -53,7 +68,7 @@ def run_variant(args):
                     match = re.search(r"Final PPA:\s*(\{.*\})", line)
                     if match:
                         try:
-                            ppa = eval(match.group(1))
+                            ppa = ast.literal_eval(match.group(1))
                         except Exception:
                             pass
                     break
@@ -68,11 +83,44 @@ def run_variant(args):
         overflow = 1.0
         net_x = float("inf")
 
-    return (variant_id, {
+    return (variant_id, seed, {
         "hpwl": hpwl, "rsmt": rsmt, "overflow": overflow,
         "net_crossing": net_x, "time": elapsed, "ppa": ppa,
         "exit_code": proc.returncode,
     }, config)
+
+
+def aggregate_replicates(replicates):
+    valid_hpwl = [
+        result["hpwl"] for result in replicates
+        if result["hpwl"] != float("inf")
+    ]
+    failure_rate = 1.0 - len(valid_hpwl) / len(replicates)
+    if not valid_hpwl:
+        score = float("inf")
+    else:
+        quartiles = (
+            statistics.quantiles(valid_hpwl, n=4)
+            if len(valid_hpwl) > 1
+            else [valid_hpwl[0]] * 3
+        )
+        score = statistics.median(valid_hpwl) + 0.25 * (
+            quartiles[2] - quartiles[0]
+        )
+        score *= 1.0 + failure_rate
+    aggregate = dict(replicates[0])
+    for metric in ("rsmt", "overflow", "net_crossing", "time"):
+        valid_values = [
+            result[metric] for result in replicates
+            if result[metric] != float("inf")
+        ]
+        aggregate[metric] = (
+            statistics.median(valid_values) if valid_values else float("inf")
+        )
+    aggregate.update(
+        {"hpwl": score, "failure_rate": failure_rate, "replicates": replicates}
+    )
+    return aggregate
 
 def make_variants(base_config, bench_name):
     """Generate parameter variants to try."""
@@ -176,20 +224,29 @@ def tune_benchmark(bench_name):
     # Build args list with GPU assignment
     args_list = []
     for i, v in enumerate(variants):
-        gpu_id = i % 8
-        args_list.append((bench_name, i, v, gpu_id))
+        for seed in EVALUATION_SEEDS:
+            gpu_id = len(args_list) % 8
+            args_list.append((bench_name, i, v, gpu_id, seed))
 
-    results = []
+    replicate_results = {i: [] for i in range(len(variants))}
     with ProcessPoolExecutor(max_workers=8) as executor:
         futures = {executor.submit(run_variant, args): args for args in args_list}
         for future in as_completed(futures):
-            variant_id, result, cfg = future.result()
-            hpwl = result["hpwl"]
-            if hpwl != float("inf"):
-                print(f"  [v{variant_id}] HPWL={hpwl:.1f} RSMT={result['rsmt']:.1f} Overflow={result['overflow']:.4f} Time={result['time']:.1f}s")
+            variant_id, seed, result, cfg = future.result()
+            if result["hpwl"] != float("inf"):
+                print(f"  [v{variant_id} seed={seed}] HPWL={result['hpwl']:.1f} RSMT={result['rsmt']:.1f} Overflow={result['overflow']:.4f} Time={result['time']:.1f}s")
             else:
-                print(f"  [v{variant_id}] FAILED")
-            results.append((variant_id, result, cfg))
+                print(f"  [v{variant_id} seed={seed}] FAILED")
+            replicate_results[variant_id].append(result)
+
+    results = [
+        (
+            variant_id,
+            aggregate_replicates(replicate_results[variant_id]),
+            variants[variant_id],
+        )
+        for variant_id in range(len(variants))
+    ]
 
     # Find best
     best = min(results, key=lambda x: x[1]["hpwl"] if x[1]["hpwl"] != float("inf") else 1e18)

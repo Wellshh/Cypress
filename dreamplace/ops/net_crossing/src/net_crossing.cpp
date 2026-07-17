@@ -13,11 +13,11 @@ DREAMPLACE_BEGIN_NAMESPACE
 template <typename T>
 void computeNetCrossingLauncher(const T* x, const T* y, const int* flat_netpin,
                                const int* netpin_start, const unsigned char* net_mask,
-                               int num_nets, T* net_crossing,
+                               const int* pin_side,
+                               int num_nets, int num_pins, T* net_crossing,
                                T *lambda_, T *mu_, T *sigma_,
                                T *grad_intermediate_x, T *grad_intermediate_y,
                                int num_threads) {
-#pragma omp parallel for num_threads(num_threads)
   for (int i = 0; i < num_nets; ++i) {
     for (int j = i + 1; j < num_nets; ++j) {
       if (!net_mask[i] || !net_mask[j]) continue;
@@ -28,10 +28,26 @@ void computeNetCrossingLauncher(const T* x, const T* y, const int* flat_netpin,
       }
       for (int net_i_sink_pin_idx = netpin_start[i] + 1; net_i_sink_pin_idx < netpin_start[i + 1]; ++net_i_sink_pin_idx) {
         int net_i_src_pin_id = flat_netpin[netpin_start[i]];
-        int net_i_sink_pin_id = flat_netpin[net_i_sink_pin_idx];
+          int net_i_sink_pin_id = flat_netpin[net_i_sink_pin_idx];
         for (int net_j_sink_pin_idx = netpin_start[j] + 1; net_j_sink_pin_idx < netpin_start[j + 1]; ++net_j_sink_pin_idx) {
           int net_j_src_pin_id = flat_netpin[netpin_start[j]];
           int net_j_sink_pin_id = flat_netpin[net_j_sink_pin_idx];
+          if (net_i_src_pin_id < 0 || net_i_src_pin_id >= num_pins ||
+              net_i_sink_pin_id < 0 || net_i_sink_pin_id >= num_pins ||
+              net_j_src_pin_id < 0 || net_j_src_pin_id >= num_pins ||
+              net_j_sink_pin_id < 0 || net_j_sink_pin_id >= num_pins) {
+            continue;
+          }
+
+          int net_i_src_pin_side = pin_side[net_i_src_pin_id];
+          int net_i_sink_pin_side = pin_side[net_i_sink_pin_id];
+          int net_j_src_pin_side = pin_side[net_j_src_pin_id];
+          int net_j_sink_pin_side = pin_side[net_j_sink_pin_id];
+          if ((net_i_src_pin_side == net_i_sink_pin_side) &&
+              (net_j_src_pin_side == net_j_sink_pin_side) &&
+              (net_i_src_pin_side != net_j_src_pin_side)) {
+            continue;
+          }
           
           T x1 = x[net_i_src_pin_id];
           T y1 = y[net_i_src_pin_id];
@@ -43,8 +59,14 @@ void computeNetCrossingLauncher(const T* x, const T* y, const int* flat_netpin,
           T y4 = y[net_j_sink_pin_id];
 
            // Bezier curve intersection
-          T t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / ((x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4));          
-          T u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / ((x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4));
+          T denominator = (x1 - x2) * (y3 - y4) -
+                          (y1 - y2) * (x3 - x4);
+          T epsilon = sizeof(T) == sizeof(float) ? (T)1e-6 : (T)1e-12;
+          if (std::abs(denominator) <= epsilon) continue;
+          T t = ((x1 - x3) * (y3 - y4) -
+                 (y1 - y3) * (x3 - x4)) / denominator;
+          T u = -((x1 - x2) * (y1 - y3) -
+                  (y1 - y2) * (x1 - x3)) / denominator;
 
           // std::cout << "custom t: " << t << " u: " << u << "\n";
 
@@ -129,21 +151,13 @@ void computeNetCrossingLauncher(const T* x, const T* y, const int* flat_netpin,
           T dx4 = df_dx4 * bell(u - 0.5) + bell(t - 0.5) * dg_dx4;
           T dy4 = df_dy4 * bell(u - 0.5) + bell(t - 0.5) * dg_dy4;
           
-          #pragma omp atomic
           grad_intermediate_x[net_i_src_pin_id] += dx1;
-          #pragma omp atomic
           grad_intermediate_y[net_i_src_pin_id] += dy1;
-          #pragma omp atomic
           grad_intermediate_x[net_i_sink_pin_id] += dx2;
-          #pragma omp atomic
           grad_intermediate_y[net_i_sink_pin_id] += dy2;
-          #pragma omp atomic
           grad_intermediate_x[net_j_src_pin_id] += dx3;
-          #pragma omp atomic
           grad_intermediate_y[net_j_src_pin_id] += dy3;
-          #pragma omp atomic
           grad_intermediate_x[net_j_sink_pin_id] += dx4;
-          #pragma omp atomic
           grad_intermediate_y[net_j_sink_pin_id] += dy4;
         }
       }
@@ -163,6 +177,7 @@ void computeNetCrossingLauncher(const T* x, const T* y, const int* flat_netpin,
 /// not
 std::vector<at::Tensor> net_crossing_forward(at::Tensor pos, at::Tensor flat_netpin,
                                at::Tensor netpin_start, at::Tensor net_mask,
+                               at::Tensor pin_side,
                                at::Tensor lambda, at::Tensor mu, at::Tensor sigma // scalar Tensors
 ) {
   CHECK_FLAT_CPU(pos);
@@ -174,10 +189,39 @@ std::vector<at::Tensor> net_crossing_forward(at::Tensor pos, at::Tensor flat_net
   CHECK_CONTIGUOUS(netpin_start);
   CHECK_FLAT_CPU(net_mask);
   CHECK_CONTIGUOUS(net_mask);
+  CHECK_FLAT_CPU(pin_side);
+  CHECK_CONTIGUOUS(pin_side);
+  CHECK_CPU(lambda);
+  CHECK_CONTIGUOUS(lambda);
+  CHECK_CPU(mu);
+  CHECK_CONTIGUOUS(mu);
+  CHECK_CPU(sigma);
+  CHECK_CONTIGUOUS(sigma);
 
-
+  TORCH_CHECK(netpin_start.numel() >= 1,
+              "netpin_start must contain a terminal offset");
   int num_nets = netpin_start.numel() - 1;
   int num_pins = pos.numel() / 2;
+  TORCH_CHECK(flat_netpin.numel() == num_pins,
+              "flat_netpin must enumerate every pin exactly once");
+  TORCH_CHECK(pin_side.numel() == num_pins,
+              "pin_side length must match the number of pin coordinates");
+  TORCH_CHECK(net_mask.numel() == num_nets,
+              "net_mask length must match the number of nets");
+  TORCH_CHECK(flat_netpin.scalar_type() == at::kInt,
+              "flat_netpin must use int32 storage");
+  TORCH_CHECK(netpin_start.scalar_type() == at::kInt,
+              "netpin_start must use int32 storage");
+  TORCH_CHECK(pin_side.scalar_type() == at::kInt,
+              "pin_side must use int32 storage");
+  TORCH_CHECK(net_mask.scalar_type() == at::kByte,
+              "net_mask must use uint8 storage");
+  TORCH_CHECK(lambda.numel() == 1 && mu.numel() == 1 && sigma.numel() == 1,
+              "lambda, mu, and sigma must be scalar tensors");
+  TORCH_CHECK(lambda.scalar_type() == pos.scalar_type() &&
+                  mu.scalar_type() == pos.scalar_type() &&
+                  sigma.scalar_type() == pos.scalar_type(),
+              "lambda, mu, sigma, and pos must use the same dtype");
 
   at::Tensor net_crossing = at::zeros(num_nets, pos.options());
   at::Tensor grad_intermediate = at::zeros_like(pos);
@@ -189,7 +233,8 @@ std::vector<at::Tensor> net_crossing_forward(at::Tensor pos, at::Tensor flat_net
         DREAMPLACE_TENSOR_DATA_PTR(flat_netpin, int),
         DREAMPLACE_TENSOR_DATA_PTR(netpin_start, int),
         DREAMPLACE_TENSOR_DATA_PTR(net_mask, unsigned char), 
-        num_nets,
+        DREAMPLACE_TENSOR_DATA_PTR(pin_side, int),
+        num_nets, num_pins,
         DREAMPLACE_TENSOR_DATA_PTR(net_crossing, scalar_t),
         DREAMPLACE_TENSOR_DATA_PTR(lambda, scalar_t),
         DREAMPLACE_TENSOR_DATA_PTR(mu, scalar_t),

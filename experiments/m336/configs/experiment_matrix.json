@@ -1,0 +1,71 @@
+{
+  "schema": "m336_experiment_matrix_v1",
+  "board": "M336",
+  "seeds": [
+    1000,
+    1001,
+    1002
+  ],
+  "primary_comparison": "E3 versus E2 isolates the benefit of anchor attraction under the same keepin enforcement.",
+  "experiments": [
+    {
+      "id": "E0",
+      "name": "cypress_baseline",
+      "anchor_loss": false,
+      "fence_regions": false,
+      "hard_keepin_projection": false,
+      "exact_repair": false,
+      "purpose": "Unmodified baseline and diagnostic reference. It may violate keepin."
+    },
+    {
+      "id": "E1",
+      "name": "anchor_only",
+      "anchor_loss": true,
+      "fence_regions": false,
+      "hard_keepin_projection": false,
+      "exact_repair": false,
+      "purpose": "Measure anchor attraction without geometric constraints; diagnostic only."
+    },
+    {
+      "id": "E2",
+      "name": "keepin_only",
+      "anchor_loss": false,
+      "fence_regions": true,
+      "hard_keepin_projection": true,
+      "exact_repair": false,
+      "purpose": "Feasible-region baseline for the primary anchor-distance comparison."
+    },
+    {
+      "id": "E3",
+      "name": "anchor_plus_keepin",
+      "anchor_loss": true,
+      "fence_regions": true,
+      "hard_keepin_projection": true,
+      "exact_repair": false,
+      "purpose": "Main experiment."
+    },
+    {
+      "id": "E4",
+      "name": "anchor_keepin_plus_repair",
+      "anchor_loss": true,
+      "fence_regions": true,
+      "hard_keepin_projection": true,
+      "exact_repair": true,
+      "purpose": "Final legal result using bounded greedy/CP-SAT repair only for remaining violations."
+    }
+  ],
+  "anchor_weight_sweep": [
+    0.25,
+    0.5,
+    1.0,
+    2.0
+  ],
+  "constraint_grid_mm": [
+    0.1,
+    0.05
+  ],
+  "clearance_mm": [
+    0.0,
+    0.2
+  ]
+}

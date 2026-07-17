@@ -31,6 +31,7 @@
 #   12 script_dir   : Tuner script directory
 #   13 log_dir      : Log output directory
 #   14 gpu_pool     : (Optional) GPU IDs to use, e.g. \"0,1,2,3\" or \"0-7\". Default: all GPUs.
+#   15 study_seed   : (Optional) Search and evaluation seed. Default: 0.
 
 #!/bin/bash -x
 
@@ -50,7 +51,9 @@ m_points=${11}
 script_dir=${12}
 log_dir=${13}
 gpu_pool=${14:--1}
+study_seed=${15:-0}
 auxbase=$(basename $aux .aux)
+export PYTHONHASHSEED="$study_seed"
 # script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 echo "Parameters:" $@
@@ -82,12 +85,12 @@ fi
 pids=()
 
 # Launch master process
-python3.11 $script_dir/tuner_train.py --multiobj $multiobj --cfgSearchFile $cfg --n_workers $workers --n_iterations $iterations --min_points_in_model $m_points --log_dir $log_dir/$auxbase --run_args aux_input=$aux &
+python3.11 $script_dir/tuner_train.py --multiobj $multiobj --cfgSearchFile $cfg --n_workers $workers --n_iterations $iterations --min_points_in_model $m_points --study_seed $study_seed --log_dir $log_dir/$auxbase --run_args aux_input=$aux &
 pids+=($!)
 
 # Launch worker processes
 for i in $(seq $workers); do
-    python3.11 $script_dir/tuner_train.py --multiobj $multiobj --log_dir $log_dir/$auxbase --worker --worker_id $i --run_args aux_input=$aux gpu=$gpu base_ppa=$base_ppa reuse_params=$reuse_params --density_ratio $d_ratio --congestion_ratio $c_ratio --gpu_pool "$gpu_pool" &
+    python3.11 $script_dir/tuner_train.py --multiobj $multiobj --log_dir $log_dir/$auxbase --worker --worker_id $i --study_seed $study_seed --run_args aux_input=$aux gpu=$gpu base_ppa=$base_ppa reuse_params=$reuse_params --density_ratio $d_ratio --congestion_ratio $c_ratio --gpu_pool "$gpu_pool" &
     pids+=($!)
 done
 
@@ -95,9 +98,12 @@ done
 while true; do
     wait -n
     code=$?
-    if [ $? -ne 0 ]; then
+    if [ "$code" -ne 0 ]; then
         echo "A process failed, killing all jobs"
-        jobs -p | xargs kill
+        running_jobs=$(jobs -p)
+        if [ -n "$running_jobs" ]; then
+            kill $running_jobs
+        fi
         exit 1
     fi
     if [ -z "$(jobs -r)" ]; then

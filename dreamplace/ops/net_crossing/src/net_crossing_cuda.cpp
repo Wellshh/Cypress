@@ -35,9 +35,37 @@ std::vector<at::Tensor> net_crossing_forward(at::Tensor pos, at::Tensor flat_net
   CHECK_CONTIGUOUS(net_mask);
   CHECK_FLAT_CUDA(pin_side);
   CHECK_CONTIGUOUS(pin_side);
+  CHECK_CUDA(lambda);
+  CHECK_CONTIGUOUS(lambda);
+  CHECK_CUDA(mu);
+  CHECK_CONTIGUOUS(mu);
+  CHECK_CUDA(sigma);
+  CHECK_CONTIGUOUS(sigma);
 
+  TORCH_CHECK(netpin_start.numel() >= 1,
+              "netpin_start must contain a terminal offset");
   int num_nets = netpin_start.numel() - 1;
   int num_pins = pos.numel() / 2;
+  TORCH_CHECK(flat_netpin.numel() == num_pins,
+              "flat_netpin must enumerate every pin exactly once");
+  TORCH_CHECK(pin_side.numel() == num_pins,
+              "pin_side length must match the number of pin coordinates");
+  TORCH_CHECK(net_mask.numel() == num_nets,
+              "net_mask length must match the number of nets");
+  TORCH_CHECK(flat_netpin.scalar_type() == at::kInt,
+              "flat_netpin must use int32 storage");
+  TORCH_CHECK(netpin_start.scalar_type() == at::kInt,
+              "netpin_start must use int32 storage");
+  TORCH_CHECK(pin_side.scalar_type() == at::kInt,
+              "pin_side must use int32 storage");
+  TORCH_CHECK(net_mask.scalar_type() == at::kByte,
+              "net_mask must use uint8 storage");
+  TORCH_CHECK(lambda.numel() == 1 && mu.numel() == 1 && sigma.numel() == 1,
+              "lambda, mu, and sigma must be scalar tensors");
+  TORCH_CHECK(lambda.scalar_type() == pos.scalar_type() &&
+                  mu.scalar_type() == pos.scalar_type() &&
+                  sigma.scalar_type() == pos.scalar_type(),
+              "lambda, mu, sigma, and pos must use the same dtype");
 
   at::Tensor net_crossing = at::zeros(num_nets, pos.options());
   at::Tensor grad_intermediate = at::zeros_like(pos);
@@ -58,12 +86,6 @@ std::vector<at::Tensor> net_crossing_forward(at::Tensor pos, at::Tensor flat_net
         DREAMPLACE_TENSOR_DATA_PTR(grad_intermediate, scalar_t),
         DREAMPLACE_TENSOR_DATA_PTR(grad_intermediate, scalar_t) + num_pins);
   });
-
-  // Check if there are any NaN values in the tensor
-  bool has_nan = at::isnan(net_crossing).any().item<bool>();
-  if (has_nan){
-    std::cout << "net crossing contains NaN: " << (has_nan ? "Yes" : "No") << std::endl;
-  }
 
   return {net_crossing.sum(), grad_intermediate};
 }

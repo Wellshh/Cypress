@@ -70,6 +70,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         lrs = []
         scheduler = None
         plot_frequency = 100
+        net_crossing_enabled = bool(
+            params.net_crossing_flag and float(params.net_crossing_weight) != 0.0
+        )
         # global placement
         if params.global_place_flag:
             # global placement may run in multiple stages according to user specification
@@ -123,11 +126,17 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         position, lr=0, momentum=0.9, nesterov=True
                     )
                 elif optimizer_name.lower() == "nesterov":
+                    constraint_fn = self.op_collections.move_boundary_op
+                    if self.anchor_keepin_context is not None:
+                        def constraint_fn(position):
+                            self.op_collections.move_boundary_op(position)
+                            self.op_collections.move_region_boundary_op(position)
+
                     optimizer = NesterovAcceleratedGradientOptimizer.NesterovAcceleratedGradientOptimizer(
                         position,
                         lr=0,
                         obj_and_grad_fn=model.obj_and_grad_fn,
-                        constraint_fn=self.op_collections.move_boundary_op,
+                        constraint_fn=constraint_fn,
                     )
                 else:
                     assert 0, "unknown optimizer %s" % (optimizer_name)
@@ -151,9 +160,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     # "objective" : model.obj_fn,
                     # "weight_hpwl": self.op_collections.weight_hpwl_op,
                     "hpwl": self.op_collections.hpwl_op,
-                    "net_crossing": self.op_collections.net_crossing_op,
                     "overflow": self.op_collections.two_side_density_overflow_op,
                 }
+                if net_crossing_enabled:
+                    eval_ops["net_crossing"] = self.op_collections.net_crossing_op
                 if params.routability_opt_flag:
                     eval_ops.update(
                         {
@@ -355,7 +365,8 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     )
                     cur_metric.gamma = model.gamma.data
                     cur_metric.density_weight = model.density_weight.data
-                    cur_metric.net_crossing_weight = model.net_crossing_weight
+                    if net_crossing_enabled:
+                        cur_metric.net_crossing_weight = model.net_crossing_weight
                     if params.macro_overlap_flag:
                         cur_metric.macro_overlap_weight = (
                             model.macro_overlap_weight.data
@@ -365,6 +376,8 @@ class NonLinearPlace(BasicPlace.BasicPlace):
 
                     # move any out-of-bound cell back to placement region
                     self.op_collections.move_boundary_op(pos)
+                    if self.anchor_keepin_context is not None:
+                        self.op_collections.move_region_boundary_op(pos)
 
                     # handle multiple density weights for multi-electric field
                     if torch.eq(model.density_weight.mean(), 0.0):
@@ -403,7 +416,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     )
                     
                     if params.enable_rotation and update_orient_cond:
-                        best_wl, best_nc = model.wirelength.data, model.net_crossing.data
+                        best_wl = model.wirelength.data
+                        best_nc = (
+                            model.net_crossing.data if net_crossing_enabled else None
+                        )
                         for _ in range(100):
                             model.op_collections.pin_pos_op.use_best_theta = False
                             model.freeze_pos = True
@@ -415,11 +431,17 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                             # with torch.no_grad():
                                 # self.orient_logits -= 1e-5 * grad_rot
                             # if model.wirelength.data < best_wl or model.net_crossing.data < best_nc:
-                            if model.wirelength.data < best_wl and model.net_crossing.data < best_nc:
+                            net_crossing_improved = (
+                                not net_crossing_enabled
+                                or model.net_crossing.data < best_nc
+                            )
+                            if model.wirelength.data < best_wl and net_crossing_improved:
                             # if model.wirelength.data < best_wl:
                                 logging.info("update best theta")
                                 self.update_best_theta()
-                                best_wl, best_nc = model.wirelength.data, model.net_crossing.data
+                                best_wl = model.wirelength.data
+                                if net_crossing_enabled:
+                                    best_nc = model.net_crossing.data
                             model.freeze_pos = False
                             model.op_collections.pin_pos_op.use_best_theta = True
                     else:
@@ -467,6 +489,25 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     else:
                         if not model.freeze_pos:
                             optimizer.step()
+
+                    if self.anchor_keepin_context is not None:
+                        projection_stats = self.op_collections.move_region_boundary_op(pos)
+                        if projection_stats.count:
+                            from dreamplace.constraints.region_projection import (
+                                zero_optimizer_state,
+                            )
+
+                            zero_optimizer_state(
+                                optimizer,
+                                pos,
+                                projection_stats.projected_node_ids,
+                                placedb.num_nodes,
+                            )
+                            logging.info(
+                                "keep-in projection: %d nodes, max distance %.6g",
+                                projection_stats.count,
+                                projection_stats.max_distance,
+                            )
 
                     logging.info("optimizer step %.3f ms" % ((time.time() - t3) * 1000))
 
@@ -733,7 +774,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                             )
 
                         # update net crossing weight
-                        if Llambda_flat_iteration > 1 and params.net_crossing_flag:
+                        if Llambda_flat_iteration > 1 and net_crossing_enabled:
                             model.op_collections.update_net_crossing_weight_op(
                                 Llambda_metrics[-1][-1],
                                 Llambda_metrics[-2][-1]
@@ -1040,7 +1081,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         hpwls = [metric.hpwl.data.item() for metric in metrics]
         overflows = [metric.overflow.data.item() for metric in metrics]
         densities = [metric.max_density.data.item() for metric in metrics]
-        if params.net_crossing_flag:
+        if net_crossing_enabled:
             net_crossing = [metric.net_crossing.data.item() for metric in metrics]
         processed_metrics = {
             "objective": objectives,
@@ -1048,7 +1089,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             "overflow": overflows,
             "density": densities,
         }
-        if params.net_crossing_flag:
+        if net_crossing_enabled:
             processed_metrics["net_crossing"] = net_crossing
 
         # plot losses
@@ -1125,6 +1166,8 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         if params.legalize_flag:
             tt = time.time()
             self.pos[0].data.copy_(self.op_collections.legalize_op(self.pos[0], self.data_collections.best_orient_choice))
+            if self.anchor_keepin_context is not None:
+                self.op_collections.move_region_boundary_op(self.pos[0])
             logging.info("legalization takes %.3f seconds" % (time.time() - tt))
             cur_metric = EvalMetrics.EvalMetrics(iteration)
             all_metrics.append(cur_metric)
@@ -1153,6 +1196,8 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         if params.detailed_place_flag:
             tt = time.time()
             self.pos[0].data.copy_(self.op_collections.detailed_place_op(self.pos[0]))
+            if self.anchor_keepin_context is not None:
+                self.op_collections.move_region_boundary_op(self.pos[0])
             macro_orients = self.op_collections.macro_refinement_op(self.pos[0])
             logging.info("detailed placement takes %.3f seconds" % (time.time() - tt))
             cur_metric = EvalMetrics.EvalMetrics(iteration)
@@ -1162,6 +1207,55 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             )
             logging.info(cur_metric)
             iteration += 1
+
+        if self.anchor_keepin_context is not None:
+            context = self.anchor_keepin_context
+            repair_report = None
+            if context.exact_repair_enabled:
+                exact_before = context.exact_report(self.pos[0], placedb)
+                hpwl_before = float(self.op_collections.hpwl_op(self.pos[0]))
+                repair_stats = context.repair_positions(self.pos[0], placedb)
+                exact_after = context.exact_report(self.pos[0], placedb)
+                hpwl_after = float(self.op_collections.hpwl_op(self.pos[0]))
+                repair_report = {
+                    "before": exact_before,
+                    "after": exact_after,
+                    "hpwl_before": hpwl_before,
+                    "hpwl_after": hpwl_after,
+                    "hpwl_delta": hpwl_after - hpwl_before,
+                    "stats": repair_stats,
+                }
+                with (context.output_dir / "repair.json").open("w") as stream:
+                    import json
+
+                    json.dump(repair_report, stream, indent=2, sort_keys=True)
+                    stream.write("\n")
+                logging.info(
+                    "anchor/keep-in repair: overlaps %d -> %d, HPWL %.6g -> %.6g",
+                    exact_before["overlap_pair_count"],
+                    exact_after["overlap_pair_count"],
+                    hpwl_before,
+                    hpwl_after,
+                )
+            exact_report = context.exact_report(self.pos[0], placedb)
+            exact_report["total_projected_nodes"] = context.projector.total_projected
+            processed_metrics["anchor_keepin"] = {
+                "total_projected_nodes": context.projector.total_projected,
+                "exact_legality": exact_report,
+            }
+            if repair_report is not None:
+                processed_metrics["anchor_keepin"]["repair"] = repair_report
+            report_path = context.output_dir / "legality.json"
+            with report_path.open("w") as stream:
+                import json
+
+                json.dump(exact_report, stream, indent=2, sort_keys=True)
+                stream.write("\n")
+            logging.info(
+                "anchor/keep-in exact check: %d violations, %d overlaps",
+                exact_report["keepin_violation_count"],
+                exact_report["overlap_pair_count"],
+            )
 
         # save results
         cur_pos = self.pos[0].data.clone().cpu().numpy()
@@ -1211,7 +1305,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
 
         # get net crossing
         with torch.no_grad():
-            if params.net_crossing_flag:
+            if net_crossing_enabled:
                 net_crossing = self.op_collections.net_crossing_op(self.pos[0])
                 logging.info("net crossing %d" % net_crossing)
                 return float(rsmt_wl), float(hpwl), float(net_crossing), processed_metrics

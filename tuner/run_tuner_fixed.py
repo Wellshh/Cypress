@@ -41,7 +41,8 @@ def kill_all(procs):
 
 
 def run_tuner(bench_name, aux_path, cfg_path, base_ppa, iterations, workers,
-              d_ratio, c_ratio, m_points, log_dir, gpu_pool, multiobj=False):
+              d_ratio, c_ratio, m_points, log_dir, gpu_pool, multiobj=False,
+              study_seed=0):
     """Run BOHB/MOBOHB tuner for a single benchmark."""
     print(f"\n{'='*60}")
     print(f"Tuning {bench_name}")
@@ -92,11 +93,13 @@ def run_tuner(bench_name, aux_path, cfg_path, base_ppa, iterations, workers,
         "--n_workers", str(workers),
         "--n_iterations", str(iterations),
         "--min_points_in_model", str(m_points),
+        "--study_seed", str(study_seed),
         "--log_dir", str(bench_log_dir),
         "--run_args", f"aux_input={aux_path}",
     ]
     master_env = os.environ.copy()
     master_env["PYRO_NS_PORT"] = str(ns_port)
+    master_env["PYTHONHASHSEED"] = str(study_seed)
     master_proc = subprocess.Popen(
         master_cmd,
         env=master_env,
@@ -117,15 +120,16 @@ def run_tuner(bench_name, aux_path, cfg_path, base_ppa, iterations, workers,
             "--log_dir", str(bench_log_dir),
             "--worker",
             "--worker_id", str(i),
-            "--run_args", f"aux_input={aux_path}",
+            "--study_seed", str(study_seed),
+            "--run_args", f"aux_input={aux_path}", "gpu=1",
+            f"base_ppa={base_ppa}", "reuse_params=",
             "--density_ratio", str(d_ratio),
             "--congestion_ratio", str(c_ratio),
             "--gpu_pool", gpu_pool,
         ]
-        if base_ppa:
-            worker_cmd.extend(["--run_args", f"base_ppa={base_ppa}"])
         worker_env = os.environ.copy()
         worker_env["PYRO_NS_PORT"] = str(ns_port)
+        worker_env["PYTHONHASHSEED"] = str(study_seed)
         worker_proc = subprocess.Popen(
             worker_cmd,
             env=worker_env,
@@ -159,6 +163,10 @@ def run_tuner(bench_name, aux_path, cfg_path, base_ppa, iterations, workers,
     if master_proc.returncode != 0:
         print(f"Master failed with exit code {master_proc.returncode}")
         return False
+    failed_workers = [p.returncode for p in procs[2:] if p.returncode not in (0, None)]
+    if failed_workers:
+        print(f"Workers failed with exit codes {failed_workers}")
+        return False
 
     print(f"\nTuning for {bench_name} completed successfully")
     return True
@@ -178,6 +186,7 @@ def main():
     parser.add_argument("--log-dir", default="tuner_logs", help="Log directory")
     parser.add_argument("--gpu-pool", default="0,1,2,3,4,5,6,7", help="GPU IDs to use")
     parser.add_argument("--multiobj", action="store_true", help="Use MOBOHB")
+    parser.add_argument("--study-seed", type=int, default=0)
     args = parser.parse_args()
 
     success = run_tuner(
@@ -193,6 +202,7 @@ def main():
         log_dir=args.log_dir,
         gpu_pool=args.gpu_pool,
         multiobj=args.multiobj,
+        study_seed=args.study_seed,
     )
 
     sys.exit(0 if success else 1)

@@ -314,5 +314,53 @@
     "enable_rotation": {
         "description": "enable cell rotation",
         "default": 0
+    },
+    "anchor_keepin_config": {
+        "description": "path to an optional anchor/irregular keep-in experiment config",
+        "default": ""
+    },
+    "anchor_keepin_flag": {
+        "description": "enable loading and validation of anchor/keep-in constraints",
+        "default": false
+    },
+    "anchor_loss_flag": {
+        "description": "enable projected-target anchor attraction",
+        "default": false
+    },
+    "anchor_loss_weight_scale": {
+        "description": "scale applied to gradient-norm-matched anchor loss weight",
+        "default": 1.0
+    },
+    "keepin_soft_loss_flag": {
+        "description": "enable soft distance penalty outside component feasible domains",
+        "default": false
+    },
+    "keepin_soft_loss_weight_scale": {
+        "description": "scale applied to gradient-norm-matched soft keep-in loss weight",
+        "default": 1.0
+    },
+    "keepin_projection_flag": {
+        "description": "project constrained components into footprint-aware feasible domains",
+        "default": false
+    },
+    "constraint_grid_mm": {
+        "description": "site grid in millimeters for conservative feasible domains",
+        "default": 0.1
+    },
+    "keepin_clearance_mm": {
+        "description": "extra per-side footprint clearance in millimeters",
+        "default": 0.0
+    },
+    "freeze_anchor_nodes": {
+        "description": "freeze movable physical anchor nodes at source coordinates",
+        "default": true
+    },
+    "allow_region_reassignment": {
+        "description": "allow an experiment driver to replace infeasible seed assignments",
+        "default": false
+    },
+    "exact_repair_flag": {
+        "description": "run bounded footprint-aware repair after global placement",
+        "default": false
     }
 }

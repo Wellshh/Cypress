@@ -984,8 +984,12 @@ class PlaceDB(object):
     
     def init_orient_logits(self, enable_rotation):
         self.orient_logits = np.zeros((self.num_physical_nodes, 4), dtype=np.float32)
-        self.orient_logits[:,0] = torch.randn(self.num_physical_nodes) + 100
-        self.orient_logits[:,1:] = torch.randn((self.num_physical_nodes, 3))
+        if enable_rotation:
+            self.orient_logits[:,0] = torch.randn(self.num_physical_nodes) + 100
+            self.orient_logits[:,1:] = torch.randn((self.num_physical_nodes, 3))
+        else:
+            # Do not consume RNG state when orientation is fixed.
+            self.orient_logits[:, 0] = 100
         # clamp to larger than 1e-5
         self.orient_logits = np.maximum(self.orient_logits, 1e-5)
         self.orient_logits = np.log(self.orient_logits)

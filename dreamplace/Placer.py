@@ -55,15 +55,17 @@ logging.basicConfig(
 )
 
 
-def seed_all(seed):
+def seed_all(seed, deterministic=False):
+    """Reset process RNGs before each independent placement run."""
     random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.deterministic = bool(deterministic)
+    torch.use_deterministic_algorithms(bool(deterministic), warn_only=True)
 
 
 class PlacementEngine:
@@ -94,7 +96,7 @@ class PlacementEngine:
             logging.critical("running in evaluation mode")
 
         # seed for reproducibility
-        seed_all(self.params.random_seed)
+        seed_all(self.params.random_seed, self.params.deterministic_flag)
 
         # control multithreading
         os.environ["OMP_NUM_THREADS"] = "%d" % (self.params.num_threads)
@@ -272,6 +274,9 @@ class PlacementEngine:
     def run(self):
         # run entire placement flow
         tt = time.time()
+        # A worker can execute several trials. Reset RNG state here so a trial
+        # never inherits random draws from the previously scheduled trial.
+        seed_all(self.params.random_seed, self.params.deterministic_flag)
         self.setup_placedb()
         self.place()
         # with torch.profiler.profile(

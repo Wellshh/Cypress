@@ -71,7 +71,15 @@ def build_dataframe(result):
         all_ids.append(str(r.config_id))
         config = id2conf[r.config_id]["config"]
         all_configs.append(config)
-        all_infos.append(r.info)
+        info = dict(r.info or {})
+        aggregate = info.pop("aggregate", None)
+        if isinstance(aggregate, dict):
+            info.update(aggregate)
+        info.pop("replicates", None)
+        info.pop("normalized_aggregate", None)
+        if np.isscalar(r.loss):
+            info["cost"] = r.loss
+        all_infos.append(info)
     df = pd.concat(
         [pd.DataFrame(all_ids), pd.DataFrame(all_configs), pd.DataFrame(all_infos)],
         axis=1,
@@ -153,9 +161,11 @@ def get_candidates(
             num_clusters = list(range(5, 50, 5))
             scores = {}
             for n in num_clusters:
-                kmeans = KMeans(n_clusters=n, algorithm="elkan", n_init=10)
+                kmeans = KMeans(
+                    n_clusters=n, algorithm="elkan", n_init=10, random_state=0
+                )
                 labels = kmeans.fit_predict(scaled_points)
-                silhouette = silhouette_score(scaled_points, labels)
+                silhouette = metrics.silhouette_score(scaled_points, labels)
                 scores[n] = (silhouette, labels)
             scores = dict(sorted(scores.items(), key=lambda it: it[1][0], reverse=True))
             best_clustering = next(iter(scores.items()))
@@ -164,7 +174,9 @@ def get_candidates(
                 f"Best #clusters={best_clustering[0]}, Silhouette={best_clustering[1][0]:.2f}"
             )
         else:
-            kmeans = KMeans(n_clusters=num, algorithm="elkan", n_init=10)
+            kmeans = KMeans(
+                n_clusters=num, algorithm="elkan", n_init=10, random_state=0
+            )
             scaled_points = preprocessing.StandardScaler().fit_transform(
                 paretos[ppa_axes]
             )
@@ -245,7 +257,9 @@ def analyze(result, classif, target):
     # df[target] = target_scaler.fit_transform(df[target])
     features = list(set(df.columns) - set(UNWANTED_COLUMNS))
     stratify = df[target] if classif else None
-    train, test = train_test_split(df, test_size=0.1, shuffle=True, stratify=stratify)
+    train, test = train_test_split(
+        df, test_size=0.1, shuffle=True, stratify=stratify, random_state=0
+    )
     Xtrain, ytrain = train[features], train[target]
     Xtest, ytest = test[features], test[target]
     dtrain = xgb.DMatrix(Xtrain, label=ytrain)

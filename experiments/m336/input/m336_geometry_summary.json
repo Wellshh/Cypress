@@ -1,0 +1,166 @@
+{
+  "schema": "m336_geometry_summary_v1",
+  "board": "M336",
+  "source_file": "pcb_geometry_keepin.json",
+  "export_meta": {
+    "schema": "pcb_geometry_lossless_v1",
+    "coordinate_encoding": "integer_dbu",
+    "source_units": "millimeters",
+    "source_accuracy": 4,
+    "dbu_per_user_unit": 10000
+  },
+  "raw_counts": {
+    "symbol_records": 146,
+    "named_symbol_refdes": 140,
+    "nets": 76,
+    "component_placeable_region_side_entries": 2,
+    "component_placeable_region_shapes": 4,
+    "keepout_place_shapes": 0,
+    "keepout_route_shapes": 64
+  },
+  "important_observation": "Placement geometry is under component_placeable_regions. keepin_place is null in this export.",
+  "regions": [
+    {
+      "region_id": "bottom_0",
+      "source_index": 0,
+      "side": "BOTTOM",
+      "source_layer": "BOARD GEOMETRY/KEBAIJIAN_BOT",
+      "bbox_dbu": [
+        -102700,
+        -740380,
+        -10100,
+        -684817
+      ],
+      "bbox_mm": [
+        -10.27,
+        -74.038,
+        -1.01,
+        -68.4817
+      ],
+      "approx_area_mm2": 39.196,
+      "segment_count": 18,
+      "void_count": 0,
+      "is_rect": false,
+      "seed_geometry_note": "Area and nearest-distance proposal use 5-degree arc sampling. Implementation must use source segments or a conservative rasterization for legality."
+    },
+    {
+      "region_id": "bottom_1",
+      "source_index": 1,
+      "side": "BOTTOM",
+      "source_layer": "BOARD GEOMETRY/KEBAIJIAN_BOT",
+      "bbox_dbu": [
+        -150370,
+        -779150,
+        -94100,
+        -747800
+      ],
+      "bbox_mm": [
+        -15.037,
+        -77.915,
+        -9.41,
+        -74.78
+      ],
+      "approx_area_mm2": 15.851,
+      "segment_count": 7,
+      "void_count": 0,
+      "is_rect": false,
+      "seed_geometry_note": "Area and nearest-distance proposal use 5-degree arc sampling. Implementation must use source segments or a conservative rasterization for legality."
+    },
+    {
+      "region_id": "bottom_2",
+      "source_index": 2,
+      "side": "BOTTOM",
+      "source_layer": "BOARD GEOMETRY/KEBAIJIAN_BOT",
+      "bbox_dbu": [
+        88100,
+        -782750,
+        114600,
+        -731644
+      ],
+      "bbox_mm": [
+        8.81,
+        -78.275,
+        11.46,
+        -73.1644
+      ],
+      "approx_area_mm2": 9.1888,
+      "segment_count": 7,
+      "void_count": 0,
+      "is_rect": false,
+      "seed_geometry_note": "Area and nearest-distance proposal use 5-degree arc sampling. Implementation must use source segments or a conservative rasterization for legality."
+    },
+    {
+      "region_id": "top_0",
+      "source_index": 0,
+      "side": "TOP",
+      "source_layer": "BOARD GEOMETRY/KEBAIJIAN_TOP",
+      "bbox_dbu": [
+        -95500,
+        -715435,
+        18900,
+        -646900
+      ],
+      "bbox_mm": [
+        -9.55,
+        -71.5435,
+        1.89,
+        -64.69
+      ],
+      "approx_area_mm2": 31.2767,
+      "segment_count": 22,
+      "void_count": 0,
+      "is_rect": false,
+      "seed_geometry_note": "Area and nearest-distance proposal use 5-degree arc sampling. Implementation must use source segments or a conservative rasterization for legality."
+    }
+  ],
+  "mixed_side_clusters": [
+    {
+      "module_id": "page_2_J201",
+      "side_counts": {
+        "BOTTOM": 2,
+        "TOP": 5
+      }
+    },
+    {
+      "module_id": "page_3_J301",
+      "side_counts": {
+        "BOTTOM": 1,
+        "TOP": 2
+      }
+    },
+    {
+      "module_id": "page_6_J601",
+      "side_counts": {
+        "BOTTOM": 8,
+        "TOP": 12
+      }
+    },
+    {
+      "module_id": "page_7_J701",
+      "side_counts": {
+        "BOTTOM": 9,
+        "TOP": 4
+      }
+    },
+    {
+      "module_id": "page_7_J702",
+      "side_counts": {
+        "BOTTOM": 9,
+        "TOP": 1
+      }
+    },
+    {
+      "module_id": "page_86_J8601",
+      "side_counts": {
+        "BOTTOM": 1,
+        "TOP": 3
+      }
+    }
+  ],
+  "coordinate_alignment_requirement": {
+    "source_coordinate_unit": "integer DBU",
+    "dbu_per_mm": 10000,
+    "implementation_rule": "Do not assume that source geometry coordinates equal Bookshelf/Cypress coordinates. Fit and validate an affine mapping from common component centers; consider translation, scale, and Y flip. Persist residuals and fail if the configured tolerance is exceeded.",
+    "default_max_alignment_residual_mm": 0.05
+  }
+}

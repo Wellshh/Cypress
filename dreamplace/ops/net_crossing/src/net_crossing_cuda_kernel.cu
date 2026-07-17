@@ -26,20 +26,24 @@ __global__ void computeNetCrossing(
         )
 {
     int thread_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int total_pairs = num_nets * num_nets;
-    if (thread_idx >= total_pairs - 1) return; // boundary check
-    int i = thread_idx / num_nets;
-    int j = thread_idx % num_nets;
-    if (j <= i) return; // only compute the upper triangular part
-    if (!net_mask[i] || !net_mask[j]) return; // skip masked nets
-    // skip if net i/j has only one pin
-    if (netpin_start[i+1] - netpin_start[i] <= 1 || netpin_start[j+1] - netpin_start[j] <= 1) return;
+    if (thread_idx >= num_nets - 1) return;
+    int i = thread_idx;
+    if (!net_mask[i] || netpin_start[i+1] - netpin_start[i] <= 1) return;
+    // One thread owns each net accumulator, eliminating the forward race.
+    for (int j = i + 1; j < num_nets; ++j) {
+    if (!net_mask[j] || netpin_start[j+1] - netpin_start[j] <= 1) continue;
     for (int net_i_sink_pin_idx = netpin_start[i] + 1; net_i_sink_pin_idx < netpin_start[i + 1]; ++net_i_sink_pin_idx) {
         int net_i_src_pin_id = flat_netpin[netpin_start[i]];
-        int net_i_sink_pin_id = flat_netpin[net_i_sink_pin_idx];
+            int net_i_sink_pin_id = flat_netpin[net_i_sink_pin_idx];
         for (int net_j_sink_pin_idx = netpin_start[j] + 1; net_j_sink_pin_idx < netpin_start[j + 1]; ++net_j_sink_pin_idx) {
             int net_j_src_pin_id = flat_netpin[netpin_start[j]];
             int net_j_sink_pin_id = flat_netpin[net_j_sink_pin_idx];
+            if (net_i_src_pin_id < 0 || net_i_src_pin_id >= num_pins ||
+                net_i_sink_pin_id < 0 || net_i_sink_pin_id >= num_pins ||
+                net_j_src_pin_id < 0 || net_j_src_pin_id >= num_pins ||
+                net_j_sink_pin_id < 0 || net_j_sink_pin_id >= num_pins) {
+                continue;
+            }
 
             int net_i_src_pin_side = pin_side[net_i_src_pin_id];
             int net_i_sink_pin_side = pin_side[net_i_sink_pin_id];
@@ -63,9 +67,14 @@ __global__ void computeNetCrossing(
             T y4 = y[net_j_sink_pin_id];
 
             // Bezier curve intersection
-            T epsilon = 1e-5;
-            T t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / ((x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4) + epsilon);          
-            T u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / ((x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4) + epsilon);
+            T denominator = (x1 - x2) * (y3 - y4) -
+                            (y1 - y2) * (x3 - x4);
+            T epsilon = sizeof(T) == sizeof(float) ? (T)1e-6 : (T)1e-12;
+            if (std::abs(denominator) <= epsilon) continue;
+            T t = ((x1 - x3) * (y3 - y4) -
+                   (y1 - y3) * (x3 - x4)) / denominator;
+            T u = -((x1 - x2) * (y1 - y3) -
+                    (y1 - y2) * (x1 - x3)) / denominator;
 
             // Bell function
             // lambda = 2, mu = 2, sigma = 1
@@ -142,23 +151,24 @@ __global__ void computeNetCrossing(
             T dx4 = df_dx4 * bell(u - 0.5) + bell(t - 0.5) * dg_dx4;
             T dy4 = df_dy4 * bell(u - 0.5) + bell(t - 0.5) * dg_dy4;
             
-            if (net_i_src_pin_id < num_pins){
+            if (net_i_src_pin_id >= 0 && net_i_src_pin_id < num_pins){
                 atomicAdd(grad_intermediate_x + net_i_src_pin_id, dx1);
                 atomicAdd(grad_intermediate_y + net_i_src_pin_id, dy1);
             }
-            if (net_i_sink_pin_id < num_pins){
+            if (net_i_sink_pin_id >= 0 && net_i_sink_pin_id < num_pins){
                 atomicAdd(grad_intermediate_x + net_i_sink_pin_id, dx2);
                 atomicAdd(grad_intermediate_y + net_i_sink_pin_id, dy2);
             }
-            if (net_j_src_pin_id < num_pins){
+            if (net_j_src_pin_id >= 0 && net_j_src_pin_id < num_pins){
                 atomicAdd(grad_intermediate_x + net_j_src_pin_id, dx3);
                 atomicAdd(grad_intermediate_y + net_j_src_pin_id, dy3);
             }
-            if (net_j_sink_pin_id < num_pins){
+            if (net_j_sink_pin_id >= 0 && net_j_sink_pin_id < num_pins){
                 atomicAdd(grad_intermediate_x + net_j_sink_pin_id, dx4);
                 atomicAdd(grad_intermediate_y + net_j_sink_pin_id, dy4);
             }
         }
+    }
     }
 }
 
@@ -174,9 +184,7 @@ int computeNetCrossingCudaLauncher(
         )
 {
     int thread_count = 256; 
-    int total_pairs = num_nets * num_nets;
-    // int total_pairs = num_net * (num_nets - 1) / 2; // TODO: use this to avoid launching more than needed
-    int block_count = ceilDiv(total_pairs, thread_count);
+    int block_count = ceilDiv(num_nets, thread_count);
 
     computeNetCrossing<<<block_count, thread_count>>>(
             x, y,

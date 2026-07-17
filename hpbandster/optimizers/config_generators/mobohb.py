@@ -14,6 +14,7 @@
 
 import traceback
 import csv
+import hashlib
 
 import ConfigSpace
 import ConfigSpace.hyperparameters
@@ -79,7 +80,10 @@ class MOBOHB(base_config_generator):
         self.parameters = parameters
         self.history_dir = history_dir
         self.run_id = run_id
-        self.random_state = np.random.RandomState(int(self.run_id))
+        seed_bytes = hashlib.sha256(str(self.run_id).encode("utf-8")).digest()[:4]
+        self.random_state = np.random.RandomState(
+            int.from_bytes(seed_bytes, "little") & 0x7FFFFFFF
+        )
         self.mobohb_with_init = init
 
         self.min_points_in_model = min_points_in_model

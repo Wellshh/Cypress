@@ -229,6 +229,8 @@ class PlaceObj(nn.Module):
         self.data_collections = data_collections
         self.op_collections = op_collections
         self.global_place_params = global_place_params
+        self.anchor_loss_weight = None
+        self.keepin_soft_loss_weight = None
 
         self.gpu = params.gpu
         self.data_collections = data_collections
@@ -418,14 +420,58 @@ class PlaceObj(nn.Module):
             params, placedb, self.data_collections, self.op_collections.hpwl_op
         )
 
-        # PCB Net Crossing
-        self.op_collections.net_crossing_op = self.build_net_crossing(
-            params, placedb, self.data_collections, self.op_collections.pin_pos_op
+        # A zero-weight native objective must be a true no-op. Besides avoiding
+        # unnecessary O(N^2) work, this keeps disabled experimental operators
+        # outside the allocator and autograd paths.
+        self.net_crossing_weight = float(params.net_crossing_weight)
+        self.net_crossing_enabled = bool(
+            params.net_crossing_flag and self.net_crossing_weight != 0.0
         )
-        self.net_crossing_weight = params.net_crossing_weight
-        self.op_collections.update_net_crossing_weight_op = (
-            self.build_update_net_crossing_weight(params, placedb)
+        if self.net_crossing_enabled:
+            self.op_collections.net_crossing_op = self.build_net_crossing(
+                params, placedb, self.data_collections, self.op_collections.pin_pos_op
+            )
+            self.op_collections.update_net_crossing_weight_op = (
+                self.build_update_net_crossing_weight(params, placedb)
+            )
+        else:
+            self.op_collections.net_crossing_op = None
+            self.op_collections.update_net_crossing_weight_op = None
+
+    def _gradient_matched_weight(self, pos, loss, scale, label):
+        """Match a constraint gradient to wirelength once at initialization."""
+        wirelength_grad = torch.autograd.grad(
+            self.wirelength, pos, retain_graph=True, allow_unused=False
+        )[0]
+        constraint_grad = torch.autograd.grad(
+            loss, pos, retain_graph=True, allow_unused=False
+        )[0]
+        num_nodes = self.placedb.num_nodes
+        movable = self.placedb.num_movable_nodes
+        coordinate_ids = torch.cat(
+            (
+                torch.arange(movable, device=pos.device),
+                torch.arange(num_nodes, num_nodes + movable, device=pos.device),
+            )
         )
+        wirelength_norm = wirelength_grad[coordinate_ids].abs().sum().detach()
+        constraint_norm = constraint_grad[coordinate_ids].abs().sum().detach()
+        epsilon = torch.finfo(pos.dtype).eps
+        if not torch.isfinite(constraint_norm) or constraint_norm <= epsilon:
+            weight = pos.new_tensor(float(scale))
+        else:
+            weight = float(scale) * wirelength_norm / (constraint_norm + epsilon)
+        if not torch.isfinite(weight):
+            raise FloatingPointError("non-finite %s gradient-matched weight" % label)
+        logging.info(
+            "%s weight = %.6E (wirelength |grad|_1=%.6E, constraint |grad|_1=%.6E)",
+            label,
+            weight.item(),
+            wirelength_norm.item(),
+            constraint_norm.item(),
+        )
+        logging.info("%s initial value = %.6E", label, loss.detach().item())
+        return weight.detach()
 
     def obj_fn(self, pos, orient_logits=None):
         """
@@ -435,6 +481,10 @@ class PlaceObj(nn.Module):
         @return objective value
         """
 
+        context = getattr(self.op_collections, "anchor_keepin_context", None)
+        if context is not None:
+            context.projector(pos)
+
         # create result as a zero tensor
         result = torch.tensor([0], dtype=pos.dtype, device=pos.device, requires_grad=True)
 
@@ -442,7 +492,7 @@ class PlaceObj(nn.Module):
         result = torch.add(result, self.wirelength)
         
 
-        if self.params.net_crossing_flag:
+        if self.net_crossing_enabled:
             self.net_crossing = self.op_collections.net_crossing_op(pos)
             # check gradient of wirelength:
             if False:
@@ -466,6 +516,28 @@ class PlaceObj(nn.Module):
 
         if orient_logits is not None:
             return result
+
+        if self.params.anchor_loss_flag:
+            self.anchor_loss = self.op_collections.anchor_loss_op(pos)
+            if self.anchor_loss_weight is None:
+                self.anchor_loss_weight = self._gradient_matched_weight(
+                    pos,
+                    self.anchor_loss,
+                    self.params.anchor_loss_weight_scale,
+                    "anchor loss",
+                )
+            result = result + self.anchor_loss_weight * self.anchor_loss
+
+        if self.params.keepin_soft_loss_flag:
+            self.keepin_soft_loss = self.op_collections.keepin_soft_loss_op(pos)
+            if self.keepin_soft_loss_weight is None:
+                self.keepin_soft_loss_weight = self._gradient_matched_weight(
+                    pos,
+                    self.keepin_soft_loss,
+                    self.params.keepin_soft_loss_weight_scale,
+                    "soft keep-in loss",
+                )
+            result = result + self.keepin_soft_loss_weight * self.keepin_soft_loss
 
         if len(self.placedb.regions) > 0:
             self.density = self.op_collections.fence_region_density_merged_op(pos)
@@ -627,6 +699,9 @@ class PlaceObj(nn.Module):
             self.op_collections.precondition_op(
                     pos.grad, self.density_weight, self.update_mask, freeze_pos=self.freeze_pos
                 )
+            context = getattr(self.op_collections, "anchor_keepin_context", None)
+            if context is not None:
+                context.zero_frozen_gradients(pos.grad)
             ret_grad = pos.grad
         else:
             orient_logits.grad[num_movable_nodes:, :] = 0.0
@@ -675,7 +750,13 @@ class PlaceObj(nn.Module):
         _, g_k = self.obj_and_grad_fn(x_k)
         x_k_1 = torch.autograd.Variable(x_k - lr * g_k, requires_grad=True)
         _, g_k_1 = self.obj_and_grad_fn(x_k_1)
-        new_lr = (x_k - x_k_1).norm(p=2) / (g_k - g_k_1).norm(p=2)
+        delta_position = torch.linalg.vector_norm((x_k - x_k_1).double())
+        delta_gradient = torch.linalg.vector_norm((g_k - g_k_1).double())
+        epsilon = torch.finfo(torch.float64).eps
+        if torch.isfinite(delta_gradient) and delta_gradient > epsilon:
+            new_lr = (delta_position / delta_gradient).to(dtype=x_k.dtype)
+        else:
+            new_lr = torch.as_tensor(lr, dtype=x_k.dtype, device=x_k.device)
         if (
             # self.data_collection.params.init_with_line_search
             torch.isnan(new_lr)
@@ -690,22 +771,30 @@ class PlaceObj(nn.Module):
                 fx, dfx = f(x), df(x)
                 dfxN = dfx.norm(p=2).square()
                 x1 = torch.autograd.Variable(x - t * dfx, requires_grad=True)
-                while (
-                    f(x1)
-                    > fx - alpha * t * dfxN  # Armijo
-                    # or dfx.T @ df(x1) > beta * dfxN  # Wolfe
-                ):
+                max_backtracks = 50
+                for _ in range(max_backtracks):
+                    candidate_value = f(x1)
+                    if torch.isfinite(candidate_value) and not (
+                        candidate_value
+                        > fx - alpha * t * dfxN  # Armijo
+                    ):
+                        return t, x1
                     t *= beta
                     with torch.no_grad():
                         x1.copy_(x - t * dfx)
-                return t, x1
+                raise FloatingPointError(
+                    "Initial learning-rate search did not find a finite Armijo step"
+                )
             f = lambda x: self.obj_and_grad_fn(x)[0]
             df = lambda x: self.obj_and_grad_fn(x)[1]
             # _, x_k_1 = backtrack_line_search(f, df, x_k, 0.3, 0.8)
             _, x_k_1 = backtrack_line_search(f, df, x_k, 1e-4, 0.1)
             _, g_k_1 = self.obj_and_grad_fn(x_k_1)
             new_lr = (x_k - x_k_1).norm(p=2) / (g_k - g_k_1).norm(p=2)
-        return new_lr
+        fallback = torch.as_tensor(lr, dtype=x_k.dtype, device=x_k.device)
+        if not torch.isfinite(new_lr) or not torch.is_nonzero(new_lr):
+            return fallback
+        return torch.clamp(new_lr, min=fallback * 0.1, max=fallback * 10.0)
 
     def build_weighted_average_wl(self, params, placedb, data_collections, pin_pos_op):
         """
@@ -786,21 +875,20 @@ class PlaceObj(nn.Module):
         dtype = data_collections.pos[0].dtype
         device = self.data_collections.pos[0].device
 
-        # build a pin side flag tensor, 1->top, 0->bottom
+        # Pin IDs are not grouped by node in the netlist representation. Map
+        # each actual pin ID through pin2node_map instead of treating CSR
+        # positions as pin IDs.
         num_pins = data_collections.pin_offset_x.size(0)
-        indices = torch.arange(num_pins, device=device)
-        node_indices = torch.searchsorted(data_collections.flat_node2pin_start_map[1:], indices, right=True)
-        pin_side = data_collections.node_side_flag[node_indices]
-        # Note:
-        # equivalent to:
-        # for (int i = 0; i < num_nodes; i++) {
-        #     int bgn = placedb.flat_node2pin_start_map[i]
-        #     int end = placedb.flat_node2pin_start_map[i+1]
-        #     pin_side[bgn:end+1] = data_collections.node_side_flag[i]
-        # }
+        if data_collections.pin2node_map.numel() != num_pins:
+            raise ValueError(
+                "pin2node_map has %d entries for %d pins"
+                % (data_collections.pin2node_map.numel(), num_pins)
+            )
+        pin_side = data_collections.node_side_flag[
+            data_collections.pin2node_map.long()
+        ].to(dtype=torch.int32).contiguous()
 
-
-        return net_crossing.NetCrossing(
+        net_crossing_op = net_crossing.NetCrossing(
             flat_netpin=data_collections.flat_net2pin_map,
             netpin_start=data_collections.flat_net2pin_start_map,
             net_mask=data_collections.net_mask_ignore_large_degrees,
@@ -808,11 +896,19 @@ class PlaceObj(nn.Module):
             _lambda=torch.tensor(2, dtype=dtype, device=device),
             _mu=torch.tensor(2, dtype=dtype, device=device),
             _sigma=torch.tensor(1, dtype=dtype, device=device),
+            deterministic=params.deterministic_flag,
         )
 
         # net crossing for pos
         def build_net_crossing_op(pos):
-            return net_crossing_op(pin_pos_op(pos))
+            pin_pos = pin_pos_op(pos)
+            expected_coordinates = 2 * num_pins
+            if pin_pos.numel() != expected_coordinates:
+                raise ValueError(
+                    "pin_pos_op returned %d coordinates for %d pins; expected %d"
+                    % (pin_pos.numel(), num_pins, expected_coordinates)
+                )
+            return net_crossing_op(pin_pos)
 
         return build_net_crossing_op
 

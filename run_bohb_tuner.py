@@ -9,8 +9,11 @@ import json
 import time
 import argparse
 import signal
+import random
 import multiprocessing as mp
 from pathlib import Path
+
+import numpy as np
 
 REPO_ROOT = Path(__file__).parent.resolve()
 os.chdir(REPO_ROOT)
@@ -28,7 +31,8 @@ from tuner.tuner_utils import str2bool
 from tuner.tuner_analyze import get_candidates, plot_pareto
 
 
-def worker_process(args, worker_id, gpu_pool, ns_host, ns_port, log_dir, multiobj, d_ratio, c_ratio, default_config):
+def worker_process(worker_id, gpu_pool, ns_host, ns_port, log_dir, multiobj,
+                   d_ratio, c_ratio, default_config, study_seed):
     """Run a single worker process."""
     import time as ttime
     ttime.sleep(5 + worker_id * 2)  # Stagger startup
@@ -45,12 +49,13 @@ def worker_process(args, worker_id, gpu_pool, ns_host, ns_port, log_dir, multiob
     w = AutoDMPWorker(
         nameserver=ns_host,
         nameserver_port=ns_port,
-        run_id="bohb_run",
+        run_id=str(study_seed),
         log_dir=log_dir,
         congestion_ratio=c_ratio,
         density_ratio=d_ratio,
         default_config=default_config,
         multiobj=multiobj,
+        study_seed=study_seed,
     )
     try:
         w.run(background=False)
@@ -74,7 +79,11 @@ def parse_gpu_pool(s):
 
 def run_tuning(bench_name, aux_path, cfg_path, base_ppa_path, iterations,
                workers, d_ratio, c_ratio, m_points, log_dir, gpu_pool_str,
-               multiobj=False):
+               multiobj=False, study_seed=0):
+
+    random.seed(study_seed)
+    np.random.seed(study_seed)
+    torch.manual_seed(study_seed)
 
     print(f"\n{'='*60}")
     print(f"BOHB Tuning: {bench_name}")
@@ -96,13 +105,14 @@ def run_tuning(bench_name, aux_path, cfg_path, base_ppa_path, iterations,
     default_config = {"aux_input": str(aux_path), "gpu": "1", "base_ppa": base_ppa, "reuse_params": ""}
 
     # Start nameserver on a random port
-    ns = hpns.NameServer(run_id="bohb_run", host="127.0.0.1", port=0)
+    run_id = str(study_seed)
+    ns = hpns.NameServer(run_id=run_id, host="127.0.0.1", port=0)
     ns.start()
     ns_host, ns_port = ns.host, ns.port
     print(f"Nameserver started on {ns_host}:{ns_port}")
 
     # Build configspace
-    cs = AutoDMPWorker.get_configspace(cfg_path)
+    cs = AutoDMPWorker.get_configspace(cfg_path, study_seed)
 
     # Start optimizer
     if multiobj:
@@ -115,20 +125,20 @@ def run_tuning(bench_name, aux_path, cfg_path, base_ppa_path, iterations,
         bohb = MOBOHB(
             configspace=cs,
             parameters=motpe_params,
-            run_id="bohb_run",
+            run_id=run_id,
             min_points_in_model=m_points,
             min_budget=1,
-            max_budget=1,
+            max_budget=3,
             num_samples=64,
             result_logger=result_logger,
         )
     else:
         bohb = BOHB(
             configspace=cs,
-            run_id="bohb_run",
+            run_id=run_id,
             min_points_in_model=m_points,
             min_budget=1,
-            max_budget=1,
+            max_budget=3,
             num_samples=64,
             result_logger=result_logger,
         )
@@ -151,8 +161,8 @@ def run_tuning(bench_name, aux_path, cfg_path, base_ppa_path, iterations,
     for i in range(workers):
         p = mp.Process(
             target=worker_process,
-            args=(default_config, i, gpu_pool, ns_host, ns_port,
-                  str(bench_log_dir), multiobj, c_ratio, d_ratio, default_config.copy()),
+            args=(i, gpu_pool, ns_host, ns_port, str(bench_log_dir), multiobj,
+                  d_ratio, c_ratio, default_config.copy(), study_seed),
         )
         p.start()
         worker_procs.append(p)
@@ -233,6 +243,7 @@ def main():
     parser.add_argument("--log-dir", default="tuner_logs")
     parser.add_argument("--gpu-pool", default="0,1,2,3,4,5,6,7")
     parser.add_argument("--multiobj", action="store_true")
+    parser.add_argument("--study-seed", type=int, default=0)
     args = parser.parse_args()
 
     # Use spawn for multiprocessing (required with CUDA)
@@ -251,6 +262,7 @@ def main():
         log_dir=args.log_dir,
         gpu_pool_str=args.gpu_pool,
         multiobj=args.multiobj,
+        study_seed=args.study_seed,
     )
 
     if best:

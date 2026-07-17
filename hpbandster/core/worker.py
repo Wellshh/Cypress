@@ -213,18 +213,26 @@ class Worker(object):
 						'exception' : traceback.format_exc()}
 		finally:
 			self.logger.debug('WORKER: done with job %s, trying to register it.'%str(id))
-			with open('/tmp/hpb_worker_%s.log'%self.worker_id, 'a') as f:
-				f.write('done with job %s, registering result\n'%str(id))
 			with self.thread_cond:
 				self.busy =  False
-				try:
-					callback.register_result(id, result)
-					with open('/tmp/hpb_worker_%s.log'%self.worker_id, 'a') as f:
-						f.write('successfully registered result for job %s\n'%str(id))
-				except Exception as e:
-					with open('/tmp/hpb_worker_%s.log'%self.worker_id, 'a') as f:
-						f.write('FAILED to register result for job %s: %s\n'%(str(id), str(e)))
+				registration_error = None
+				for attempt in range(3):
+					try:
+						if callback.register_result(id, result) is not True:
+							raise RuntimeError('dispatcher did not acknowledge result')
+						registration_error = None
+						break
+					except Exception as error:
+						registration_error = error
+						self.logger.warning(
+							'WORKER: result registration attempt %i failed for job %s: %s',
+							attempt + 1, str(id), str(error))
+						time.sleep(0.5 * (attempt + 1))
 				self.thread_cond.notify()
+				if registration_error is not None:
+					raise RuntimeError(
+						'Failed to register result for job %s' % str(id)
+					) from registration_error
 		self.logger.info('WORKER: registered result for job %s with dispatcher'%str(id))
 		if not self.timeout is None:
 			self.timer = threading.Timer(self.timeout, self.shutdown)

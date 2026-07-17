@@ -379,6 +379,10 @@ class PlaceOpCollection(object):
         self.update_macro_overlap_weight_op = None
         self.macro_refinement_op = None
         self.net_crossing_op = None
+        self.move_region_boundary_op = None
+        self.anchor_loss_op = None
+        self.keepin_soft_loss_op = None
+        self.anchor_keepin_context = None
 
 
 class BasicPlace(nn.Module):
@@ -396,6 +400,21 @@ class BasicPlace(nn.Module):
         super(BasicPlace, self).__init__()
 
         tt = time.time()
+        constraint_subflags = (
+            getattr(params, "anchor_loss_flag", False),
+            getattr(params, "keepin_soft_loss_flag", False),
+            getattr(params, "keepin_projection_flag", False),
+            getattr(params, "exact_repair_flag", False),
+        )
+        if any(constraint_subflags) and not getattr(params, "anchor_keepin_flag", False):
+            raise ValueError(
+                "anchor/keep-in loss or projection flags require anchor_keepin_flag=true"
+            )
+        self.anchor_keepin_context = None
+        if getattr(params, "anchor_keepin_flag", False):
+            from dreamplace.constraints.anchor_keepin import AnchorKeepInContext
+
+            self.anchor_keepin_context = AnchorKeepInContext.from_params(params, placedb)
         self.init_pos = np.zeros(placedb.num_nodes * 2, dtype=placedb.dtype)
 
         # initial location of cells
@@ -538,6 +557,9 @@ class BasicPlace(nn.Module):
                     size=placedb.num_filler_nodes,
                 )
 
+        if self.anchor_keepin_context is not None:
+            self.anchor_keepin_context.initialize_positions(self.init_pos, placedb)
+
         logging.debug("prepare init_pos takes %.2f seconds" % (time.time() - tt))
 
         # setting device
@@ -580,6 +602,20 @@ class BasicPlace(nn.Module):
         # similarly I wrap all ops
         tt = time.time()
         self.op_collections = PlaceOpCollection()
+        if self.anchor_keepin_context is not None:
+            self.op_collections.anchor_keepin_context = self.anchor_keepin_context
+            self.op_collections.move_region_boundary_op = (
+                self.anchor_keepin_context.projector
+            )
+            self.op_collections.anchor_loss_op = (
+                self.anchor_keepin_context.build_anchor_loss(
+                    self.data_collections, placedb
+                )
+            )
+            self.op_collections.keepin_soft_loss_op = (
+                self.anchor_keepin_context.build_soft_loss(placedb).to(self.device)
+            )
+            self.anchor_keepin_context.log_summary()
         logging.debug("build op_collections takes %.2f seconds" % (time.time() - tt))
 
         tt = time.time()

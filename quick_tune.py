@@ -5,9 +5,13 @@ import os
 import subprocess
 import sys
 import time
+import ast
+import statistics
 from pathlib import Path
 
-REPO_ROOT = Path("/home/jybai/pcb-placement/research/gpu-used/Cypress")
+REPO_ROOT = Path(__file__).resolve().parent
+STUDY_SEED = int(os.environ.get("CYPRESS_STUDY_SEED", "0"))
+EVALUATION_SEEDS = [STUDY_SEED + offset for offset in range(3)]
 
 def load_base_config(bench_name):
     """Load the current (bad) config as base."""
@@ -15,13 +19,16 @@ def load_base_config(bench_name):
     with open(config_path) as f:
         return json.load(f)
 
-def run_placement(config, label):
+def run_placement(config, label, seed):
     """Run placement with given config and return result."""
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT / "install") + ":" + env.get("PYTHONPATH", "")
 
     # Write temp config
-    tmp_path = REPO_ROOT / f"tmp_{label}.json"
+    config = dict(config)
+    config["random_seed"] = seed
+    config["result_dir"] = str(REPO_ROOT / "results" / "tune" / label / f"seed-{seed}")
+    tmp_path = REPO_ROOT / f"tmp_{label}_seed{seed}.json"
     with open(tmp_path, "w") as f:
         json.dump(config, f, indent=2)
 
@@ -35,10 +42,11 @@ def run_placement(config, label):
     proc = subprocess.run(cmd, cwd=str(REPO_ROOT), env=env, capture_output=True, text=True)
     elapsed = time.time() - start
 
-    # Parse DREAMPlace.log
+    # Parse the seed-specific log only after a successful process exit.
     ppa = None
-    log_path = REPO_ROOT / "DREAMPlace.log"
-    if log_path.exists():
+    design = Path(config.get("aux_input", "")).stem
+    log_path = Path(config["result_dir"]) / design / "DREAMPlace.log"
+    if proc.returncode == 0 and log_path.exists():
         with open(log_path) as f:
             for line in f:
                 if "Final PPA:" in line:
@@ -46,7 +54,7 @@ def run_placement(config, label):
                     match = re.search(r"Final PPA:\s*(\{.*\})", line)
                     if match:
                         try:
-                            ppa = eval(match.group(1))
+                            ppa = ast.literal_eval(match.group(1))
                         except Exception:
                             pass
                     break
@@ -61,6 +69,37 @@ def run_placement(config, label):
     else:
         print(f"  [{label}] FAILED (exit={proc.returncode})")
         return {"hpwl": float("inf"), "rsmt": float("inf"), "overflow": 1.0, "net_crossing": float("inf"), "time": elapsed}
+
+
+def run_replicates(config, label):
+    replicates = [run_placement(config, label, seed) for seed in EVALUATION_SEEDS]
+    valid_hpwl = [r["hpwl"] for r in replicates if r["hpwl"] != float("inf")]
+    failure_rate = 1.0 - len(valid_hpwl) / len(replicates)
+    if not valid_hpwl:
+        score = float("inf")
+    else:
+        quartiles = (
+            statistics.quantiles(valid_hpwl, n=4)
+            if len(valid_hpwl) > 1
+            else [valid_hpwl[0]] * 3
+        )
+        score = statistics.median(valid_hpwl) + 0.25 * (
+            quartiles[2] - quartiles[0]
+        )
+        score *= 1.0 + failure_rate
+    aggregate = dict(replicates[0])
+    for metric in ("rsmt", "overflow", "net_crossing", "time"):
+        valid_values = [
+            result[metric] for result in replicates
+            if result[metric] != float("inf")
+        ]
+        aggregate[metric] = (
+            statistics.median(valid_values) if valid_values else float("inf")
+        )
+    aggregate.update(
+        {"hpwl": score, "failure_rate": failure_rate, "replicates": replicates}
+    )
+    return aggregate
 
 def search_small_4():
     print("\n=== Searching small-4 (PB201_A00) ===")
@@ -86,7 +125,7 @@ def search_small_4():
         # Merge global_place_stages properly
         if "global_place_stages" in variant:
             cfg["global_place_stages"] = variant["global_place_stages"]
-        result = run_placement(cfg, f"small-4-v{i}")
+        result = run_replicates(cfg, f"small-4-v{i}")
         results.append((i, result, cfg))
 
     best = min(results, key=lambda x: x[1]["hpwl"] if x[1]["hpwl"] != float("inf") else 1e18)
@@ -115,7 +154,7 @@ def search_small_8():
         cfg = {**base, **variant}
         if "global_place_stages" in variant:
             cfg["global_place_stages"] = variant["global_place_stages"]
-        result = run_placement(cfg, f"small-8-v{i}")
+        result = run_replicates(cfg, f"small-8-v{i}")
         results.append((i, result, cfg))
 
     best = min(results, key=lambda x: x[1]["hpwl"] if x[1]["hpwl"] != float("inf") else 1e18)

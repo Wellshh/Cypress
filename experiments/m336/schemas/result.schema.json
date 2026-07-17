@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "M336 Cypress experiment result",
+  "type": "object",
+  "required": [
+    "run_id",
+    "git_sha",
+    "experiment_id",
+    "seed",
+    "config",
+    "input_sha256",
+    "metrics",
+    "legality"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "git_sha": {
+      "type": "string"
+    },
+    "experiment_id": {
+      "type": "string",
+      "enum": [
+        "E0",
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+      ]
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "anchor_weight_scale": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "constraint_grid_mm": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "keepin_clearance_mm": {
+      "type": "number",
+      "minimum": 0
+    },
+    "config": {
+      "type": "object"
+    },
+    "input_sha256": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "source_state": {
+      "type": "object"
+    },
+    "preflight": {
+      "type": "object"
+    },
+    "runtime_seconds": {
+      "type": "number"
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "hpwl",
+        "anchor_distance_mm"
+      ],
+      "properties": {
+        "hpwl": {
+          "type": "number"
+        },
+        "clustered_hpwl": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "anchor_distance_mm": {
+          "type": "object",
+          "required": [
+            "mean",
+            "median",
+            "p90",
+            "max"
+          ],
+          "properties": {
+            "mean": {
+              "type": "number"
+            },
+            "median": {
+              "type": "number"
+            },
+            "p90": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            }
+          }
+        },
+        "per_group": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "legality": {
+      "type": "object",
+      "required": [
+        "constrained_components",
+        "fully_contained_components",
+        "keepin_violation_count",
+        "overlap_pair_count"
+      ],
+      "properties": {
+        "constrained_components": {
+          "type": "integer"
+        },
+        "fully_contained_components": {
+          "type": "integer"
+        },
+        "keepin_violation_count": {
+          "type": "integer"
+        },
+        "keepin_violation_area_mm2": {
+          "type": "number"
+        },
+        "overlap_pair_count": {
+          "type": "integer"
+        },
+        "overlap_area_mm2": {
+          "type": "number"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

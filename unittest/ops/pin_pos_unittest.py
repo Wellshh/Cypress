@@ -47,7 +47,9 @@ class PinPosOpTest(unittest.TestCase):
     def test_pin_pos_random(self):
         dtype = torch.float32
         pos = np.array([[1, 10], [2, 20], [3, 30]], dtype=np.float32)
-        node2pin_map = np.array([np.array([0, 4]), np.array([1, 2, 3])])
+        node2pin_map = np.array(
+            [np.array([0, 4]), np.array([1, 2, 3])], dtype=object
+        )
         num_physical_nodes = len(node2pin_map)
         num_pins = 0
         for pins in node2pin_map:
@@ -144,6 +146,34 @@ class PinPosOpTest(unittest.TestCase):
                                        grad.data.numpy(),
                                        rtol=1e-6,
                                        atol=1e-6)
+
+            pos_var.grad.zero_()
+            node_sizes = torch.ones(
+                pos_var.numel() // 2, dtype=pos_var.dtype
+            ).cuda()
+            custom_cuda_node = pin_pos.PinPos(
+                pin_offset_x=torch.from_numpy(pin_offset_x).cuda(),
+                pin_offset_y=torch.from_numpy(pin_offset_y).cuda(),
+                pin2node_map=torch.from_numpy(pin2node_map).cuda(),
+                flat_node2pin_map=torch.from_numpy(flat_node2pin_map).cuda(),
+                flat_node2pin_start_map=torch.from_numpy(
+                    flat_node2pin_start_map
+                ).cuda(),
+                num_physical_nodes=num_physical_nodes,
+                h=node_sizes,
+                w=node_sizes,
+                algorithm="node-by-node",
+                best_theta=torch.zeros_like(node_sizes),
+            )
+            node_result = custom_cuda_node(pos_var.cuda())
+            node_result.sum().backward()
+            node_grad = pos_var.grad.clone()
+            np.testing.assert_allclose(
+                node_result.data.cpu().numpy(), golden_value, atol=1e-6
+            )
+            np.testing.assert_allclose(
+                node_grad.data.numpy(), grad.data.numpy(), rtol=1e-6, atol=1e-6
+            )
 
 
 if __name__ == '__main__':

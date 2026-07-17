@@ -23,7 +23,8 @@ import os
 class parse_dictionary(argparse.Action):
     # parse dictionary given in command line
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, dict())
+        parsed = getattr(namespace, self.dest, None) or {}
+        setattr(namespace, self.dest, parsed)
         for value in values:
             if "=" in value:
                 key, value = value.split("=")
