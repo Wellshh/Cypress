@@ -1,0 +1,6 @@
+interface:
+  display_name: "M336 Anchor Keep-in"
+  short_description: "Run Cypress anchor-guided irregular keep-in experiments on M336"
+  default_prompt: "Use $m336-anchor-keepin to implement and run the M336 anchor-guided keep-in experiment on the experiment branch. Read the spec, validate the supplied manifests, preserve baseline behavior when disabled, and report actual tests and metrics."
+policy:
+  allow_implicit_invocation: true
