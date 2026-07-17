@@ -11,11 +11,12 @@
 
 #include "utility/src/namespace.h"
 
-// include cub in a safe manner
-#define CUB_NS_PREFIX namespace DREAMPLACE_NAMESPACE {
-#define CUB_NS_POSTFIX }
+// include cub directly; namespace wrapping removed for CUDA 12+ compatibility
 #include "cub/cub.cuh"
-#undef CUB_NS_POSTFIX
-#undef CUB_NS_PREFIX
+
+// create namespace alias so existing cub:: references inside DREAMPLACE_NAMESPACE work
+DREAMPLACE_BEGIN_NAMESPACE
+namespace cub = ::cub;
+DREAMPLACE_END_NAMESPACE
 
 #endif

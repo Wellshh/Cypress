@@ -119,6 +119,20 @@ if args.worker:
     print(f"Starting worker process number {args.worker_id}")
     print(f"Worker args: {args}")
 
+    # Discover nameserver port from file written by master
+    ns_port_file = os.path.join(args.log_dir, ".ns_port")
+    ns_port = None
+    for _ in range(30):  # Wait up to 30 seconds for master to write port
+        if os.path.exists(ns_port_file):
+            with open(ns_port_file) as f:
+                ns_port = int(f.read().strip())
+            break
+        time.sleep(1)
+    if ns_port is None:
+        print(f"ERROR: Could not find nameserver port file {ns_port_file}")
+        sys.exit(1)
+    print(f"Connecting to nameserver on port {ns_port}")
+
     if args.run_args["gpu"] == "1":
         # alternate the gpu_id of workers
         if args.gpu_pool == [-1]:
@@ -132,6 +146,7 @@ if args.worker:
 
     w = AutoDMPWorker(
         nameserver="127.0.0.1",
+        nameserver_port=ns_port,
         run_id=args.run_id,
         log_dir=args.log_dir,
         congestion_ratio=args.congestion_ratio,
@@ -151,9 +166,14 @@ print(f"Master args: {args}")
 os.makedirs(args.log_dir, exist_ok=True)
 result_logger = hpres.json_result_logger(directory=args.log_dir, overwrite=True)
 
-# Start a nameserver
-NS = hpns.NameServer(run_id=args.run_id, host="127.0.0.1", port=None)
+# Start a nameserver on a random available port to avoid conflicts
+NS = hpns.NameServer(run_id=args.run_id, host="127.0.0.1", port=0)
 NS.start()
+# Save port so workers can connect
+ns_port_file = os.path.join(args.log_dir, ".ns_port")
+with open(ns_port_file, "w") as f:
+    f.write(str(NS.port))
+print(f"Nameserver running on port {NS.port} (saved to {ns_port_file})")
 
 # Run an optimizer
 if args.multiobj:
@@ -167,6 +187,8 @@ if args.multiobj:
         configspace=AutoDMPWorker.get_configspace(args.cfgSearchFile),
         parameters=motpe_params,
         run_id=args.run_id,
+        nameserver="127.0.0.1",
+        nameserver_port=NS.port,
         min_points_in_model=args.min_points_in_model,
         min_budget=args.min_budget,
         max_budget=args.max_budget,
@@ -177,6 +199,8 @@ else:
     bohb = BOHB(
         configspace=AutoDMPWorker.get_configspace(args.cfgSearchFile),
         run_id=args.run_id,
+        nameserver="127.0.0.1",
+        nameserver_port=NS.port,
         min_points_in_model=args.min_points_in_model,
         min_budget=args.min_budget,
         max_budget=args.max_budget,

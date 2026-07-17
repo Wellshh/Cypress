@@ -566,7 +566,7 @@ class PlaceDB(object):
         self.num_terminals = pydb.num_terminals
         self.num_terminal_NIs = pydb.num_terminal_NIs
         self.node_name2id_map = pydb.node_name2id_map
-        self.node_names = np.array(pydb.node_names, dtype=np.string_)
+        self.node_names = np.array(pydb.node_names, dtype=np.bytes_)
         # If the placer directly takes a global placement solution,
         # the cell positions may still be floating point numbers.
         # It is not good to use the place_io OP to round the positions.
@@ -587,13 +587,13 @@ class PlaceDB(object):
             if filename is not None and os.path.exists(filename):
                 self.node_x = np.zeros(self.num_physical_nodes, dtype=self.dtype)
                 self.node_y = np.zeros(self.num_physical_nodes, dtype=self.dtype)
-                self.node_orient = np.zeros(self.num_physical_nodes, dtype=np.string_)
+                self.node_orient = np.zeros(self.num_physical_nodes, dtype=np.bytes_)
                 self.read_pl(params, filename)
                 use_read_pl_flag = True
         if not use_read_pl_flag:
             self.node_x = np.array(pydb.node_x, dtype=self.dtype)
             self.node_y = np.array(pydb.node_y, dtype=self.dtype)
-        self.node_orient = np.array(pydb.node_orient, dtype=np.string_)
+        self.node_orient = np.array(pydb.node_orient, dtype=np.bytes_)
         # if the node orient start with "F" that means it is on the bottom side
         # 0 for bottom side, 1 for top side
         self.node_side_flag = np.where(np.char.startswith(self.node_orient, b'F'), 0, 1) # for movable, terminal, and terminal_NI
@@ -601,11 +601,11 @@ class PlaceDB(object):
         self.node_size_x = np.array(pydb.node_size_x, dtype=self.dtype)
         self.node_size_y = np.array(pydb.node_size_y, dtype=self.dtype)
         self.node2orig_node_map = np.array(pydb.node2orig_node_map, dtype=np.int32)
-        self.pin_direct = np.array(pydb.pin_direct, dtype=np.string_)
+        self.pin_direct = np.array(pydb.pin_direct, dtype=np.bytes_)
         self.pin_offset_x = np.array(pydb.pin_offset_x, dtype=self.dtype)
         self.pin_offset_y = np.array(pydb.pin_offset_y, dtype=self.dtype)
         self.net_name2id_map = pydb.net_name2id_map
-        self.net_names = np.array(pydb.net_names, dtype=np.string_)
+        self.net_names = np.array(pydb.net_names, dtype=np.bytes_)
         self.net2pin_map = pydb.net2pin_map
         self.flat_net2pin_map = np.array(pydb.flat_net2pin_map, dtype=np.int32)
         self.flat_net2pin_start_map = np.array(
@@ -1485,8 +1485,8 @@ row height = %g, site width = %g
         tt = time.time()
         logging.info("writing to %s" % (pl_file))
         content = "UCLA pl 1.0\n"
-        str_node_names = np.array(self.node_names).astype(np.str)
-        str_node_orient = np.array(self.node_orient).astype(np.str)
+        str_node_names = np.array(self.node_names).astype(str)
+        str_node_orient = np.array(self.node_orient).astype(str)
         for i in range(self.num_movable_nodes):
             content += "\n%s %g %g : %s" % (
                 str_node_names[i],

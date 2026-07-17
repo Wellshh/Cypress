@@ -28,7 +28,9 @@
 #include <set>
 #include <string>
 
+#ifndef DRAWPLACE
 #define DRAWPLACE 1
+#endif
 
 #if DRAWPLACE == 1
 #include <cairo-pdf.h>

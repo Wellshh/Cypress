@@ -139,8 +139,8 @@ class Dispatcher(object):
 			self.pyro_daemon = Pyro4.core.Daemon(host=self.host)
 
 			with Pyro4.locateNS(host=self.nameserver, port=self.nameserver_port) as ns:
-				uri = self.pyro_daemon.register(self, self.pyro_id)
-				ns.register(self.pyro_id, uri)
+				self.dispatcher_uri = self.pyro_daemon.register(self, self.pyro_id)
+				ns.register(self.pyro_id, self.dispatcher_uri)
 
 			self.logger.info("DISPATCHER: Pyro daemon running on %s"%(self.pyro_daemon.locationStr))
 
@@ -235,10 +235,12 @@ class Dispatcher(object):
 					
 				if not self.worker_pool[wn].is_busy():
 					self.idle_workers.add(wn)
+					print('DISPATCHER: added %s to idle_workers, total idle=%i'%(wn, len(self.idle_workers)))
 
 
 			# try to submit more jobs if something changed
 			if update:
+				print('DISPATCHER: worker pool updated (%i workers), notifying job_runner'%(len(self.worker_pool)))
 				if not self.queue_callback is None:
 					self.discover_cond.release()
 					self.queue_callback(len(self.worker_pool))
@@ -270,12 +272,14 @@ class Dispatcher(object):
 			return(len(self.worker_pool))
 
 	def job_runner(self):
-		
+
 		self.runner_cond.acquire()
+		print('DISPATCHER: job_runner thread started, acquired runner_cond')
 		while True:
 			
 			while self.waiting_jobs.empty() or len(self.idle_workers) == 0:
 				self.logger.debug('DISPATCHER: jobs to submit = %i, number of idle workers = %i -> waiting!'%(self.waiting_jobs.qsize(),  len(self.idle_workers) ))
+				print('DISPATCHER: job_runner WAITING, queue_size=%i, idle_workers=%i'%(self.waiting_jobs.qsize(), len(self.idle_workers)))
 				self.runner_cond.wait()
 				self.logger.debug('DISPATCHER: Trying to submit another job.')
 				if self.shutdown_all_threads:
@@ -286,14 +290,29 @@ class Dispatcher(object):
 			
 			job = self.waiting_jobs.get()
 			wn = self.idle_workers.pop()
+			print('DISPATCHER: dispatching job %s to worker %s'%(str(job.id), wn))
 
 			worker = self.worker_pool[wn]
 			self.logger.debug('DISPATCHER: starting job %s on %s'%(str(job.id),worker.name))
 		
 			job.time_it('started')
 			worker.runs_job = job.id
-		
-			worker.proxy.start_computation(self, job.id, **job.kwargs)
+
+			try:
+				busy = worker.proxy.is_busy()
+				print('DISPATCHER: proxy is_busy=%s for worker %s'%(busy, wn))
+				# Pass a proxy to self instead of self directly to avoid Pyro4
+				# serialization issues when passing registered objects across
+				# process boundaries in oneway calls.
+				with Pyro4.Proxy(self.dispatcher_uri) as dispatcher_proxy:
+					worker.proxy.start_computation(dispatcher_proxy, job.id, **job.kwargs)
+				print('DISPATCHER: start_computation call succeeded for job %s'%str(job.id))
+			except Exception as e:
+				print('DISPATCHER: start_computation call FAILED for job %s: %s'%(str(job.id), str(e)))
+				worker.runs_job = None
+				self.idle_workers.add(wn)
+				self.waiting_jobs.put(job)
+				continue
 
 			job.worker_name = wn
 			self.running_jobs[job.id] = job
@@ -307,6 +326,7 @@ class Dispatcher(object):
 			job = Job(id, **kwargs)
 			job.time_it('submitted')
 			self.waiting_jobs.put(job)
+			print('DISPATCHER: job %s queued, queue_size=%i'%(str(id), self.waiting_jobs.qsize()))
 			self.logger.debug('DISPATCHER: trying to notify the job_runner thread.')
 			self.runner_cond.notify()
 

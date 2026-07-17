@@ -20,6 +20,7 @@ import copy
 import json
 from pathlib import Path
 import logging
+import numpy as np
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 from ConfigSpace.read_and_write import json as CS_JSON
@@ -35,6 +36,26 @@ from tuner.tuner_configs import (
 )
 
 opj = os.path.join
+
+
+def _sanitize_config(config):
+    """Convert numpy types in config dict to native Python types for JSON/Pyro4 serialization."""
+    sanitized = {}
+    for k, v in config.items():
+        if isinstance(v, np.integer):
+            sanitized[k] = int(v)
+        elif isinstance(v, np.floating):
+            sanitized[k] = float(v)
+        elif isinstance(v, np.ndarray):
+            sanitized[k] = v.tolist()
+        elif isinstance(v, np.bool_):
+            sanitized[k] = bool(v)
+        elif isinstance(v, np.str_):
+            sanitized[k] = str(v)
+        else:
+            sanitized[k] = v
+    return sanitized
+
 
 # Wrap AutoDMP config in dataclass
 def update_cfg(self, cfg):
@@ -122,6 +143,8 @@ class AutoDMPWorker(Worker):
         log.setLevel(logging.DEBUG)
 
     def compute(self, config_id, config, budget, working_directory, **kwargs):
+        print("WORKER compute: starting job %s" % str(config_id))
+        config = _sanitize_config(config)
         config_identifier = "run-" + "_".join([str(x) for x in config_id])
 
         working_directory = opj(self.log_dir, config_identifier)

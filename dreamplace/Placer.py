@@ -369,6 +369,7 @@ if __name__ == "__main__":
     res_path = "%s/%s" % (engine.params.result_dir, engine.params.design_name())
     # copy config file to result directory
     os.system("cp %s %s" % (config_file, res_path))
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     # copy DREAMPlace.log to result directory
-    os.system("cp %s/DREAMPlace.log %s" % (root_dir, res_path))
+    # DREAMPlace.log is written to the current working directory, not root_dir
+    if os.path.exists("DREAMPlace.log"):
+        os.system("cp DREAMPlace.log %s" % (res_path))

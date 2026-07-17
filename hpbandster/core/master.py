@@ -9,6 +9,27 @@ import logging
 import numpy as np
 
 
+def _sanitize_config(config):
+    """Convert numpy scalar types to native Python types for JSON/Pyro4 serialization."""
+    if config is None:
+        return config
+    sanitized = {}
+    for k, v in config.items():
+        if isinstance(v, np.integer):
+            sanitized[k] = int(v)
+        elif isinstance(v, np.floating):
+            sanitized[k] = float(v)
+        elif isinstance(v, np.ndarray):
+            sanitized[k] = v.tolist()
+        elif isinstance(v, np.bool_):
+            sanitized[k] = bool(v)
+        elif isinstance(v, np.str_):
+            sanitized[k] = str(v)
+        else:
+            sanitized[k] = v
+    return sanitized
+
+
 from hpbandster.core.dispatcher import Dispatcher
 from hpbandster.core.result import Result
 from hpbandster.core.base_iteration import WarmStartIteration
@@ -285,11 +306,19 @@ class Master(object):
 		This function handles the actual submission in a
 		(hopefully) thread save way
 		"""
+		print('HBMASTER: trying submitting job %s to dispatcher'%str(config_id))
 		self.logger.debug('HBMASTER: trying submitting job %s to dispatcher'%str(config_id))
 		with self.thread_cond:
 			self.logger.debug('HBMASTER: submitting job %s to dispatcher'%str(config_id))
+			config = _sanitize_config(config)
+			# Convert numpy scalar budget to native Python float to avoid
+			# Pyro4/serpent serialization issues (np.float64 serializes as
+			# np.float64(x) which ast.literal_eval cannot parse).
+			if hasattr(budget, 'item'):
+				budget = budget.item()
 			self.dispatcher.submit_job(config_id, config=config, budget=budget, working_directory=self.working_directory)
 			self.num_running_jobs += 1
+			print('HBMASTER: submitted job %s, num_running_jobs=%d'%(str(config_id), self.num_running_jobs))
 
 		#shouldn't the next line be executed while holding the condition?
 		self.logger.debug("HBMASTER: job %s submitted to dispatcher"%str(config_id))

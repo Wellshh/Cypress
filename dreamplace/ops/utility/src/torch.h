@@ -10,6 +10,12 @@
 /// As torch may change the header inclusion conventions, it is better to manage
 /// it in a consistent way.
 #if TORCH_MAJOR_VERSION >= 1
+
+// Undefine Limbo's assert_msg macro to avoid conflict with PyTorch's internal macro
+#ifdef assert_msg
+#undef assert_msg
+#endif
+
 #include <torch/extension.h>
 
 #if TORCH_MINOR_VERSION >= 3
@@ -26,15 +32,70 @@
 
 #endif
 
-#if TORCH_MAJOR_VERSION > 1 || (TORCH_MAJOR_VERSION == 1 && TORCH_MINOR_VERSION >= 8)
+#if TORCH_MAJOR_VERSION >= 2
+
+// PyTorch 2.x: use built-in dispatch macros directly
+#define DREAMPLACE_DISPATCH_FLOATING_TYPES(TENSOR, NAME, ...) \
+  AT_DISPATCH_FLOATING_TYPES(DREAMPLACE_TENSOR_SCALARTYPE(TENSOR), NAME, __VA_ARGS__)
+
+#define DREAMPLACE_DISPATCH_INT_FLOAT_TYPES(TENSOR, NAME, ...) \
+  AT_DISPATCH_FLOATING_TYPES_AND(at::ScalarType::Int, DREAMPLACE_TENSOR_SCALARTYPE(TENSOR), NAME, __VA_ARGS__)
+
+#elif TORCH_MAJOR_VERSION > 1 || (TORCH_MAJOR_VERSION == 1 && TORCH_MINOR_VERSION >= 8)
 
 #define DREAMPLACE_PRIVATE_CASE_TYPE(NAME, enum_type, type, ...) \
   AT_PRIVATE_CASE_TYPE(NAME, enum_type, type, __VA_ARGS__)
+
+#define DREAMPLACE_DISPATCH_FLOATING_TYPES(TENSOR, NAME, ...)                         \
+  [&] {                                                                               \
+    at::ScalarType _st = DREAMPLACE_TENSOR_SCALARTYPE(TENSOR);                        \
+    switch (_st) {                                                                    \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Double, double, __VA_ARGS__) \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Float, float, __VA_ARGS__)   \
+      default:                                                                        \
+        AT_ERROR(#NAME, " not implemented for '", toString(_st), "'");                \
+    }                                                                                 \
+  }()
+
+#define DREAMPLACE_DISPATCH_INT_FLOAT_TYPES(TENSOR, NAME, ...)                        \
+  [&] {                                                                               \
+    at::ScalarType _st = DREAMPLACE_TENSOR_SCALARTYPE(TENSOR);                        \
+    switch (_st) {                                                                    \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Float, float, __VA_ARGS__)   \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Double, double, __VA_ARGS__) \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Int, int, __VA_ARGS__)       \
+      default:                                                                        \
+        AT_ERROR(#NAME, " not implemented for '", at::toString(_st), "'");            \
+    }                                                                                 \
+  }()
 
 #else
 
 #define DREAMPLACE_PRIVATE_CASE_TYPE(NAME, enum_type, type, ...) \
   AT_PRIVATE_CASE_TYPE(enum_type, type, __VA_ARGS__)
+
+#define DREAMPLACE_DISPATCH_FLOATING_TYPES(TENSOR, NAME, ...)                         \
+  [&] {                                                                               \
+    at::ScalarType _st = DREAMPLACE_TENSOR_SCALARTYPE(TENSOR);                        \
+    switch (_st) {                                                                    \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Double, double, __VA_ARGS__) \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Float, float, __VA_ARGS__)   \
+      default:                                                                        \
+        AT_ERROR(#NAME, " not implemented for '", toString(_st), "'");                \
+    }                                                                                 \
+  }()
+
+#define DREAMPLACE_DISPATCH_INT_FLOAT_TYPES(TENSOR, NAME, ...)                        \
+  [&] {                                                                               \
+    at::ScalarType _st = DREAMPLACE_TENSOR_SCALARTYPE(TENSOR);                        \
+    switch (_st) {                                                                    \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Float, float, __VA_ARGS__)   \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Double, double, __VA_ARGS__) \
+      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Int, int, __VA_ARGS__)       \
+      default:                                                                        \
+        AT_ERROR(#NAME, " not implemented for '", at::toString(_st), "'");            \
+    }                                                                                 \
+  }()
 
 #endif
 
@@ -52,10 +113,10 @@
 
 #define CHECK_FLAT_CPU(x)                         \
   CHECK_CPU(x);                                   \
-  CHECK_FLAT(x); 
+  CHECK_FLAT(x);
 #define CHECK_FLAT_CUDA(x)                        \
   CHECK_CUDA(x);                                  \
-  CHECK_FLAT(x); 
+  CHECK_FLAT(x);
 
 #define CHECK_EVEN(x) \
   AT_ASSERTM((x.numel() & 1) == 0, #x "must have even number of elements")
@@ -66,30 +127,5 @@
 /// warnings
 
 #include "utility/src/torch_fft_api.h"
-
-#define DREAMPLACE_DISPATCH_FLOATING_TYPES(TENSOR, NAME, ...)                         \
-  [&] {                                                                               \
-    at::ScalarType _st = DREAMPLACE_TENSOR_SCALARTYPE(TENSOR);                        \
-    switch (_st) {                                                                    \
-      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Double, double, __VA_ARGS__) \
-      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Float, float, __VA_ARGS__)   \
-      default:                                                                        \
-        AT_ERROR(#NAME, " not implemented for '", toString(_st), "'");                \
-    }                                                                                 \
-  }()
-
-/// I remove the support to Char, since int8_t does not compile for CUDA
-/// char does not compile for ATen either
-#define DREAMPLACE_DISPATCH_INT_FLOAT_TYPES(TENSOR, NAME, ...)                        \
-  [&] {                                                                               \
-    at::ScalarType _st = DREAMPLACE_TENSOR_SCALARTYPE(TENSOR);                        \
-    switch (_st) {                                                                    \
-      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Float, float, __VA_ARGS__)   \
-      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Double, double, __VA_ARGS__) \
-      DREAMPLACE_PRIVATE_CASE_TYPE(NAME, at::ScalarType::Int, int, __VA_ARGS__)       \
-      default:                                                                        \
-        AT_ERROR(#NAME, " not implemented for '", at::toString(_st), "'");            \
-    }                                                                                 \
-  }()
 
 #endif

@@ -192,7 +192,9 @@ class Worker(object):
 	@Pyro4.expose
 	@Pyro4.oneway
 	def start_computation(self, callback, id, *args, **kwargs):
-
+		with open('/tmp/hpb_worker_%s.log'%self.worker_id, 'a') as f:
+			f.write('start_computation called for job %s\n'%str(id))
+		print('WORKER: start_computation called for job %s'%str(id), flush=True)
 		with self.thread_cond:
 			while self.busy:
 				self.thread_cond.wait()
@@ -200,6 +202,7 @@ class Worker(object):
 		if not self.timeout is None and not self.timer is None:
 			self.timer.cancel()
 		self.logger.info('WORKER: start processing job %s'%str(id))
+		print('WORKER: processing job %s'%str(id), flush=True)
 		self.logger.debug('WORKER: args: %s'%(str(args)))
 		self.logger.debug('WORKER: kwargs: %s'%(str(kwargs)))
 		try:
@@ -210,9 +213,17 @@ class Worker(object):
 						'exception' : traceback.format_exc()}
 		finally:
 			self.logger.debug('WORKER: done with job %s, trying to register it.'%str(id))
+			with open('/tmp/hpb_worker_%s.log'%self.worker_id, 'a') as f:
+				f.write('done with job %s, registering result\n'%str(id))
 			with self.thread_cond:
 				self.busy =  False
-				callback.register_result(id, result)
+				try:
+					callback.register_result(id, result)
+					with open('/tmp/hpb_worker_%s.log'%self.worker_id, 'a') as f:
+						f.write('successfully registered result for job %s\n'%str(id))
+				except Exception as e:
+					with open('/tmp/hpb_worker_%s.log'%self.worker_id, 'a') as f:
+						f.write('FAILED to register result for job %s: %s\n'%(str(id), str(e)))
 				self.thread_cond.notify()
 		self.logger.info('WORKER: registered result for job %s with dispatcher'%str(id))
 		if not self.timeout is None:

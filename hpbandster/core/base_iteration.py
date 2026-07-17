@@ -157,24 +157,28 @@ class BaseIteration(object):
 
 		if self.is_finished:
 			return(None)
-		
+
 		for k,v in self.data.items():
 			if v.status == 'QUEUED':
 				assert v.budget == self.budgets[self.stage], 'Configuration budget does not align with current stage!'
 				v.status = 'RUNNING'
 				self.num_running += 1
+				print('ITERATION: returning queued config %s'%str(k))
 				return(k, v.config, v.budget)
 
 		# check if there are still slots to fill in the current stage and return that
 		if (self.actual_num_configs[self.stage] < self.num_configs[self.stage]):
+			print('ITERATION: adding new config (stage %i, %i/%i)'%(self.stage, self.actual_num_configs[self.stage], self.num_configs[self.stage]))
 			self.add_configuration()
 			return(self.get_next_run())
 
 		if self.num_running == 0:
 			# at this point a stage is completed
+			print('ITERATION: stage %i completed, processing results'%self.stage)
 			self.process_results()
 			return(self.get_next_run())
 
+		print('ITERATION: no queued configs, %i running, waiting'%self.num_running)
 		return(None)
 
 	def _advance_to_next_stage(self, config_ids, losses):

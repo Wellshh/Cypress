@@ -94,8 +94,6 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
             obj_and_grad_fn = self.obj_and_grad_fn
             constraint_fn = self.constraint_fn
             for i, p in enumerate(group["params"]):
-                if p.grad is None:
-                    continue
                 if not group["u_k"]:
                     group["u_k"].append(p.data.clone())
                     # directly use p as v_k to save memory

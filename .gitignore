@@ -15,3 +15,5 @@ thirdparty/flute
 .DS_Store
 .vscode/*
 bin
+tuner_logs/
+*.json

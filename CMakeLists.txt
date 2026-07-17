@@ -46,7 +46,7 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 include(cmake/TorchExtension.cmake)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # without this, clang will complain about linking 
@@ -114,6 +114,9 @@ if (CUDA_FOUND)
     if (${CUDA_VERSION_MAJOR} VERSION_GREATER "9")
       list(APPEND CUDA_ARCH_LIST 7.5)
     endif(${CUDA_VERSION_MAJOR} VERSION_GREATER "9")
+    if (${CUDA_VERSION_MAJOR} VERSION_GREATER_EQUAL "12")
+      list(APPEND CUDA_ARCH_LIST 9.0)
+    endif(${CUDA_VERSION_MAJOR} VERSION_GREATER_EQUAL "12")
   endif(NOT CUDA_ARCH_LIST)
 
   # for cuda_add_library

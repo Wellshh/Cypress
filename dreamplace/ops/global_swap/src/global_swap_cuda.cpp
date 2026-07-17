@@ -24,7 +24,10 @@ int globalSwapCUDALauncher(DetailedPlaceDB<T> db, int batch_size, int max_iters,
 
 /// I remove the support to Char, since int8_t does not compile for CUDA
 /// char does not compile for ATen either
-#if TORCH_MAJOR_VERSION > 1 || (TORCH_MAJOR_VERSION == 1 && TORCH_MINOR_VERSION >= 8)
+#if TORCH_MAJOR_VERSION >= 2
+#define DISPATCH_CUSTOM_TYPES(TYPE, NAME, ...) \
+  AT_DISPATCH_FLOATING_TYPES_AND(at::ScalarType::Int, TYPE, NAME, __VA_ARGS__)
+#elif TORCH_MAJOR_VERSION > 1 || (TORCH_MAJOR_VERSION == 1 && TORCH_MINOR_VERSION >= 8)
 #define DISPATCH_CUSTOM_TYPES(TYPE, NAME, ...)                              \
   [&] {                                                                     \
     switch (TYPE) {                                                         \

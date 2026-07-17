@@ -2,7 +2,24 @@ import copy
 import os
 import json
 
+import numpy as np
+
 from hpbandster.core.base_iteration import  Datum
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.str_):
+            return str(obj)
+        return super().default(obj)
 
 class Run(object):
 	"""
@@ -121,7 +138,7 @@ class json_result_logger(object):
 		if not config_id in self.config_ids:
 			self.config_ids.add(config_id)
 			with open(self.config_fn, 'a') as fh:
-				fh.write(json.dumps([config_id, config, config_info]))
+				fh.write(json.dumps([config_id, config, config_info], cls=NumpyEncoder))
 				fh.write('\n')
 
 	def __call__(self, job):
@@ -129,10 +146,10 @@ class json_result_logger(object):
 			#should never happen! TODO: log warning here!
 			self.config_ids.add(job.id)
 			with open(self.config_fn, 'a') as fh:
-				fh.write(json.dumps([job.id, job.kwargs['config'], {}]))
+				fh.write(json.dumps([job.id, job.kwargs['config'], {}], cls=NumpyEncoder))
 				fh.write('\n')
 		with open(self.results_fn, 'a') as fh:
-			fh.write(json.dumps([job.id, job.kwargs['budget'], job.timestamps, job.result, job.exception]))
+			fh.write(json.dumps([job.id, job.kwargs['budget'], job.timestamps, job.result, job.exception], cls=NumpyEncoder))
 			fh.write("\n")
 
 
