@@ -7,66 +7,56 @@
 
 ## Problem
 
-The final region assignment was selected by subgroup-to-anchor distance, seed
-deviation, and area capacity. It does not model net quality. A relaxed lower
-bound proves that no placement retaining this assignment can satisfy the manual
-baseline score gate, regardless of optimizer tuning or packing quality.
+The finalized region assignment was selected by anchor distance, seed
+deviation, and area capacity, without net quality. Optimizer or CUDA tuning
+cannot recover quality that the assignment geometry makes impossible.
 
-## Evidence
+## Corrected Evidence
 
-For each constrained pin, `analyze_quality_bound.py` permits an independent
-choice anywhere in the x/y interval enclosing its assigned feasible domain.
-It ignores overlap, capacity, shared component coordinates, discrete grid
-coupling, and polygon coupling. These relaxations can only improve the bound.
-For every net, the minimum x span plus minimum y span is an HPWL lower bound;
-RSMT is bounded below by the same value.
+`analyze_quality_bound.py` gives each controlled pin an independent position
+inside its assigned feasible-domain x/y range and ignores overlap, shared
+component coordinates, and discrete polygon coupling. The resulting HPWL is an
+optimistic lower bound; RSMT is at least HPWL. Runtime-fixed endpoints use the
+source positions required by the experiment, while other uncontrolled nodes
+use the manual placement. See `M336-009` for the endpoint correction.
 
-| Quantity | Fixed assignment | Any same-side region |
-| --- | ---: | ---: |
-| Relaxed HPWL lower bound | `18014.2736` | `12713.4401` |
-| HPWL ratio vs baseline | `1.2315054` | `0.8691258` |
-| RSMT lower-bound ratio | `1.1294169` | `0.7970776` |
-| Quality-score upper bound | `0.8471266` | `1.2003336` |
+| Grid / assignment | Relaxed HPWL | Score upper bound | Result |
+| --- | ---: | ---: | --- |
+| `0.10 mm`, original | `17996.2459` | `0.847975` | Impossible |
+| `0.10 mm`, MILP optimized | `15817.4414` | `0.964781` | Impossible |
+| `0.05 mm`, original | `16943.9421` | `0.900639` | Impossible |
+| `0.05 mm`, MILP optimized | `14675.1473` | `1.039878` | Survives only this relaxation |
 
-The required score is `>=1.0`. The same-side relaxation exceeds that threshold,
-so the keep-in geometry is not the proven blocker; the fixed assignment is.
-Large forced regressions include `N31799771` (`519.5537` vs `58.3560` manual),
-`DM` (`460.0` vs `51.8980`), and `VCHARGE_11P0` (`686.0` vs `340.0280`).
+The manual baseline is HPWL `14627.8477`, RSMT `15950.0654`, and score `1.0`.
+The `0.05 mm` interval result is not a feasible placement: a stronger
+shared-coordinate model also proves that fixed assignment cannot pass; see
+`M336-010`.
 
-Input hashes are:
+The previously reported `18014.2736/0.847127` result is superseded because it
+read uncontrolled endpoints from the loaded Cypress placement rather than the
+declared runtime state.
 
-- Assignment: `fb76b18685b4c66f0af62dd25dc81af161535cfb25c30ed26c279ec49907afde`
-- Baseline placement: `65ea89cfae831871fd115f61b50e528bcc77a0285d85ecbf4c4a97ba898ad595`
-- Baseline result: `df8096d78fd3bff60bc2ad179fb83eda276da4566aeda1feafae7ffa9418ae2f`
-
-Reproduce after preparing the manual baseline:
+## Reproduction
 
 ```bash
-PYTHONPATH="$PWD/install" python3.11 \
-  experiments/m336/scripts/analyze_quality_bound.py \
-  --bookshelf-dir results/m336/baseline_warmstart_smoke/bookshelf \
+PYTHONPATH="$PWD/install:$PWD" python3.11 \
+  experiments/m336/scripts/optimize_assignment.py \
+  --assignment results/m336/quality_assignment/m336_region_assignment.grid005.template.json \
   --baseline-result results/m336/baseline_warmstart_smoke/baseline/baseline-result.json \
-  --output-dir results/m336/quality_diagnostics/reproducible_bound
+  --grid-mm 0.05
 ```
-
-## Impact
-
-Further optimizer or CUDA tuning against this assignment cannot pass the user
-quality gate and would consume roughly three minutes per one-iteration E4 run
-without changing the conclusion.
 
 ## Remediation
 
-1. Add deterministic net-quality costs to subgroup-region assignment instead
-   of optimizing only anchor distance and seed adherence.
-2. Search feasible same-side assignments under capacity and packing constraints.
-3. Reject assignments whose relaxed score upper bound is below `1.0` before E4.
-4. Run exact packing and native HPWL/RSMT scoring only for surviving candidates.
+1. Keep interval MILP as a cheap rejection gate, not an acceptance test.
+2. Search assignments with shared component coordinates and exact net spans.
+3. Apply capacity and exact packing only to assignments that survive quality.
+4. Run native HPWL/RSMT and exact legality before accepting any assignment.
 
 ## Acceptance Criteria
 
-- The generated assignment and all inputs have recorded hashes.
-- Assignment generation is deterministic and reviewable.
-- The relaxed bound no longer proves the score gate impossible.
-- Exact validation reports `100/100` contained and zero same-side overlaps.
-- Final E4 score is at least the manual baseline for every accepted seed.
+- Assignment and baseline input hashes are recorded.
+- Deterministic assignment generation is independently checked.
+- Shared-coordinate screening does not prove score `<1.0`.
+- Exact legality is `100/100` contained with zero overlaps.
+- Native normalized score is at least `1.0` for every accepted seed.

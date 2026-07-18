@@ -117,25 +117,88 @@ def _has_overlap(footprint, occupied, epsilon=1e-12):
     return False
 
 
+def _is_axis_aligned_rectangle(shape, epsilon=1e-12):
+    bounds = shape.bounds
+    bounds_area = max(0.0, bounds[2] - bounds[0]) * max(
+        0.0, bounds[3] - bounds[1]
+    )
+    return abs(shape.area - bounds_area) <= epsilon
+
+
+def _candidate_bounds(constraint, candidates):
+    local_min_x, local_min_y, local_max_x, local_max_y = (
+        constraint.domain.footprint_local.bounds
+    )
+    return np.column_stack(
+        (
+            candidates[:, 0] + local_min_x,
+            candidates[:, 1] + local_min_y,
+            candidates[:, 0] + local_max_x,
+            candidates[:, 1] + local_max_y,
+        )
+    )
+
+
+def _bbox_overlap_metrics(candidate_bounds, other_bounds, epsilon=1e-12):
+    if not len(other_bounds):
+        return (
+            np.zeros(len(candidate_bounds), dtype=np.int64),
+            np.zeros(len(candidate_bounds), dtype=np.float64),
+        )
+    other_bounds = np.asarray(other_bounds, dtype=np.float64).reshape(-1, 4)
+    overlap_x = np.maximum(
+        0.0,
+        np.minimum(candidate_bounds[:, None, 2], other_bounds[None, :, 2])
+        - np.maximum(candidate_bounds[:, None, 0], other_bounds[None, :, 0]),
+    )
+    overlap_y = np.maximum(
+        0.0,
+        np.minimum(candidate_bounds[:, None, 3], other_bounds[None, :, 3])
+        - np.maximum(candidate_bounds[:, None, 1], other_bounds[None, :, 1]),
+    )
+    overlap_area = overlap_x * overlap_y
+    return (
+        np.count_nonzero(overlap_area > epsilon, axis=1),
+        np.sum(overlap_area, axis=1),
+    )
+
+
 def _greedy_pack(ordered, obstacles, candidate_mode, preferred_centers):
     occupied = list(obstacles)
+    rectangle_fast_path = all(
+        _is_axis_aligned_rectangle(constraint.domain.footprint_local)
+        for constraint in ordered
+    ) and all(_is_axis_aligned_rectangle(obstacle) for obstacle in obstacles)
+    occupied_bounds = [obstacle.bounds for obstacle in obstacles]
     placements = {}
     footprints = []
     for index, constraint in enumerate(ordered):
         preferred = preferred_centers.get(constraint.node_id)
         selected = None
-        for candidate_index in _ordered_candidate_indices(
+        candidate_indices = _ordered_candidate_indices(
             constraint, candidate_mode, preferred
-        ):
-            center = constraint.domain.valid_centers[candidate_index]
-            footprint = constraint.domain.footprint(center)
-            if not _has_overlap(footprint, occupied):
-                selected = center
-                occupied.append(footprint)
-                footprints.append(footprint)
-                break
+        )
+        if rectangle_fast_path:
+            candidates = constraint.domain.valid_centers[candidate_indices]
+            overlap_counts, _ = _bbox_overlap_metrics(
+                _candidate_bounds(constraint, candidates), occupied_bounds
+            )
+            free = np.flatnonzero(overlap_counts == 0)
+            if len(free):
+                selected = candidates[free[0]]
+                footprint = constraint.domain.footprint(selected)
+        else:
+            for candidate_index in candidate_indices:
+                center = constraint.domain.valid_centers[candidate_index]
+                footprint = constraint.domain.footprint(center)
+                if not _has_overlap(footprint, occupied):
+                    selected = center
+                    break
         if selected is None:
             return None, index, placements, footprints
+        occupied.append(footprint)
+        occupied_bounds.append(footprint.bounds)
+        footprints.append(footprint)
         placements[constraint.node_id] = selected
     return placements, None, placements, footprints
 
@@ -294,30 +357,298 @@ def _update_conflicts(
 
 
 def _bbox_overlap_scores(constraint, candidates, other_bounds):
-    if not len(other_bounds):
-        return np.zeros(len(candidates), dtype=np.float64)
-    local_min_x, local_min_y, local_max_x, local_max_y = (
-        constraint.domain.footprint_local.bounds
-    )
-    candidate_bounds = np.column_stack(
-        (
-            candidates[:, 0] + local_min_x,
-            candidates[:, 1] + local_min_y,
-            candidates[:, 0] + local_max_x,
-            candidates[:, 1] + local_max_y,
+    return _bbox_overlap_metrics(
+        _candidate_bounds(constraint, candidates), other_bounds
+    )[1]
+
+
+def _forward_check_rectangle_pack(
+    constraints,
+    obstacles,
+    preferred_centers,
+    candidate_limit=None,
+    max_states=250000,
+    time_limit=20.0,
+):
+    """Pack rectangle candidates with MRV and least-constraining propagation."""
+    ordered = sorted(constraints, key=lambda item: item.refdes)
+    if not ordered or not all(
+        _is_axis_aligned_rectangle(constraint.domain.footprint_local)
+        for constraint in ordered
+    ) or not all(_is_axis_aligned_rectangle(obstacle) for obstacle in obstacles):
+        return None, {"applicable": False}
+
+    obstacle_bounds = [obstacle.bounds for obstacle in obstacles]
+    candidates = []
+    candidate_bounds = []
+    for constraint in ordered:
+        all_candidates = constraint.domain.valid_centers
+        all_bounds = _candidate_bounds(constraint, all_candidates)
+        overlap_counts, _ = _bbox_overlap_metrics(all_bounds, obstacle_bounds)
+        available = np.flatnonzero(overlap_counts == 0)
+        if not len(available):
+            return None, {
+                "applicable": True,
+                "proven_infeasible": True,
+                "reason": "%s has no obstacle-free candidate" % constraint.refdes,
+            }
+        preferred = np.asarray(
+            preferred_centers.get(constraint.node_id, constraint.target_center)
         )
-    )
-    overlap_x = np.maximum(
-        0.0,
-        np.minimum(candidate_bounds[:, None, 2], other_bounds[None, :, 2])
-        - np.maximum(candidate_bounds[:, None, 0], other_bounds[None, :, 0]),
-    )
-    overlap_y = np.maximum(
-        0.0,
-        np.minimum(candidate_bounds[:, None, 3], other_bounds[None, :, 3])
-        - np.maximum(candidate_bounds[:, None, 1], other_bounds[None, :, 1]),
-    )
-    return np.sum(overlap_x * overlap_y, axis=1)
+        distances = np.square(all_candidates[available] - preferred).sum(axis=1)
+        candidate_order = np.lexsort((available, distances))
+        if candidate_limit is not None:
+            candidate_order = candidate_order[:candidate_limit]
+        available = available[candidate_order]
+        candidates.append(all_candidates[available])
+        candidate_bounds.append(all_bounds[available])
+
+    symmetry_predecessor = {}
+    if candidate_limit is None:
+        footprint_classes = defaultdict(list)
+        for index, constraint in enumerate(ordered):
+            footprint_classes[
+                tuple(
+                    round(value, 6)
+                    for value in constraint.domain.footprint_local.bounds
+                )
+            ].append(index)
+        for members in footprint_classes.values():
+            if len(members) < 2:
+                continue
+            reference = candidates[members[0]][
+                np.lexsort(
+                    (
+                        candidates[members[0]][:, 1],
+                        candidates[members[0]][:, 0],
+                    )
+                )
+            ]
+            if not all(
+                np.array_equal(
+                    reference,
+                    candidates[index][
+                        np.lexsort(
+                            (
+                                candidates[index][:, 1],
+                                candidates[index][:, 0],
+                            )
+                        )
+                    ],
+                )
+                for index in members[1:]
+            ):
+                continue
+            for previous, current in zip(members, members[1:]):
+                symmetry_predecessor[current] = previous
+
+    conflict_matrices = {}
+    for first_index, first_bounds in enumerate(candidate_bounds):
+        for second_index in range(first_index + 1, len(candidate_bounds)):
+            second_bounds = candidate_bounds[second_index]
+            overlap_x = np.maximum(
+                0.0,
+                np.minimum(
+                    first_bounds[:, None, 2], second_bounds[None, :, 2]
+                )
+                - np.maximum(
+                    first_bounds[:, None, 0], second_bounds[None, :, 0]
+                ),
+            )
+            overlap_y = np.maximum(
+                0.0,
+                np.minimum(
+                    first_bounds[:, None, 3], second_bounds[None, :, 3]
+                )
+                - np.maximum(
+                    first_bounds[:, None, 1], second_bounds[None, :, 1]
+                ),
+            )
+            conflict_matrices[(first_index, second_index)] = (
+                overlap_x * overlap_y > 1e-12
+            )
+
+    domains = [np.ones(len(rows), dtype=bool) for rows in candidates]
+    assigned = {}
+    states = 0
+    propagation_prunes = 0
+    timed_out = False
+    state_limit_reached = False
+    started = time.perf_counter()
+
+    def conflicts_with(candidate_index, first_index, second_index):
+        if first_index < second_index:
+            return conflict_matrices[(first_index, second_index)][
+                candidate_index, :
+            ]
+        return conflict_matrices[(second_index, first_index)][
+            :, candidate_index
+        ]
+
+    def oriented_conflicts(first_index, second_index):
+        if first_index < second_index:
+            return conflict_matrices[(first_index, second_index)]
+        return conflict_matrices[(second_index, first_index)].T
+
+    def propagate(unassigned):
+        nonlocal propagation_prunes, timed_out
+        changed = True
+        while changed:
+            if time.perf_counter() - started >= time_limit:
+                timed_out = True
+                return False
+            changed = False
+            for first_index in unassigned:
+                for second_index in unassigned:
+                    if first_index == second_index:
+                        continue
+                    matrix = oriented_conflicts(first_index, second_index)
+                    support = np.any(
+                        ~matrix[:, domains[second_index]], axis=1
+                    )
+                    new_domain = domains[first_index] & support
+                    removed = int(
+                        np.count_nonzero(domains[first_index])
+                        - np.count_nonzero(new_domain)
+                    )
+                    if removed:
+                        domains[first_index] = new_domain
+                        propagation_prunes += removed
+                        changed = True
+                        if not np.any(new_domain):
+                            return False
+        return True
+
+    def candidate_impacts(variable_index, unassigned):
+        impacts = np.zeros(len(candidates[variable_index]), dtype=np.int64)
+        for other_index in unassigned:
+            if other_index == variable_index:
+                continue
+            if variable_index < other_index:
+                matrix = conflict_matrices[(variable_index, other_index)]
+                impacts += np.count_nonzero(
+                    matrix[:, domains[other_index]], axis=1
+                )
+            else:
+                matrix = conflict_matrices[(other_index, variable_index)]
+                impacts += np.count_nonzero(
+                    matrix[domains[other_index], :], axis=0
+                )
+        return impacts
+
+    def visit():
+        nonlocal states, state_limit_reached, timed_out
+        if len(assigned) == len(ordered):
+            return True
+        if states >= max_states:
+            state_limit_reached = True
+            return False
+        if time.perf_counter() - started >= time_limit:
+            timed_out = True
+            return False
+        unassigned = [
+            index for index in range(len(ordered)) if index not in assigned
+        ]
+        eligible = [
+            index
+            for index in unassigned
+            if symmetry_predecessor.get(index) not in unassigned
+        ]
+        variable_index = min(
+            eligible,
+            key=lambda index: (
+                int(np.count_nonzero(domains[index])),
+                -ordered[index].domain.footprint_local.area,
+                ordered[index].refdes,
+            ),
+        )
+        remaining = np.flatnonzero(domains[variable_index])
+        impacts = candidate_impacts(variable_index, unassigned)
+        candidate_order = remaining[
+            np.lexsort((remaining, impacts[remaining]))
+        ]
+        for candidate_index in candidate_order:
+            states += 1
+            assigned[variable_index] = int(candidate_index)
+            snapshot = [domain.copy() for domain in domains]
+            feasible = True
+            for other_index in unassigned:
+                if other_index == variable_index:
+                    continue
+                new_domain = domains[other_index] & ~conflicts_with(
+                    candidate_index, variable_index, other_index
+                )
+                if symmetry_predecessor.get(other_index) == variable_index:
+                    selected_center = candidates[variable_index][candidate_index]
+                    other_centers = candidates[other_index]
+                    canonical_after = (
+                        other_centers[:, 0] > selected_center[0] + 1e-12
+                    ) | (
+                        np.isclose(
+                            other_centers[:, 0],
+                            selected_center[0],
+                            atol=1e-12,
+                            rtol=0.0,
+                        )
+                        & (other_centers[:, 1] > selected_center[1] + 1e-12)
+                    )
+                    new_domain &= canonical_after
+                domains[other_index] = new_domain
+                if not np.any(new_domain):
+                    feasible = False
+                    break
+            remaining_unassigned = [
+                index for index in unassigned if index != variable_index
+            ]
+            if feasible:
+                feasible = propagate(remaining_unassigned)
+            if feasible and visit():
+                return True
+            domains[:] = snapshot
+            assigned.pop(variable_index, None)
+            if timed_out or state_limit_reached:
+                return False
+        return False
+
+    initial_unassigned = list(range(len(ordered)))
+    success = propagate(initial_unassigned) and visit()
+    stats = {
+        "applicable": True,
+        "candidate_limit": candidate_limit,
+        "candidate_count": sum(len(rows) for rows in candidates),
+        "conflict_pair_count": sum(
+            int(np.count_nonzero(matrix))
+            for matrix in conflict_matrices.values()
+        ),
+        "states": states,
+        "propagation_prunes": propagation_prunes,
+        "symmetry_constraint_count": len(symmetry_predecessor),
+        "elapsed_seconds": time.perf_counter() - started,
+        "timed_out": timed_out,
+        "state_limit_reached": state_limit_reached,
+        "proven_infeasible": (
+            candidate_limit is None
+            and not success
+            and not timed_out
+            and not state_limit_reached
+        ),
+    }
+    if not success:
+        return None, stats
+    placements = {
+        constraint.node_id: candidates[index][assigned[index]]
+        for index, constraint in enumerate(ordered)
+    }
+    footprints = []
+    for constraint in ordered:
+        footprint = constraint.domain.footprint(placements[constraint.node_id])
+        if _has_overlap(footprint, list(obstacles) + footprints):
+            raise RuntimeError(
+                "forward-check packing produced an overlap for %s"
+                % constraint.refdes
+            )
+        footprints.append(footprint)
+    return placements, stats
 
 
 def _min_conflicts_pack(
@@ -333,6 +664,10 @@ def _min_conflicts_pack(
     seed = int.from_bytes(hashlib.sha256(seed_material).digest()[:8], "little")
     rng = np.random.default_rng(seed)
     obstacle_bounds = [row.bounds for row in obstacles]
+    rectangle_fast_path = all(
+        _is_axis_aligned_rectangle(constraint.domain.footprint_local)
+        for constraint in ordered
+    ) and all(_is_axis_aligned_rectangle(obstacle) for obstacle in obstacles)
 
     for restart in range(restart_count):
         placements = {}
@@ -392,18 +727,42 @@ def _min_conflicts_pack(
                 dtype=np.float64,
             )
             candidates = constraint.domain.valid_centers
-            bbox_scores = _bbox_overlap_scores(
-                constraint, candidates, other_bounds
+            bbox_counts, bbox_scores = _bbox_overlap_metrics(
+                _candidate_bounds(constraint, candidates), other_bounds
             )
             preferred = np.asarray(
                 preferred_centers.get(node_id, constraint.target_center)
             )
             distances = np.square(candidates - preferred).sum(axis=1)
-            bbox_free = np.flatnonzero(bbox_scores <= 1e-12)
+            bbox_free = np.flatnonzero(bbox_counts == 0)
             if len(bbox_free):
                 candidate_index = int(
                     bbox_free[np.argmin(distances[bbox_free])]
                 )
+                center = candidates[candidate_index]
+                placements[node_id] = center
+                footprints[node_id] = constraint.domain.footprint(center)
+                _update_conflicts(
+                    constraint,
+                    ordered,
+                    footprints,
+                    obstacles,
+                    conflicts,
+                    obstacle_metrics,
+                    pair_areas,
+                )
+                continue
+
+            if rectangle_fast_path:
+                best_count = int(np.min(bbox_counts))
+                best_area = float(np.min(bbox_scores[bbox_counts == best_count]))
+                ties = np.flatnonzero(
+                    (bbox_counts == best_count)
+                    & np.isclose(bbox_scores, best_area, atol=1e-12, rtol=0.0)
+                )
+                tie_order = np.lexsort((ties, distances[ties]))
+                ties = ties[tie_order[:8]]
+                candidate_index = int(ties[int(rng.integers(len(ties)))])
                 center = candidates[candidate_index]
                 placements[node_id] = center
                 footprints[node_id] = constraint.domain.footprint(center)
@@ -518,6 +877,26 @@ def _pack_region(constraints, obstacles, preferred_centers=None):
                     footprints,
                 )
             )
+    forward_check_trials = []
+    for candidate_limit in (32, 64):
+        repaired, forward_check_stats = _forward_check_rectangle_pack(
+            constraints,
+            obstacles,
+            preferred_centers,
+            candidate_limit=candidate_limit,
+            max_states=25000,
+            time_limit=2.0,
+        )
+        forward_check_trials.append(forward_check_stats)
+        if repaired is not None:
+            return repaired, dict(
+                forward_check_stats,
+                ordering="forward_check",
+                candidate_order="mrv_least_constraining",
+                backtracking_states=forward_check_stats["states"],
+            )
+        if not forward_check_stats.get("applicable"):
+            break
     repaired, min_conflicts_stats = _min_conflicts_pack(
         constraints, obstacles, preferred_centers
     )
@@ -574,7 +953,8 @@ def _pack_region(constraints, obstacles, preferred_centers=None):
         ) in trials
     ]
     raise InfeasibleDomainError(
-        "bounded packing exhausted deterministic strategies: %s" % failures
+        "bounded packing exhausted deterministic strategies: "
+        "forward_check=%s greedy=%s" % (forward_check_trials, failures)
     )
 
 

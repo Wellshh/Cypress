@@ -15,6 +15,10 @@ append evidence rather than replacing prior observations.
 | [M336-005](M336-005-initialization-runtime-quality.md) | High | Open | Warm-start initialization dominates runtime and destroys baseline quality |
 | [M336-006](M336-006-partial-matrix-reporting.md) | Medium | Resolved | E4-only report crashed before writing the summary |
 | [M336-007](M336-007-fixed-assignment-quality-bound.md) | Critical | Open | Current fixed assignment cannot reach the manual quality baseline |
+| [M336-008](M336-008-grid-resolution-packing-feasibility.md) | Critical | Mitigated | A packing exclusion was incorrectly reused across grid resolutions |
+| [M336-009](M336-009-runtime-fixed-endpoint-bound.md) | Critical | Resolved | Quality bounds used implicit placement coordinates for runtime-fixed endpoints |
+| [M336-010](M336-010-shared-coordinate-quality-bound.md) | Critical | Open | The interval MILP admits a candidate that shared component coordinates prove impossible |
+| [M336-011](M336-011-integer-quality-proof-margin.md) | Critical | Resolved | Integer scaling lacked a conservative HPWL threshold allowance |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

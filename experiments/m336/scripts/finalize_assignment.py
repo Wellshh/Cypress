@@ -26,14 +26,28 @@ DEFAULT_CAPACITY_RATIOS = {
     "top_0": 0.75,
 }
 
-# The per-component test is necessary but not sufficient for joint packing.
-# This pair exhausted the deterministic bounded packer even at 45.2% free-area
-# utilization because the frozen U8601 anchor splits the narrow region.
 PACKING_EXCLUSIONS = {
-    ("page_86_U8601__bottom", "bottom_2"): (
-        "bounded joint-packing preflight exhausted with frozen U8601"
-    )
+    ("page_86_U8601__bottom", "bottom_2"): {
+        "grid_mm_values": (0.1,),
+        "reason": (
+            "exact discrete NoOverlap2D preflight is infeasible at 0.1 mm "
+            "with the frozen U8601 anchor"
+        ),
+    }
 }
+
+
+def packing_exclusion_reason(subgroup_id, region_id, grid_mm):
+    """Return an evidence-backed joint-packing exclusion for this grid."""
+    rule = PACKING_EXCLUSIONS.get((subgroup_id, region_id))
+    if rule is None:
+        return None
+    if not any(
+        abs(float(grid_mm) - float(value)) <= 1e-12
+        for value in rule["grid_mm_values"]
+    ):
+        return None
+    return rule["reason"]
 
 
 def finalize(geometry_path, cluster_path, seed_path, output_path, grid_mm):
@@ -72,7 +86,9 @@ def finalize(geometry_path, cluster_path, seed_path, output_path, grid_mm):
         for region_id, region_data in sorted(geometry.regions.items()):
             if region_data.side != subgroup.side:
                 continue
-            reason = PACKING_EXCLUSIONS.get((subgroup.subgroup_id, region_id))
+            reason = packing_exclusion_reason(
+                subgroup.subgroup_id, region_id, grid_mm
+            )
             feasible = reason is None
             for refdes in members if feasible else ():
                 symbol = geometry.symbols[refdes]
@@ -194,8 +210,13 @@ def finalize(geometry_path, cluster_path, seed_path, output_path, grid_mm):
         "grid_mm": grid_mm,
         "capacity_ratios": DEFAULT_CAPACITY_RATIOS,
         "packing_exclusions": {
-            "%s:%s" % key: reason
-            for key, reason in sorted(PACKING_EXCLUSIONS.items())
+            "%s:%s" % key: rule["reason"]
+            for key, rule in sorted(PACKING_EXCLUSIONS.items())
+            if packing_exclusion_reason(key[0], key[1], grid_mm) is not None
+        },
+        "packing_exclusion_rules": {
+            "%s:%s" % key: rule
+            for key, rule in sorted(PACKING_EXCLUSIONS.items())
         },
         "runtime_reassignment": False,
     }

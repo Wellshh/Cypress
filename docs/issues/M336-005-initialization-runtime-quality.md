@@ -34,6 +34,19 @@ components by about `0.139` Cypress units to remove one residual overlap.
 The `<=2x` runtime target and the manual score gate cannot pass. Short tuning
 runs mostly measure Python geometry search, not CUDA placement quality.
 
+## Update: Fast Rectangle Prefilter
+
+Vectorized rectangle bounds and a baseline-preferred candidate pass reduced the
+same one-seed E4 smoke from `178.14 s` to `30.021 s` (`83.1%` faster). The run
+remained exact legal (`100/100` contained, zero overlaps), but HPWL/RSMT were
+`23399.6484/24969.9570` and the normalized score was only `0.631877`.
+
+Moving min-conflicts ahead of the directional greedy passes made the same run
+exceed `210 s` without completing; it was terminated and the ordering was
+reverted. This is a negative result: min-conflicts remains a bounded fallback,
+not the default path. Candidate-limited forward checking is also explicitly
+reported as heuristic exhaustion, never as a proof of packing infeasibility.
+
 ## Remediation
 
 1. Profile each region/trial and cache candidate footprint conflict indices.

@@ -32,6 +32,10 @@ from dreamplace.constraints.region_validation import (
     ComponentPlacement,
     validate_placement,
 )
+from dreamplace.constraints.anchor_keepin import (
+    _forward_check_rectangle_pack,
+    _pack_region,
+)
 from dreamplace.ops.anchor_keepin.anchor_keepin import AnchorKeepInLoss
 
 
@@ -140,6 +144,51 @@ class AnchorKeepInTest(unittest.TestCase):
         center = (float(pos[0]) + 0.25, float(pos[1]) + 0.25)
         self.assertEqual(stats.count, 1)
         self.assertTrue(domain.contains(center))
+
+    def test_rectangle_packer_resolves_colliding_preferences(self):
+        domain = FeasibleDomain.build(box(0, 0, 2, 1), 1.0, 1.0, 0.5)
+        constraints = [
+            NodeConstraint(
+                node_id=node_id,
+                refdes="U%d" % node_id,
+                side="TOP",
+                group_id="G",
+                subgroup_id="G__top",
+                region_id="top_0",
+                domain=domain,
+                target_center=(0.5, 0.5),
+                node_width=1.0,
+                node_height=1.0,
+            )
+            for node_id in range(2)
+        ]
+        placements, _ = _pack_region(
+            constraints,
+            obstacles=[],
+            preferred_centers={0: (0.5, 0.5), 1: (0.5, 0.5)},
+        )
+        first = domain.footprint(placements[0])
+        second = domain.footprint(placements[1])
+        self.assertLessEqual(first.intersection(second).area, 1e-12)
+
+        forward_placements, stats = _forward_check_rectangle_pack(
+            constraints,
+            obstacles=[],
+            preferred_centers={0: (0.5, 0.5), 1: (0.5, 0.5)},
+        )
+        self.assertFalse(stats["proven_infeasible"])
+        first = domain.footprint(forward_placements[0])
+        second = domain.footprint(forward_placements[1])
+        self.assertLessEqual(first.intersection(second).area, 1e-12)
+
+        limited, limited_stats = _forward_check_rectangle_pack(
+            constraints,
+            obstacles=[],
+            preferred_centers={0: (0.5, 0.5), 1: (0.5, 0.5)},
+            candidate_limit=1,
+        )
+        self.assertIsNone(limited)
+        self.assertFalse(limited_stats["proven_infeasible"])
 
     def test_exact_validator_detects_violation(self):
         component = ComponentPlacement(

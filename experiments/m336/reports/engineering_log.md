@@ -105,7 +105,7 @@ Open quality and performance work is tracked in M336-001, M336-003, and
 M336-005. Coordinate-fidelity and partial-report details are in M336-004 and
 M336-006.
 
-## 2026-07-18: Fixed-Assignment Quality Impossibility Proof
+## 2026-07-18: Fixed-Assignment Quality Proof (Superseded Endpoints)
 
 - A deterministic diagnostic now computes optimistic HPWL/RSMT bounds from the
   feasible-center intervals without running placement optimization.
@@ -122,3 +122,12 @@ M336-006.
 - Expensive E4 runs are paused until a quality-aware deterministic reassignment
   passes this pre-screen. Full evidence and acceptance criteria are recorded in
   `docs/issues/M336-007-fixed-assignment-quality-bound.md`.
+
+The numeric results above used implicit loaded-placement coordinates for
+uncontrolled endpoints and are superseded by `M336-009`. With the declared
+40-node runtime freeze state, the original `0.1 mm` assignment has relaxed HPWL
+`17996.2459` and score upper bound `0.847975`; the quality-optimized assignment
+still cannot pass (`15817.4414`, upper bound `0.964781`). At `0.05 mm`, interval
+optimization reaches upper bound `1.039878`, but the conservative shared-site
+CP-SAT model proves that fixed assignment infeasible for score `1.0`; see
+`M336-010` and `M336-011`.

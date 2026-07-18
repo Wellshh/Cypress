@@ -163,7 +163,27 @@ def _baseline_positions(placedb, baseline_pl):
     )
 
 
-def _bound_for_ranges(placedb, constraints, center_ranges, baseline_x, baseline_y):
+def _runtime_fixed_positions(context, baseline_x, baseline_y):
+    """Apply the runtime anchor/fixed-node freeze policy to baseline positions."""
+    fixed_x = np.asarray(baseline_x, dtype=np.float64).copy()
+    fixed_y = np.asarray(baseline_y, dtype=np.float64).copy()
+    for node_id, (lower_left_x, lower_left_y) in context.frozen_lower_left.items():
+        fixed_x[node_id] = lower_left_x
+        fixed_y[node_id] = lower_left_y
+    return fixed_x, fixed_y
+
+
+def _bound_for_ranges(
+    placedb,
+    constraints,
+    center_ranges,
+    fixed_x,
+    fixed_y,
+    reference_x=None,
+    reference_y=None,
+):
+    reference_x = fixed_x if reference_x is None else reference_x
+    reference_y = fixed_y if reference_y is None else reference_y
     per_net = []
     total = 0.0
     for net_id, pins in enumerate(placedb.net2pin_map):
@@ -185,8 +205,8 @@ def _bound_for_ranges(placedb, constraints, center_ranges, baseline_x, baseline_
                 x_intervals.append((min_x + x_offset, max_x + x_offset))
                 y_intervals.append((min_y + y_offset, max_y + y_offset))
             else:
-                x = float(placedb.node_x[node_id] + placedb.pin_offset_x[pin_id])
-                y = float(placedb.node_y[node_id] + placedb.pin_offset_y[pin_id])
+                x = float(fixed_x[node_id] + placedb.pin_offset_x[pin_id])
+                y = float(fixed_y[node_id] + placedb.pin_offset_y[pin_id])
                 x_intervals.append((x, x))
                 y_intervals.append((y, y))
         lower_bound = (
@@ -201,7 +221,7 @@ def _bound_for_ranges(placedb, constraints, center_ranges, baseline_x, baseline_
                 "pin_count": int(len(pins)),
                 "hpwl_lower_bound": lower_bound,
                 "baseline_hpwl": float(
-                    placedb.net_hpwl(baseline_x, baseline_y, net_id)
+                    placedb.net_hpwl(reference_x, reference_y, net_id)
                 ),
             }
         )
@@ -213,13 +233,21 @@ def _summarize_mode(
     constraints,
     center_ranges,
     domain_diagnostics,
+    fixed_x,
+    fixed_y,
     baseline_x,
     baseline_y,
     baseline_hpwl,
     baseline_rsmt,
 ):
     hpwl_lower_bound, per_net = _bound_for_ranges(
-        placedb, constraints, center_ranges, baseline_x, baseline_y
+        placedb,
+        constraints,
+        center_ranges,
+        fixed_x,
+        fixed_y,
+        reference_x=baseline_x,
+        reference_y=baseline_y,
     )
     hpwl_ratio = hpwl_lower_bound / baseline_hpwl
     # Every rectilinear tree must span each net's x and y ranges, so RSMT is
@@ -248,6 +276,9 @@ def analyze(args):
     placedb, context = _load_context(args)
     baseline_x, baseline_y = _baseline_positions(
         placedb, args.bookshelf_dir / "m336.baseline.pl"
+    )
+    fixed_x, fixed_y = _runtime_fixed_positions(
+        context, baseline_x, baseline_y
     )
     independent_hpwl = float(placedb.hpwl(baseline_x, baseline_y))
     if not math.isclose(independent_hpwl, baseline_hpwl, abs_tol=1e-3):
@@ -281,11 +312,14 @@ def analyze(args):
             "ignore shared component positions across pins and nets",
             "ignore discrete x/y and polygon coupling inside interval bounds",
         ],
+        "runtime_fixed_node_count": len(context.frozen_lower_left),
         "fixed_assignment": _summarize_mode(
             placedb,
             constraints,
             fixed_ranges,
             fixed_diagnostics,
+            fixed_x,
+            fixed_y,
             baseline_x,
             baseline_y,
             baseline_hpwl,
@@ -296,6 +330,8 @@ def analyze(args):
             constraints,
             any_ranges,
             any_diagnostics,
+            fixed_x,
+            fixed_y,
             baseline_x,
             baseline_y,
             baseline_hpwl,
