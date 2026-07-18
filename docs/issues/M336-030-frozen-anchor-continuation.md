@@ -68,6 +68,15 @@ zero-overlap TOP placement in `30.133537 s`; fixed replay reproduced SHA-256
 The bisected state has HPWL `22132.494702`, so it is a continuation waypoint,
 not a quality candidate.
 
+Retrying 95% from the replayed 92.5% state was also strictly infeasible in its
+1,024-site neighborhoods (`72.987123 s`, 1,279,961 branches). A second bisection
+to 93.75%, `(535.0146875, 265.792125)`, eventually found a legal TOP packing in
+`190.354461 s` after 2,812,228 branches and 937,889 conflicts. Fixed replay
+reproduced SHA-256
+`9f5d982003f3849b92f89fc9c6ec3caa900ac68755256544a684e9331b024083`.
+The HPWL `22287.766734` confirms that smaller endpoint steps recover packing
+feasibility but do not address quality loss.
+
 ## Remaining Work
 
 The 80% endpoint is not the acceptance target. Its HPWL is `21359.767400` and
