@@ -40,6 +40,30 @@ The score-guide K256 smoke used one preprocessing thread, seed 1000,
 300. It retained the audited exact model and returned `INFEASIBLE` in presolve,
 matching the prior CNF and CP-SAT boundary.
 
+The exact K1024 A/B results are:
+
+| Guide/search | Conflict budget | Stop | Conflicts | Branches |
+| --- | ---: | --- | ---: | ---: |
+| score, repair | 1,000,000 | wall 1,800 s; DT 997.19 | 383 | 16,023 |
+| score, repair + rank objective | 1,000,000 | wall 1,800 s; DT 996.26 | 361 | 15,997 |
+| one-overlap, repair | 1,000,000 | wall 900 s; DT 473.82 | 0 | 16,604 |
+| score, repair | 1,000 | DT 500.00; wall 353.76 s | 805,323 | 16,850,999 |
+
+All four runs returned `UNKNOWN`. A one-million-conflict repair budget stalls
+inside hint exploitation and prevents normal conflict learning; adding the
+guide-rank objective does not change that boundary. A 1,000-conflict budget
+returns to regular search and hits the deterministic cap reproducibly, but has
+not found a legal packing.
+
+Evidence SHA-256 values are:
+
+```text
+score repair 1m:      f0118952658b3c51c1c79e57fe27bbaf8fcb1ba0c4e06a3d9783fa80fe6854b0
+score repair+rank 1m: 9436ab4ce6938bada3283b88131fda4d36ac058a6954977743a41d657bc3fb65
+one-overlap repair 1m: 3858b41d23ce2d14aa0374dcc431030e2284889e1f9c6400fe3cd23b944e9f1a
+score repair 1k:      dbfd777726a6e26e9ba0615cdefb2ac7c3d29c6f43bb0f76c051d248ec09146b
+```
+
 ## Remaining Risk
 
 The deterministic cap is optional to preserve historical reproduction
