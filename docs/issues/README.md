@@ -47,7 +47,7 @@ append evidence rather than replacing prior observations.
 | [M336-037](M336-037-side-scoped-fixed-site-cores.md) | High | Mitigated | Assumption cores identify 12 stale fixed TOP sites, but the remaining seven-site boundary is unresolved |
 | [M336-038](M336-038-fixed-obstacles-in-min-conflicts.md) | High | Mitigated | Min-conflicts now hard-prunes fixed-obstacle sites, but exact TOP closure remains unresolved |
 | [M336-039](M336-039-discrete-packing-stalls-at-one-overlap.md) | Critical | Open | Exact heuristic packing reaches one overlap; CP encodings remain unresolved and require quantization audit |
-| [M336-040](M336-040-exact-site-cnf-core-boundary.md) | Critical | Open | Exact-center CNF closes K256 and exposes a 24-component K512 repacking core |
+| [M336-040](M336-040-exact-site-cnf-core-boundary.md) | Critical | Open | Validator-aligned CNF closes K256 and exposes a global K512 repacking boundary |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
