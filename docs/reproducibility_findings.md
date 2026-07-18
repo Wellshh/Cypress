@@ -153,6 +153,20 @@ before a run started. CLI logging is now configured only in the CLI entrypoint;
 tuning retains its existing per-replicate handlers. Detailed evidence is in
 [`REPRO-001`](issues/REPRO-001-placer-import-log-side-effect.md).
 
+## F-12: Region Assignment Made the Quality Gate Impossible
+
+**Severity:** Critical
+**Status:** Open; deterministic lower-bound diagnostic added
+
+The final M336 subgroup assignment minimized anchor distance and seed changes,
+but did not model connectivity. Even after relaxing overlap, capacity, shared
+component coordinates, grid coupling, and polygon coupling, its HPWL lower
+bound is `18014.2736` versus the manual baseline's `14627.8477`. Since RSMT is
+also bounded below by HPWL, the normalized quality score cannot exceed
+`0.8471266`. Allowing any same-side region raises this optimistic upper bound to
+`1.2003336`, identifying assignment rather than keep-in geometry as the current
+blocker. See [`M336-007`](issues/M336-007-fixed-assignment-quality-bound.md).
+
 ## Validation Plan
 
 1. Run CPU operator and optimizer unit tests.
@@ -171,7 +185,7 @@ result and 20 bitwise-equal deterministic GPU forward/backward repetitions.
 Eight reproducibility tests pass for RNG reset, schedule-independent seed
 panels, same-seed ConfigSpace sampling, bounded BB steps, finite Nesterov
 progress, non-finite rollback, strict float initial-placement loading, and
-side-effect-free Placer import. Four manual-baseline tests and fourteen
+side-effect-free Placer import. Five manual-baseline tests and fourteen
 anchor/keep-in tests also pass. The feature-off small placement smoke completes.
 
 Multi-worker Pyro integration, a 50-repeat net-crossing run, sanitizer coverage,

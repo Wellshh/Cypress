@@ -18,6 +18,7 @@ from prepare_baseline import (  # noqa: E402
     validate_bookshelf_pin_alignment,
     validate_compatibility,
 )
+from analyze_quality_bound import minimum_interval_span  # noqa: E402
 
 
 def make_symbol(refdes, center, side, pin_delta):
@@ -74,6 +75,12 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_minimum_interval_span_is_a_relaxed_range_bound(self):
+        self.assertEqual(minimum_interval_span([(0, 2), (1, 3)]), 0.0)
+        self.assertEqual(minimum_interval_span([(0, 1), (4, 5), (6, 9)]), 5.0)
+        with self.assertRaises(ValueError):
+            minimum_interval_span([(2, 1)])
+
     def test_compatible_geometry_may_only_move_centers(self):
         source = make_geometry()
         baseline = make_geometry((20000, 30000), (120000, 30000))

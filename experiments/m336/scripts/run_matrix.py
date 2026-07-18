@@ -39,6 +39,7 @@ IMPLEMENTATION_FILES = (
     "dreamplace/constraints/region_projection.py",
     "dreamplace/constraints/region_validation.py",
     "dreamplace/ops/anchor_keepin/anchor_keepin.py",
+    "experiments/m336/scripts/analyze_quality_bound.py",
     "experiments/m336/scripts/finalize_assignment.py",
     "experiments/m336/scripts/generate_bookshelf.py",
     "experiments/m336/scripts/prepare_baseline.py",

@@ -104,3 +104,21 @@ review of upstream edits or responses.
 Open quality and performance work is tracked in M336-001, M336-003, and
 M336-005. Coordinate-fidelity and partial-report details are in M336-004 and
 M336-006.
+
+## 2026-07-18: Fixed-Assignment Quality Impossibility Proof
+
+- A deterministic diagnostic now computes optimistic HPWL/RSMT bounds from the
+  feasible-center intervals without running placement optimization.
+- For the current final assignment, the relaxed HPWL lower bound is
+  `18014.2736`, or `1.2315x` the manual baseline. The corresponding normalized
+  score cannot exceed `0.8471`, below the mandatory `1.0` gate.
+- This proof ignores overlap, region capacity, shared component coordinates,
+  grid coupling, and polygon coupling. A real legal placement cannot outperform
+  the reported upper score bound under the same assignment.
+- Allowing every constrained component to choose any feasible same-side region
+  lowers the bound to `12713.4401` and raises the score upper bound to `1.2003`.
+  Region assignment, not the keep-in geometry alone, is therefore the actionable
+  blocker.
+- Expensive E4 runs are paused until a quality-aware deterministic reassignment
+  passes this pre-screen. Full evidence and acceptance criteria are recorded in
+  `docs/issues/M336-007-fixed-assignment-quality-bound.md`.
