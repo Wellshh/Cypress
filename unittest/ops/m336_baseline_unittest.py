@@ -39,6 +39,8 @@ from solve_discrete_placement import (  # noqa: E402
     _score_hpwl_limit,
 )
 from analyze_shared_box_bound import (  # noqa: E402
+    _override_manual_baseline_endpoints,
+    _select_fixed_endpoints,
     solve_shared_box_assignment,
 )
 from dreamplace.constraints.region_projection import (  # noqa: E402
@@ -101,6 +103,54 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_shared_box_fixed_endpoint_mode_is_explicit(self):
+        context = SimpleNamespace(frozen_lower_left={1: (20.0, 30.0)})
+        baseline_x = np.asarray([1.0, 2.0, 3.0])
+        baseline_y = np.asarray([4.0, 5.0, 6.0])
+        runtime_x, runtime_y = _select_fixed_endpoints(
+            context, baseline_x, baseline_y, "runtime"
+        )
+        manual_x, manual_y = _select_fixed_endpoints(
+            context, baseline_x, baseline_y, "manual-baseline"
+        )
+        np.testing.assert_array_equal(runtime_x, [1.0, 20.0, 3.0])
+        np.testing.assert_array_equal(runtime_y, [4.0, 30.0, 6.0])
+        np.testing.assert_array_equal(manual_x, baseline_x)
+        np.testing.assert_array_equal(manual_y, baseline_y)
+        manual_x[0] = 100.0
+        self.assertEqual(baseline_x[0], 1.0)
+        with self.assertRaises(ValueError):
+            _select_fixed_endpoints(context, baseline_x, baseline_y, "invalid")
+
+    def test_shared_box_can_override_one_runtime_frozen_endpoint(self):
+        context = SimpleNamespace(frozen_lower_left={1: (20.0, 30.0)})
+        placedb = SimpleNamespace(node_names=np.asarray([b"A", b"B", b"C"]))
+        baseline_x = np.asarray([1.0, 2.0, 3.0])
+        baseline_y = np.asarray([4.0, 5.0, 6.0])
+        fixed_x = np.asarray([1.0, 20.0, 3.0])
+        fixed_y = np.asarray([4.0, 30.0, 6.0])
+        output_x, output_y = _override_manual_baseline_endpoints(
+            context,
+            placedb,
+            baseline_x,
+            baseline_y,
+            fixed_x,
+            fixed_y,
+            ["B", "B"],
+        )
+        np.testing.assert_array_equal(output_x, baseline_x)
+        np.testing.assert_array_equal(output_y, baseline_y)
+        with self.assertRaises(ValueError):
+            _override_manual_baseline_endpoints(
+                context,
+                placedb,
+                baseline_x,
+                baseline_y,
+                fixed_x,
+                fixed_y,
+                ["A"],
+            )
+
     def test_shared_coordinate_box_milp_uses_pin_offsets_and_fixed_pins(self):
         selected, coordinates, result = solve_shared_box_assignment(
             {"g": ("r",)},

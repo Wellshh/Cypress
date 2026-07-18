@@ -44,6 +44,11 @@ PYTHONPATH="$PWD/install:$PWD" OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
 The command intentionally exits nonzero after writing its report when the
 upper bound misses the requested score.
 
+Use `--manual-baseline-endpoint <REFDES>` only for contract isolation. For
+example, overriding `EMI601` and `Q601` tests whether preserving those
+runtime-frozen anchors at their warm-start positions restores score potential;
+it does not change the production placement policy.
+
 The optional shared-coordinate audit requires OR-Tools but does not add it as a
 production dependency:
 

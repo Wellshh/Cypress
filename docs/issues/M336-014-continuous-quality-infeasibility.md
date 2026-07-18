@@ -61,6 +61,11 @@ separately relax subgroup co-location, region eligibility, side assignment,
 and anchor mobility. Adopt the smallest domain-authorized change whose relaxed
 bound reaches `1.0`, then rerun exact legality and native HPWL/RSMT gates.
 
+Follow-up `M336-015` completed the first isolation step. Preserving either
+`EMI601` or `Q601` at its manual coordinate restores continuous score
+potential above `1.0`; no region, side, or subgroup relaxation is currently
+justified.
+
 ## Acceptance Criteria
 
 - A documented contract variant has a rigorously computed score potential of

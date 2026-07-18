@@ -26,6 +26,110 @@ def _decode(value):
     return value.decode("utf-8") if isinstance(value, bytes) else str(value)
 
 
+def _select_fixed_endpoints(context, baseline_x, baseline_y, mode):
+    if mode == "runtime":
+        return _runtime_fixed_positions(context, baseline_x, baseline_y)
+    if mode == "manual-baseline":
+        return (
+            np.asarray(baseline_x, dtype=np.float64).copy(),
+            np.asarray(baseline_y, dtype=np.float64).copy(),
+        )
+    raise ValueError("unsupported fixed endpoint mode: %s" % mode)
+
+
+def _override_manual_baseline_endpoints(
+    context,
+    placedb,
+    baseline_x,
+    baseline_y,
+    fixed_x,
+    fixed_y,
+    refdes,
+):
+    names = {
+        _decode(name): node_id
+        for node_id, name in enumerate(placedb.node_names)
+    }
+    frozen_ids = set(context.frozen_lower_left)
+    selected_ids = []
+    for name in sorted(set(refdes)):
+        if name not in names:
+            raise ValueError("manual endpoint override is unknown: %s" % name)
+        node_id = names[name]
+        if node_id not in frozen_ids:
+            raise ValueError(
+                "manual endpoint override is not runtime-frozen: %s" % name
+            )
+        selected_ids.append(node_id)
+    output_x = np.asarray(fixed_x, dtype=np.float64).copy()
+    output_y = np.asarray(fixed_y, dtype=np.float64).copy()
+    for node_id in selected_ids:
+        output_x[node_id] = baseline_x[node_id]
+        output_y[node_id] = baseline_y[node_id]
+    return output_x, output_y
+
+
+def _frozen_endpoint_displacements(context, placedb, baseline_x, baseline_y):
+    runtime_x, runtime_y = _runtime_fixed_positions(
+        context, baseline_x, baseline_y
+    )
+    scale = abs(float(context.alignment.scale))
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError("geometry alignment scale must be positive")
+    rows = []
+    anchor_ids = set(context.frozen_anchor_ids)
+    fixed_ids = set(context.frozen_fixed_ids)
+    for node_id in sorted(context.frozen_lower_left):
+        dx = float(runtime_x[node_id] - baseline_x[node_id])
+        dy = float(runtime_y[node_id] - baseline_y[node_id])
+        distance = math.hypot(dx, dy)
+        rows.append(
+            {
+                "refdes": _decode(placedb.node_names[node_id]),
+                "kind": "anchor" if node_id in anchor_ids else "fixed",
+                "dx_sites": dx,
+                "dy_sites": dy,
+                "distance_sites": distance,
+                "distance_mm": distance / scale,
+            }
+        )
+    if {row["kind"] for row in rows} - {"anchor", "fixed"}:
+        raise RuntimeError("unclassified runtime-frozen endpoint")
+    if {int(node_id) for node_id in context.frozen_lower_left} != (
+        anchor_ids | fixed_ids
+    ):
+        raise RuntimeError("runtime-frozen endpoint sets are inconsistent")
+
+    def summarize(selected_rows):
+        distances = [row["distance_mm"] for row in selected_rows]
+        return {
+            "count": len(selected_rows),
+            "moved_count": sum(value > 1e-12 for value in distances),
+            "maximum_mm": max(distances, default=0.0),
+            "mean_mm": (
+                sum(distances) / len(distances) if distances else 0.0
+            ),
+            "rms_mm": (
+                math.sqrt(sum(value * value for value in distances) / len(distances))
+                if distances
+                else 0.0
+            ),
+        }
+
+    return {
+        "summary": {
+            "all": summarize(rows),
+            "anchors": summarize(
+                [row for row in rows if row["kind"] == "anchor"]
+            ),
+            "fixed_components": summarize(
+                [row for row in rows if row["kind"] == "fixed"]
+            ),
+        },
+        "components": rows,
+    }
+
+
 def _continuous_box_space(context, template):
     constraints = {item.refdes: item for item in context.constraints}
     group_options = {}
@@ -356,8 +460,23 @@ def analyze(args):
     baseline_x, baseline_y = _baseline_positions(
         placedb, args.bookshelf_dir / "m336.baseline.pl"
     )
-    fixed_x, fixed_y = _runtime_fixed_positions(
-        context, baseline_x, baseline_y
+    fixed_x, fixed_y = _select_fixed_endpoints(
+        context,
+        baseline_x,
+        baseline_y,
+        args.fixed_endpoint_mode,
+    )
+    fixed_x, fixed_y = _override_manual_baseline_endpoints(
+        context,
+        placedb,
+        baseline_x,
+        baseline_y,
+        fixed_x,
+        fixed_y,
+        args.manual_baseline_endpoint,
+    )
+    frozen_displacements = _frozen_endpoint_displacements(
+        context, placedb, baseline_x, baseline_y
     )
     (
         group_options,
@@ -417,6 +536,13 @@ def analyze(args):
             },
             "controlled_node_count": len(node_groups),
             "runtime_fixed_node_count": len(context.frozen_lower_left),
+            "fixed_endpoint_mode": args.fixed_endpoint_mode,
+            "manual_baseline_endpoint_overrides": sorted(
+                set(args.manual_baseline_endpoint)
+            ),
+            "runtime_frozen_displacement_from_manual_baseline": (
+                frozen_displacements
+            ),
             "ignore_area_capacity": args.ignore_area_capacity,
             "region_capacities": region_capacities,
             "relaxations": [
@@ -481,6 +607,18 @@ def main():
     parser.add_argument("--clearance-mm", type=float, default=0.0)
     parser.add_argument("--minimum-score-potential", type=float, default=1.0)
     parser.add_argument("--ignore-area-capacity", action="store_true")
+    parser.add_argument(
+        "--fixed-endpoint-mode",
+        choices=("runtime", "manual-baseline"),
+        default="runtime",
+    )
+    parser.add_argument(
+        "--manual-baseline-endpoint",
+        action="append",
+        default=[],
+        metavar="REFDES",
+        help="override one runtime-frozen endpoint with its manual position",
+    )
     args = parser.parse_args()
     for name in (
         "bookshelf_dir",
