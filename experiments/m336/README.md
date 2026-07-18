@@ -101,3 +101,8 @@ repeat `--movable-subgroup <GROUP_ID>` with `--optimize-assignment` and one
 subgroup uses its hinted region, but every component site remains movable.
 This differs deliberately from `--movable-refdes`, which fixes unlisted sites.
 The result reports `assignment_mode: optimized_scoped`; see `M336-021`.
+
+`--candidate-guide-placement <PL>` adds a second physical-coordinate center to
+each component's limited site domain. The guide is projected independently in
+every eligible region, so it is safe with optimized or scoped assignment. It
+does not alter the structured result hint or fix any site.

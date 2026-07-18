@@ -107,6 +107,13 @@ def _nearest_site_index(centers, center):
     return index, math.sqrt(float(distances[index]))
 
 
+def _guide_site_indices(domains, guide_center):
+    return tuple(
+        _nearest_site_index(domain.valid_centers, guide_center)[0]
+        for domain in domains
+    )
+
+
 def _limited_candidate_indices(
     centers, limit, preferred_index=None, guide_indices=()
 ):
@@ -568,7 +575,7 @@ def _load_result_site_hint(
 
 def _load_candidate_guide(args, context):
     placement = parse_placement(args.candidate_guide_placement)
-    guide_indices = {}
+    guide_centers = {}
     distances = []
     for constraint in context.constraints:
         if constraint.refdes not in placement:
@@ -580,12 +587,12 @@ def _load_candidate_guide(args, context):
             lower_left_x + constraint.node_width / 2,
             lower_left_y + constraint.node_height / 2,
         )
-        index, distance = _nearest_site_index(
+        _, distance = _nearest_site_index(
             constraint.domain.valid_centers, center
         )
-        guide_indices[constraint.node_id] = index
+        guide_centers[constraint.node_id] = center
         distances.append(distance)
-    return guide_indices, {
+    return guide_centers, {
         "placement": repo_path(args.candidate_guide_placement),
         "placement_sha256": sha256_file(args.candidate_guide_placement),
         "maximum_projection_distance": max(distances, default=0.0),
@@ -1171,7 +1178,14 @@ def _build_model(
                 )
             hint_center = hint_domain.valid_centers[hint_local_index]
         selected_indices = []
-        for region_id, domain in zip(options, domain_options):
+        guide_indices = (
+            _guide_site_indices(domain_options, candidate_guides[node_id])
+            if node_id in candidate_guides
+            else (None,) * len(domain_options)
+        )
+        for region_id, domain, guide_index in zip(
+            options, domain_options, guide_indices
+        ):
             preferred_index = None
             if hint_center is not None:
                 preferred_index = (
@@ -1181,18 +1195,12 @@ def _build_model(
                         domain.valid_centers, hint_center
                     )[0]
                 )
-            guide_indices = (
-                (candidate_guides[node_id],)
-                if len(domain_options) == 1
-                and node_id in candidate_guides
-                else ()
-            )
             selected_indices.append(
                 _limited_candidate_indices(
                     domain.valid_centers,
                     candidate_limit_per_region,
                     preferred_index,
-                    guide_indices,
+                    (() if guide_index is None else (guide_index,)),
                 )
             )
         centers = np.concatenate(
@@ -1676,8 +1684,6 @@ def solve(args):
     if args.candidate_limit_per_region and hint_count != 1:
         raise ValueError("candidate limiting requires one site hint source")
     if args.candidate_guide_placement is not None:
-        if assignment_space["mode"] != "fixed":
-            raise ValueError("candidate guides require a fixed assignment")
         if not args.candidate_limit_per_region:
             raise ValueError("candidate guides require candidate limiting")
         candidate_guides, candidate_guide_report = _load_candidate_guide(

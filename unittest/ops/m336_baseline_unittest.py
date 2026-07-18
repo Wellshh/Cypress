@@ -39,6 +39,7 @@ from solve_discrete_placement import (  # noqa: E402
     _capacity_integer_bounds,
     _convex_parts,
     _exact_site_index,
+    _guide_site_indices,
     _hpwl_rounding_allowance_units,
     _hinted_group_regions,
     _nearest_site_index,
@@ -243,6 +244,17 @@ class M336BaselineTest(unittest.TestCase):
             ),
             [0, 3],
         )
+
+    def test_candidate_guide_is_projected_in_each_region(self):
+        domains = (
+            SimpleNamespace(
+                valid_centers=np.asarray([[0.0, 0.0], [2.0, 0.0]])
+            ),
+            SimpleNamespace(
+                valid_centers=np.asarray([[10.0, 0.0], [12.0, 0.0]])
+            ),
+        )
+        self.assertEqual(_guide_site_indices(domains, [3.0, 0.0]), (1, 0))
 
     def test_shared_box_fixed_endpoint_mode_is_explicit(self):
         context = SimpleNamespace(frozen_lower_left={1: (20.0, 30.0)})
