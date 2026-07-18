@@ -38,6 +38,9 @@ from solve_discrete_placement import (  # noqa: E402
     _selected_assignment_data,
     _score_hpwl_limit,
 )
+from analyze_shared_box_bound import (  # noqa: E402
+    solve_shared_box_assignment,
+)
 from dreamplace.constraints.region_projection import (  # noqa: E402
     FeasibleDomain,
     NodeConstraint,
@@ -98,6 +101,68 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_shared_coordinate_box_milp_uses_pin_offsets_and_fixed_pins(self):
+        selected, coordinates, result = solve_shared_box_assignment(
+            {"g": ("r",)},
+            {"g": 1.0},
+            {},
+            {0: "g"},
+            {(0, "r"): (2.0, 4.0, 0.0, 0.0)},
+            [
+                {
+                    "name": "n:x",
+                    "axis": "x",
+                    "weight": 1.0,
+                    "pins": [
+                        {"node_id": 0, "offset": 1.0},
+                        {"fixed": 0.0},
+                    ],
+                }
+            ],
+        )
+        self.assertEqual(selected, {"g": "r"})
+        self.assertAlmostEqual(coordinates[0]["x"], 2.0)
+        self.assertAlmostEqual(result["relaxed_hpwl"], 3.0)
+
+    def test_shared_coordinate_box_milp_couples_node_positions(self):
+        group_options = {"g1": ("left", "right"), "g2": ("left", "right")}
+        node_ranges = {
+            (0, "left"): (0.0, 1.0, 0.0, 0.0),
+            (0, "right"): (10.0, 11.0, 0.0, 0.0),
+            (1, "left"): (0.0, 1.0, 0.0, 0.0),
+            (1, "right"): (10.0, 11.0, 0.0, 0.0),
+        }
+        net_axes = [
+            {
+                "name": "n1:x",
+                "axis": "x",
+                "weight": 1.0,
+                "pins": [
+                    {"node_id": 0, "offset": 0.0},
+                    {"node_id": 1, "offset": 0.0},
+                ],
+            }
+        ]
+        _, _, unconstrained = solve_shared_box_assignment(
+            group_options,
+            {"g1": 1.0, "g2": 1.0},
+            {},
+            {0: "g1", 1: "g2"},
+            node_ranges,
+            net_axes,
+        )
+        self.assertAlmostEqual(unconstrained["relaxed_hpwl"], 0.0)
+        selected, _, constrained = solve_shared_box_assignment(
+            group_options,
+            {"g1": 1.0, "g2": 1.0},
+            {"left": 1.0, "right": 1.0},
+            {0: "g1", 1: "g2"},
+            node_ranges,
+            net_axes,
+        )
+        self.assertNotEqual(selected["g1"], selected["g2"])
+        self.assertAlmostEqual(constrained["relaxed_hpwl"], 9.0)
+
     def test_assignment_search_capacity_scaling_is_conservative(self):
         area, capacity = _capacity_integer_bounds(
             {"g": 1.0000001}, {"r": 2.9999999}, 1000000

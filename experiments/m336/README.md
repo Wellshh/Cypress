@@ -26,6 +26,24 @@ three gates: interval assignment, shared-coordinate discrete placement, then
 exact collision validation plus native HPWL/RSMT. A value above `1.0` at the
 first gate is not an accepted result.
 
+Before increasing grid resolution, run the continuous shared-coordinate box
+relaxation. It searches every bounding-box-feasible same-side region while
+ignoring exact polygons, overlap, and capacity, so a score bound below `1.0`
+proves that no finer grid or collision strategy can pass under the same
+runtime-fixed endpoint contract:
+
+```bash
+PYTHONPATH="$PWD/install:$PWD" OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
+  python3.11 \
+  experiments/m336/scripts/analyze_shared_box_bound.py \
+  --assignment results/m336/quality_assignment/m336_region_assignment.grid005.runtime-fixed.quality.json \
+  --baseline-result results/m336/baseline_warmstart_smoke/baseline/baseline-result.json \
+  --grid-mm 0.05 --ignore-area-capacity --minimum-score-potential 1.0
+```
+
+The command intentionally exits nonzero after writing its report when the
+upper bound misses the requested score.
+
 The optional shared-coordinate audit requires OR-Tools but does not add it as a
 production dependency:
 
