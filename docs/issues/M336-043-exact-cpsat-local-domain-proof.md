@@ -37,9 +37,14 @@ positives and zero false negatives.
 | score guide K256 | 7,436 | 818,614 | `INFEASIBLE` | 0.009 |
 | score guide K512 | 14,806 | 3,421,121 | `INFEASIBLE` | 56.399 |
 | manual baseline K512 | 14,806 | 3,643,993 | `INFEASIBLE` | 53.415 |
+| score guide K1024 | 26,590 | 10,847,669 | `UNKNOWN` | 900.155 |
+| manual baseline K1024 | 26,590 | 10,604,651 | `UNKNOWN` | 900.103 |
 
-These are exact proofs only for the enumerated local domains, not for the full
-placement lattice. They explain the CNF timeouts without weakening legality.
+The K256/K512 rows are exact proofs only for the enumerated local domains, not
+for the full placement lattice. They explain the CNF timeouts without
+weakening legality. Both K1024 models audited 258,239,716 rectangle candidate
+pairs with zero classification errors, but timeout is not a proof of either
+feasibility or infeasibility.
 
 Selective CNF expansion does not yet close the next boundary. Expanding only
 `RT201` to K1024 is `UNKNOWN` after 900.031 seconds. Under that domain, fixing
@@ -72,6 +77,8 @@ Final evidence SHA-256 values are:
 score K256: 30ed946709f1d0e7f879e3c727d22ca9e3b8ebf5eba9b211b1540a2753c791ff
 score K512: b64f7c44a0f087dbfcc20df2a75d7898cf84cd0931da5461842990be93eb2095
 manual K512: b7653d596017088e3d74dcc3effebe797bd8b33bef8ee86b4cea586fedd7c652
+score K1024: 9a48fe8137492b40cc3066442390e885f0992b4a6505bf6a58b5a9e94672afc8
+manual K1024: 39f855a6e12f09e301bbab5f1096e716f6cdc1ff7d6aa3b4aeab133396ad0a48
 ```
 
 ## Acceptance Impact
