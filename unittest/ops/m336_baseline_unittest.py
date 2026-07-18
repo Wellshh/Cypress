@@ -46,6 +46,7 @@ from solve_discrete_placement import (  # noqa: E402
     _hinted_group_regions,
     _nearest_site_index,
     _limited_candidate_indices,
+    _override_fixed_endpoint_coordinates,
     _partial_fix_refdes,
     _selected_assignment_data,
     _score_hpwl_limit,
@@ -230,6 +231,38 @@ class M336BaselineTest(unittest.TestCase):
             _coordinate_choice_index(choices, "missing", 10, 30)
         with self.assertRaises(ValueError):
             _coordinate_choice_index(choices, "left", 99, 30)
+
+    def test_coordinate_override_only_updates_frozen_endpoints(self):
+        context = SimpleNamespace(frozen_lower_left={1: (2.0, 3.0)})
+        placedb = SimpleNamespace(node_names=np.asarray([b"A", b"B"]))
+        x, y, report = _override_fixed_endpoint_coordinates(
+            context,
+            placedb,
+            np.asarray([1.0, 2.0]),
+            np.asarray([3.0, 4.0]),
+            [("B", "20.5", "30.5"), ("B", 20.5, 30.5)],
+        )
+        np.testing.assert_array_equal(x, [1.0, 20.5])
+        np.testing.assert_array_equal(y, [3.0, 30.5])
+        self.assertEqual(
+            report, [{"refdes": "B", "lower_left": [20.5, 30.5]}]
+        )
+        with self.assertRaises(ValueError):
+            _override_fixed_endpoint_coordinates(
+                context, placedb, x, y, [("A", 1.0, 2.0)]
+            )
+        with self.assertRaises(ValueError):
+            _override_fixed_endpoint_coordinates(
+                context,
+                placedb,
+                x,
+                y,
+                [("B", 1.0, 2.0), ("B", 2.0, 3.0)],
+            )
+        with self.assertRaises(ValueError):
+            _override_fixed_endpoint_coordinates(
+                context, placedb, x, y, [("B", float("nan"), 2.0)]
+            )
 
     def test_side_legality_report_filters_other_side(self):
         legality = {

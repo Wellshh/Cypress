@@ -169,6 +169,53 @@ def _coordinate_choice_index(choices, region_id, x_value, y_value):
     return int(matches[0])
 
 
+def _override_fixed_endpoint_coordinates(
+    context, placedb, fixed_x, fixed_y, override_rows
+):
+    output_x = np.asarray(fixed_x, dtype=np.float64).copy()
+    output_y = np.asarray(fixed_y, dtype=np.float64).copy()
+    frozen_by_refdes = {
+        _decode(placedb.node_names[node_id]): node_id
+        for node_id in context.frozen_lower_left
+    }
+    overrides = {}
+    for row in override_rows or ():
+        if len(row) != 3:
+            raise ValueError(
+                "fixed endpoint override requires REFDES X Y"
+            )
+        refdes = str(row[0])
+        try:
+            lower_left = (float(row[1]), float(row[2]))
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "fixed endpoint override coordinates must be numeric"
+            ) from error
+        if not all(math.isfinite(value) for value in lower_left):
+            raise ValueError(
+                "fixed endpoint override coordinates must be finite"
+            )
+        if refdes not in frozen_by_refdes:
+            raise ValueError(
+                "fixed endpoint override is not a frozen component: %s"
+                % refdes
+            )
+        if refdes in overrides and overrides[refdes] != lower_left:
+            raise ValueError(
+                "conflicting fixed endpoint overrides for %s" % refdes
+            )
+        overrides[refdes] = lower_left
+
+    report = []
+    for refdes, lower_left in sorted(overrides.items()):
+        node_id = frozen_by_refdes[refdes]
+        output_x[node_id], output_y[node_id] = lower_left
+        report.append(
+            {"refdes": refdes, "lower_left": list(lower_left)}
+        )
+    return output_x, output_y, report
+
+
 def _partial_fix_refdes(constraints, movable_refdes):
     movable_refdes = set(movable_refdes or ())
     if not movable_refdes:
@@ -1689,6 +1736,9 @@ def _model_report(args, state, assignment_space):
         "manual_baseline_endpoint_overrides": sorted(
             set(args.manual_baseline_endpoint)
         ),
+        "fixed_endpoint_coordinate_overrides": (
+            args.fixed_endpoint_override_report
+        ),
         "assignment_mode": assignment_space["mode"],
         "movable_subgroups": sorted(set(args.movable_subgroup)),
         "assignment_group_count": len(assignment_state["group_vars"]),
@@ -1766,6 +1816,27 @@ def solve(args):
         fixed_y,
         args.manual_baseline_endpoint,
     )
+    fixed_x, fixed_y, args.fixed_endpoint_override_report = (
+        _override_fixed_endpoint_coordinates(
+            context,
+            placedb,
+            fixed_x,
+            fixed_y,
+            args.fixed_endpoint_override,
+        )
+    )
+    manual_overrides = set(args.manual_baseline_endpoint)
+    coordinate_overrides = {
+        row["refdes"] for row in args.fixed_endpoint_override_report
+    }
+    conflicting_overrides = sorted(
+        manual_overrides & coordinate_overrides
+    )
+    if conflicting_overrides:
+        raise ValueError(
+            "fixed endpoints have both manual and coordinate overrides: %s"
+            % ", ".join(conflicting_overrides)
+        )
     site_hints = {}
     site_hint_report = None
     candidate_guides = {}
@@ -1897,6 +1968,8 @@ def solve(args):
     solver.parameters.random_seed = args.seed
     solver.parameters.log_search_progress = args.log_search_progress
     solver.parameters.fix_variables_to_their_hinted_value = args.fix_site_hint
+    solver.parameters.repair_hint = args.repair_hint
+    solver.parameters.hint_conflict_limit = args.hint_conflict_limit
     if args.workers == 1:
         solver.parameters.max_deterministic_time = args.deterministic_time
     status = solver.solve(model)
@@ -1926,6 +1999,8 @@ def solve(args):
         "conflicts": solver.num_conflicts,
         "workers": args.workers,
         "random_seed": args.seed,
+        "repair_hint": args.repair_hint,
+        "hint_conflict_limit": args.hint_conflict_limit,
         "max_time_seconds": args.time_limit,
         "max_deterministic_time": (
             args.deterministic_time if args.workers == 1 else None
@@ -2144,6 +2219,14 @@ def main():
         help="override one runtime-frozen endpoint with its manual position",
     )
     parser.add_argument(
+        "--fixed-endpoint-override",
+        action="append",
+        nargs=3,
+        default=[],
+        metavar=("REFDES", "X", "Y"),
+        help="set one frozen endpoint lower-left coordinate explicitly",
+    )
+    parser.add_argument(
         "--optimize-assignment",
         action="store_true",
         help="couple subgroup region selection to shared component sites",
@@ -2227,6 +2310,17 @@ def main():
     parser.add_argument("--deterministic-time", type=float, default=300.0)
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--seed", type=int, default=1000)
+    parser.add_argument(
+        "--repair-hint",
+        action="store_true",
+        help="try to repair an infeasible hint before regular search",
+    )
+    parser.add_argument(
+        "--hint-conflict-limit",
+        type=int,
+        default=10,
+        help="conflict budget for the initial hint-guided search phase",
+    )
     parser.add_argument("--log-search-progress", action="store_true")
     args = parser.parse_args()
     if args.packing_only and not args.feasibility_only:
@@ -2256,8 +2350,11 @@ def main():
         or args.time_limit <= 0
         or args.workers <= 0
         or args.candidate_limit_per_region < 0
+        or args.hint_conflict_limit <= 0
     ):
-        parser.error("scales, time limit, and workers must be positive")
+        parser.error(
+            "scales, limits, time limit, and workers must be positive"
+        )
     for path in (
         args.bookshelf_dir / "m336.aux",
         args.bookshelf_dir / "m336.baseline.pl",
