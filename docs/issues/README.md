@@ -39,6 +39,7 @@ append evidence rather than replacing prior observations.
 | [M336-029](M336-029-indirect-site-coordinate-encoding.md) | High | Mitigated | Direct coordinate tables reduce packing memory but have not solved restored TOP packing |
 | [M336-030](M336-030-frozen-anchor-continuation.md) | Critical | Mitigated | Bounded frozen-anchor continuation finds replayable TOP states hidden by the direct jump |
 | [M336-031](M336-031-feasibility-continuation-quality-loss.md) | Critical | Open | Feasibility continuation is replayable but loses HPWL and stalls before the final endpoint |
+| [M336-032](M336-032-fixed-obstacle-site-pruning.md) | High | Mitigated | Exact preprocessing removes candidate sites that necessarily overlap fixed obstacles |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

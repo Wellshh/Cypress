@@ -36,6 +36,7 @@ from optimize_assignment import (  # noqa: E402
     solve_interval_assignment,
 )
 from solve_discrete_placement import (  # noqa: E402
+    _candidate_indices_without_obstacle_overlap,
     _capacity_integer_bounds,
     _coordinate_choice_index,
     _convex_parts,
@@ -321,6 +322,38 @@ class M336BaselineTest(unittest.TestCase):
                 centers, 2, preferred_index=0, guide_indices=(3,)
             ),
             [0, 3],
+        )
+        np.testing.assert_array_equal(
+            _limited_candidate_indices(
+                centers,
+                2,
+                preferred_index=2,
+                eligible_indices=(0, 1, 3),
+            ),
+            [0, 1],
+        )
+        with self.assertRaises(ValueError):
+            _limited_candidate_indices(
+                centers, 2, preferred_index=0, eligible_indices=(1, 1)
+            )
+
+    def test_fixed_obstacle_pruning_uses_exact_positive_overlap(self):
+        footprint = box(-0.25, -0.25, 0.25, 0.25)
+        concave_obstacle = Polygon(
+            ((0, 0), (3, 0), (3, 1), (1, 1), (1, 3), (0, 3))
+        )
+        centers = np.asarray(
+            [
+                [2.0, 2.0],
+                [0.5, 0.5],
+                [3.25, 0.5],
+            ]
+        )
+        np.testing.assert_array_equal(
+            _candidate_indices_without_obstacle_overlap(
+                footprint, centers, [concave_obstacle]
+            ),
+            [0, 2],
         )
 
     def test_candidate_guide_is_projected_in_each_region(self):

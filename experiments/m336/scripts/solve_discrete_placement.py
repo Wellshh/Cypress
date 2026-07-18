@@ -114,11 +114,26 @@ def _guide_site_indices(domains, guide_center):
 
 
 def _limited_candidate_indices(
-    centers, limit, preferred_index=None, guide_indices=()
+    centers,
+    limit,
+    preferred_index=None,
+    guide_indices=(),
+    eligible_indices=None,
 ):
     centers = np.asarray(centers, dtype=np.float64)
-    if limit <= 0 or len(centers) <= limit:
-        return np.arange(len(centers), dtype=np.int64)
+    if eligible_indices is None:
+        eligible_indices = np.arange(len(centers), dtype=np.int64)
+    else:
+        eligible_indices = np.asarray(eligible_indices, dtype=np.int64)
+        if len(np.unique(eligible_indices)) != len(eligible_indices):
+            raise ValueError("eligible site indices must be unique")
+        if np.any(eligible_indices < 0) or np.any(
+            eligible_indices >= len(centers)
+        ):
+            raise ValueError("eligible site index is out of range")
+        eligible_indices = np.sort(eligible_indices)
+    if limit <= 0 or len(eligible_indices) <= limit:
+        return eligible_indices
     preferred_indices = []
     if preferred_index is not None:
         preferred_indices.append(int(preferred_index))
@@ -130,14 +145,70 @@ def _limited_candidate_indices(
         raise ValueError("preferred site index is out of range")
     distances = np.min(
         [
-            np.square(centers - centers[index]).sum(axis=1)
+            np.square(
+                centers[eligible_indices] - centers[index]
+            ).sum(axis=1)
             for index in preferred_indices
         ],
         axis=0,
     )
-    indices = np.arange(len(centers), dtype=np.int64)
-    order = np.lexsort((indices, distances))[:limit]
-    return np.sort(order)
+    order = np.lexsort((eligible_indices, distances))[:limit]
+    return np.sort(eligible_indices[order])
+
+
+def _candidate_indices_without_obstacle_overlap(
+    footprint_local, centers, obstacles, epsilon=1e-12
+):
+    """Return original site indices whose exact footprint clears obstacles."""
+    centers = np.asarray(centers, dtype=np.float64)
+    if centers.ndim != 2 or centers.shape[1] != 2:
+        raise ValueError("candidate centers must be two-dimensional")
+    if not obstacles or not len(centers):
+        return np.arange(len(centers), dtype=np.int64)
+
+    local_min_x, local_min_y, local_max_x, local_max_y = (
+        footprint_local.bounds
+    )
+    candidate_bounds = np.column_stack(
+        (
+            centers[:, 0] + local_min_x,
+            centers[:, 1] + local_min_y,
+            centers[:, 0] + local_max_x,
+            centers[:, 1] + local_max_y,
+        )
+    )
+    obstacle_bounds = np.asarray(
+        [obstacle.bounds for obstacle in obstacles], dtype=np.float64
+    )
+    keep = np.ones(len(centers), dtype=bool)
+    chunk_size = 4096
+    for start in range(0, len(centers), chunk_size):
+        stop = min(start + chunk_size, len(centers))
+        bounds = candidate_bounds[start:stop]
+        overlap_x = (
+            np.minimum(bounds[:, None, 2], obstacle_bounds[None, :, 2])
+            - np.maximum(bounds[:, None, 0], obstacle_bounds[None, :, 0])
+        )
+        overlap_y = (
+            np.minimum(bounds[:, None, 3], obstacle_bounds[None, :, 3])
+            - np.maximum(bounds[:, None, 1], obstacle_bounds[None, :, 1])
+        )
+        possible = (overlap_x > epsilon) & (overlap_y > epsilon)
+        for local_index in np.flatnonzero(np.any(possible, axis=1)):
+            candidate_index = start + int(local_index)
+            footprint = affinity.translate(
+                footprint_local,
+                xoff=float(centers[candidate_index, 0]),
+                yoff=float(centers[candidate_index, 1]),
+            )
+            for obstacle_index in np.flatnonzero(possible[local_index]):
+                if (
+                    footprint.intersection(obstacles[int(obstacle_index)]).area
+                    > epsilon
+                ):
+                    keep[candidate_index] = False
+                    break
+    return np.flatnonzero(keep).astype(np.int64)
 
 
 def _fixed_hint_candidate_indices(
@@ -1174,6 +1245,8 @@ def _build_model(
     packing_side=None,
     site_model="element",
     packing_objective="none",
+    prune_fixed_obstacle_sites=False,
+    fix_site_hint=False,
 ):
     if site_model not in ("element", "coordinate-table"):
         raise ValueError("unknown site model: %s" % site_model)
@@ -1181,6 +1254,10 @@ def _build_model(
         raise ValueError("unknown packing objective: %s" % packing_objective)
     if packing_objective != "none" and enforce_hpwl:
         raise ValueError("packing objectives require HPWL to be disabled")
+    if prune_fixed_obstacle_sites and collision_mode != "decomposed":
+        raise ValueError(
+            "fixed-obstacle site pruning requires decomposed collision mode"
+        )
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
     model = cp_model.CpModel()
@@ -1204,6 +1281,26 @@ def _build_model(
     )
     if fixed_hint_refdes and not site_hints:
         raise ValueError("partial site fixing requires a complete site hint")
+    fixed_obstacles = {"TOP": [], "BOTTOM": []}
+    if prune_fixed_obstacle_sites:
+        for node_id in range(placedb.num_physical_nodes):
+            if node_id in all_controlled_ids:
+                continue
+            side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
+            if packing_side is not None and side != packing_side:
+                continue
+            node_width = float(placedb.node_size_x[node_id])
+            node_height = float(placedb.node_size_y[node_id])
+            footprint_local = _fixed_footprint_local(
+                context, placedb, node_id, collision_mode
+            )
+            fixed_obstacles[side].append(
+                affinity.translate(
+                    footprint_local,
+                    xoff=float(fixed_x[node_id]) + node_width / 2,
+                    yoff=float(fixed_y[node_id]) + node_height / 2,
+                )
+            )
     site_vars = {}
     site_choices = {}
     x_vars = {}
@@ -1213,6 +1310,10 @@ def _build_model(
     y_intervals = {"TOP": [], "BOTTOM": []}
     controlled_shapes = {"TOP": [], "BOTTOM": []}
     packing_distance_terms = []
+    fixed_obstacle_candidate_count = 0
+    fixed_obstacle_pruned_site_count = 0
+    site_hint_remapped_count = 0
+    site_hint_maximum_remap_distance = 0.0
 
     for constraint in sorted(modeled_constraints, key=lambda item: item.refdes):
         node_id = constraint.node_id
@@ -1251,10 +1352,34 @@ def _build_model(
                     % constraint.refdes
                 )
             hint_center = hint_domain.valid_centers[hint_local_index]
+        eligible_indices = []
+        for domain in domain_options:
+            fixed_obstacle_candidate_count += len(domain.valid_centers)
+            if prune_fixed_obstacle_sites:
+                eligible = _candidate_indices_without_obstacle_overlap(
+                    domain.footprint_local,
+                    domain.valid_centers,
+                    fixed_obstacles[constraint.side],
+                )
+            else:
+                eligible = np.arange(
+                    len(domain.valid_centers), dtype=np.int64
+                )
+            fixed_obstacle_pruned_site_count += (
+                len(domain.valid_centers) - len(eligible)
+            )
+            eligible_indices.append(eligible)
         if constraint.refdes in fixed_hint_refdes:
             selected_indices = _fixed_hint_candidate_indices(
                 options, hint_region_id, hint_local_index
             )
+            selected_hint = selected_indices[options.index(hint_region_id)]
+            eligible_hint = eligible_indices[options.index(hint_region_id)]
+            if not np.isin(selected_hint, eligible_hint).all():
+                raise ValueError(
+                    "fixed site hint overlaps a fixed obstacle: %s"
+                    % constraint.refdes
+                )
         else:
             selected_indices = []
             guide_indices = (
@@ -1264,8 +1389,8 @@ def _build_model(
                 if node_id in candidate_guides
                 else (None,) * len(domain_options)
             )
-            for region_id, domain, guide_index in zip(
-                options, domain_options, guide_indices
+            for region_id, domain, guide_index, eligible in zip(
+                options, domain_options, guide_indices, eligible_indices
             ):
                 preferred_index = None
                 if hint_center is not None:
@@ -1282,6 +1407,7 @@ def _build_model(
                         candidate_limit_per_region,
                         preferred_index,
                         (() if guide_index is None else (guide_index,)),
+                        eligible,
                     )
                 )
         centers = np.concatenate(
@@ -1300,6 +1426,11 @@ def _build_model(
         local_indices = np.concatenate(
             selected_indices
         )
+        if not len(centers):
+            raise ValueError(
+                "component has no fixed-obstacle-free candidate: %s"
+                % constraint.refdes
+            )
         x_values = np.rint(
             (centers[:, 0] - constraint.node_width / 2) * integer_scale
         ).astype(np.int64)
@@ -1428,14 +1559,39 @@ def _build_model(
                 (region_indices == hint_region_index)
                 & (local_indices == hint_local_index)
             )
-            if len(matches) != 1:
-                raise ValueError("site hint is absent after candidate limiting")
-            match_index = int(matches[0])
-            if site_model == "element":
-                model.add_hint(site, match_index)
+            if len(matches) > 1:
+                raise ValueError("site hint maps to multiple candidates")
+            if not len(matches):
+                if fix_site_hint or constraint.refdes in fixed_hint_refdes:
+                    raise ValueError(
+                        "fixed site hint is absent after obstacle pruning"
+                    )
+                same_region = np.flatnonzero(
+                    region_indices == hint_region_index
+                )
+                match_index = None
+                if len(same_region):
+                    distances = np.square(
+                        centers[same_region] - hint_center
+                    ).sum(axis=1)
+                    match_index = int(
+                        same_region[int(np.argmin(distances))]
+                    )
+                    remap_distance = math.sqrt(
+                        float(distances[np.argmin(distances)])
+                    )
+                    site_hint_remapped_count += 1
+                    site_hint_maximum_remap_distance = max(
+                        site_hint_maximum_remap_distance, remap_distance
+                    )
             else:
-                model.add_hint(x_var, int(x_values[match_index]))
-                model.add_hint(y_var, int(y_values[match_index]))
+                match_index = int(matches[0])
+            if match_index is not None:
+                if site_model == "element":
+                    model.add_hint(site, match_index)
+                else:
+                    model.add_hint(x_var, int(x_values[match_index]))
+                    model.add_hint(y_var, int(y_values[match_index]))
             if constraint.refdes in fixed_hint_refdes:
                 if site_model == "element":
                     model.add(site == match_index)
@@ -1443,8 +1599,14 @@ def _build_model(
                     model.add(x_var == int(x_values[match_index]))
                     model.add(y_var == int(y_values[match_index]))
             if packing_objective == "hint-l1":
-                hinted_x = int(x_values[match_index])
-                hinted_y = int(y_values[match_index])
+                hinted_x = _scaled(
+                    hint_center[0] - constraint.node_width / 2,
+                    integer_scale,
+                )
+                hinted_y = _scaled(
+                    hint_center[1] - constraint.node_height / 2,
+                    integer_scale,
+                )
                 maximum_dx = max(
                     abs(int(x_values.min()) - hinted_x),
                     abs(int(x_values.max()) - hinted_x),
@@ -1493,6 +1655,7 @@ def _build_model(
     collision_pair_constraint_count = 0
     collision_component_pair_count = 0
     collision_skipped_component_pair_count = 0
+    fixed_obstacle_pair_eliminated_count = 0
     fixed_shapes = {"TOP": [], "BOTTOM": []}
     if collision_mode in ("convex", "decomposed"):
         for node_id in range(placedb.num_physical_nodes):
@@ -1556,6 +1719,9 @@ def _build_model(
                     collision_skipped_component_pair_count += 1
                     continue
                 collision_component_pair_count += 1
+                if prune_fixed_obstacle_sites:
+                    fixed_obstacle_pair_eliminated_count += 1
+                    continue
                 if (
                     controlled["is_rectangle"]
                     and fixed_shape["is_rectangle"]
@@ -1703,6 +1869,23 @@ def _build_model(
         "collision_skipped_component_pair_count": (
             collision_skipped_component_pair_count
         ),
+        "fixed_obstacle_pair_eliminated_count": (
+            fixed_obstacle_pair_eliminated_count
+        ),
+        "fixed_obstacle_pruning_enabled": bool(
+            prune_fixed_obstacle_sites
+        ),
+        "fixed_obstacle_count": sum(
+            len(rows) for rows in fixed_obstacles.values()
+        ),
+        "fixed_obstacle_candidate_count": fixed_obstacle_candidate_count,
+        "fixed_obstacle_pruned_site_count": (
+            fixed_obstacle_pruned_site_count
+        ),
+        "site_hint_remapped_count": site_hint_remapped_count,
+        "site_hint_maximum_remap_distance": (
+            site_hint_maximum_remap_distance
+        ),
         "fixed_hint_site_count": len(fixed_hint_refdes),
         "movable_refdes": sorted(set(movable_refdes or ())),
         "site_hint": site_hint_report,
@@ -1765,6 +1948,23 @@ def _model_report(args, state, assignment_space):
         ],
         "collision_skipped_component_pair_count": state[
             "collision_skipped_component_pair_count"
+        ],
+        "fixed_obstacle_pair_eliminated_count": state[
+            "fixed_obstacle_pair_eliminated_count"
+        ],
+        "fixed_obstacle_pruning_enabled": state[
+            "fixed_obstacle_pruning_enabled"
+        ],
+        "fixed_obstacle_count": state["fixed_obstacle_count"],
+        "fixed_obstacle_candidate_count": state[
+            "fixed_obstacle_candidate_count"
+        ],
+        "fixed_obstacle_pruned_site_count": state[
+            "fixed_obstacle_pruned_site_count"
+        ],
+        "site_hint_remapped_count": state["site_hint_remapped_count"],
+        "site_hint_maximum_remap_distance": state[
+            "site_hint_maximum_remap_distance"
         ],
         "fixed_hint_site_count": state["fixed_hint_site_count"],
         "movable_refdes": state["movable_refdes"],
@@ -2003,6 +2203,8 @@ def solve(args):
         args.packing_side,
         args.site_model,
         args.packing_objective,
+        args.prune_fixed_obstacle_sites,
+        args.fix_site_hint,
     )
 
     solver = cp_model.CpSolver()
@@ -2308,6 +2510,14 @@ def main():
         help=(
             "'decomposed' matches exact footprints; 'convex' preserves the "
             "legacy over-conservative audit model; 'none' is a lower bound"
+        ),
+    )
+    parser.add_argument(
+        "--prune-fixed-obstacle-sites",
+        action="store_true",
+        help=(
+            "remove exact candidate sites that overlap fixed obstacles "
+            "before building decomposed collision constraints"
         ),
     )
     parser.add_argument(
