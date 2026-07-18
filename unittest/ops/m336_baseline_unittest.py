@@ -24,7 +24,9 @@ from prepare_baseline import (  # noqa: E402
 )
 from analyze_quality_bound import (  # noqa: E402
     _bound_for_ranges,
+    _override_manual_baseline_endpoints,
     _runtime_fixed_positions,
+    _select_fixed_endpoints,
     minimum_interval_span,
 )
 from finalize_assignment import packing_exclusion_reason  # noqa: E402
@@ -38,11 +40,7 @@ from solve_discrete_placement import (  # noqa: E402
     _selected_assignment_data,
     _score_hpwl_limit,
 )
-from analyze_shared_box_bound import (  # noqa: E402
-    _override_manual_baseline_endpoints,
-    _select_fixed_endpoints,
-    solve_shared_box_assignment,
-)
+from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
 from dreamplace.constraints.region_projection import (  # noqa: E402
     FeasibleDomain,
     NodeConstraint,

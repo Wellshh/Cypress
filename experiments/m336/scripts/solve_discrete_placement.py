@@ -18,7 +18,8 @@ from shapely.geometry import box
 from analyze_quality_bound import (
     _baseline_positions,
     _load_context,
-    _runtime_fixed_positions,
+    _override_manual_baseline_endpoints,
+    _select_fixed_endpoints,
 )
 from optimize_assignment import _candidate_domains, _template_data
 from run_matrix import REPO_ROOT, repo_path, sha256_file, write_json
@@ -304,6 +305,8 @@ def _build_model(
     context,
     baseline_x,
     baseline_y,
+    fixed_x,
+    fixed_y,
     minimum_score,
     baseline_hpwl,
     baseline_rsmt,
@@ -315,9 +318,6 @@ def _build_model(
     model = cp_model.CpModel()
     assignment_state = _add_assignment_variables(
         model, assignment_space, capacity_scale
-    )
-    fixed_x, fixed_y = _runtime_fixed_positions(
-        context, baseline_x, baseline_y
     )
     constraint_by_node = {
         constraint.node_id: constraint for constraint in context.constraints
@@ -597,6 +597,10 @@ def _model_report(args, state, assignment_space):
         "candidate_count": state["candidate_count"],
         "controlled_node_count": state["controlled_node_count"],
         "fixed_node_count": state["fixed_node_count"],
+        "fixed_endpoint_mode": args.fixed_endpoint_mode,
+        "manual_baseline_endpoint_overrides": sorted(
+            set(args.manual_baseline_endpoint)
+        ),
         "assignment_mode": assignment_space["mode"],
         "assignment_group_count": len(assignment_state["group_vars"]),
         "assignment_option_count": assignment_state["option_count"],
@@ -653,12 +657,29 @@ def solve(args):
     baseline_x, baseline_y = _baseline_positions(
         placedb, args.bookshelf_dir / "m336.baseline.pl"
     )
+    fixed_x, fixed_y = _select_fixed_endpoints(
+        context,
+        baseline_x,
+        baseline_y,
+        args.fixed_endpoint_mode,
+    )
+    fixed_x, fixed_y = _override_manual_baseline_endpoints(
+        context,
+        placedb,
+        baseline_x,
+        baseline_y,
+        fixed_x,
+        fixed_y,
+        args.manual_baseline_endpoint,
+    )
     model, state = _build_model(
         cp_model,
         placedb,
         context,
         baseline_x,
         baseline_y,
+        fixed_x,
+        fixed_y,
         args.minimum_score,
         baseline_hpwl,
         baseline_rsmt,
@@ -853,6 +874,18 @@ def main():
     parser.add_argument("--grid-mm", type=float, default=0.05)
     parser.add_argument("--clearance-mm", type=float, default=0.0)
     parser.add_argument("--minimum-score", type=float, default=1.0)
+    parser.add_argument(
+        "--fixed-endpoint-mode",
+        choices=("runtime", "manual-baseline"),
+        default="runtime",
+    )
+    parser.add_argument(
+        "--manual-baseline-endpoint",
+        action="append",
+        default=[],
+        metavar="REFDES",
+        help="override one runtime-frozen endpoint with its manual position",
+    )
     parser.add_argument(
         "--optimize-assignment",
         action="store_true",

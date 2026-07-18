@@ -63,3 +63,9 @@ PYTHONPATH="$PWD/install:$PWD" python3.11 \
 Add `--optimize-assignment` to couple all eligible subgroup-region choices to
 the component sites. `--ignore-area-capacity` is a diagnostic relaxation only;
 its output cannot be promoted as a legal assignment.
+
+The discrete audit accepts the same diagnostic endpoint flags as the
+continuous bound. `--manual-baseline-endpoint EMI601
+--manual-baseline-endpoint Q601` changes fixed net endpoints only; it does not
+yet update projected-anchor targets and therefore cannot be promoted directly
+to an E1-E4 result.

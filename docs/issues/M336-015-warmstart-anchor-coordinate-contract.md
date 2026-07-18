@@ -57,6 +57,10 @@ Before production integration, run the exact `0.05 mm` shared-coordinate model
 with these two endpoint overrides. A continuous upper bound is only a
 necessary condition and is not an accepted placement.
 
+`M336-016` completed this exact-site gate: the two-anchor diagnostic found a
+`0.05 mm` candidate with HPWL `14114.9242` and score potential `1.08115`.
+Collision-free feasibility and native RSMT remain unresolved.
+
 ## Acceptance Criteria
 
 - Initialization reports the configured position source for every anchor.

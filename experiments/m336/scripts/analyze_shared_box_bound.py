@@ -16,7 +16,9 @@ from scipy.sparse import coo_matrix
 from analyze_quality_bound import (
     _baseline_positions,
     _load_context,
+    _override_manual_baseline_endpoints,
     _runtime_fixed_positions,
+    _select_fixed_endpoints,
 )
 from optimize_assignment import _template_data
 from run_matrix import REPO_ROOT, repo_path, sha256_file, write_json
@@ -24,49 +26,6 @@ from run_matrix import REPO_ROOT, repo_path, sha256_file, write_json
 
 def _decode(value):
     return value.decode("utf-8") if isinstance(value, bytes) else str(value)
-
-
-def _select_fixed_endpoints(context, baseline_x, baseline_y, mode):
-    if mode == "runtime":
-        return _runtime_fixed_positions(context, baseline_x, baseline_y)
-    if mode == "manual-baseline":
-        return (
-            np.asarray(baseline_x, dtype=np.float64).copy(),
-            np.asarray(baseline_y, dtype=np.float64).copy(),
-        )
-    raise ValueError("unsupported fixed endpoint mode: %s" % mode)
-
-
-def _override_manual_baseline_endpoints(
-    context,
-    placedb,
-    baseline_x,
-    baseline_y,
-    fixed_x,
-    fixed_y,
-    refdes,
-):
-    names = {
-        _decode(name): node_id
-        for node_id, name in enumerate(placedb.node_names)
-    }
-    frozen_ids = set(context.frozen_lower_left)
-    selected_ids = []
-    for name in sorted(set(refdes)):
-        if name not in names:
-            raise ValueError("manual endpoint override is unknown: %s" % name)
-        node_id = names[name]
-        if node_id not in frozen_ids:
-            raise ValueError(
-                "manual endpoint override is not runtime-frozen: %s" % name
-            )
-        selected_ids.append(node_id)
-    output_x = np.asarray(fixed_x, dtype=np.float64).copy()
-    output_y = np.asarray(fixed_y, dtype=np.float64).copy()
-    for node_id in selected_ids:
-        output_x[node_id] = baseline_x[node_id]
-        output_y[node_id] = baseline_y[node_id]
-    return output_x, output_y
 
 
 def _frozen_endpoint_displacements(context, placedb, baseline_x, baseline_y):

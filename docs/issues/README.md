@@ -23,6 +23,7 @@ append evidence rather than replacing prior observations.
 | [M336-013](M336-013-clearance-double-application.md) | High | Resolved | Alternate-region search applied nonzero clearance twice |
 | [M336-014](M336-014-continuous-quality-infeasibility.md) | Critical | Open | The score target is impossible even in a continuous no-collision relaxation |
 | [M336-015](M336-015-warmstart-anchor-coordinate-contract.md) | Critical | Open | Runtime freezing overwrites two materially moved manual-baseline anchors |
+| [M336-016](M336-016-two-anchor-discrete-quality-candidate.md) | Critical | Open | Two baseline anchor endpoints restore an exact-site score candidate, but collision search is unresolved |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
