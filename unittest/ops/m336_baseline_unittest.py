@@ -45,8 +45,10 @@ from solve_discrete_placement import (  # noqa: E402
     _guide_site_indices,
     _hpwl_rounding_allowance_units,
     _hinted_group_regions,
+    _inactive_controlled_collision_pairs,
     _nearest_site_index,
     _limited_candidate_indices,
+    _normalize_controlled_collision_pairs,
     _override_fixed_endpoint_coordinates,
     _partial_fix_refdes,
     _selected_assignment_data,
@@ -217,6 +219,26 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(sum(len(indices) for indices in selected), 1)
         with self.assertRaises(ValueError):
             _fixed_hint_candidate_indices(("left",), "right", 17)
+
+    def test_controlled_collision_pairs_are_canonical_and_distinct(self):
+        self.assertEqual(
+            _normalize_controlled_collision_pairs(
+                (("B", "A"), ("A", "B"), ("C", "A"))
+            ),
+            frozenset((("A", "B"), ("A", "C"))),
+        )
+        with self.assertRaises(ValueError):
+            _normalize_controlled_collision_pairs((("A", "A"),))
+        with self.assertRaises(ValueError):
+            _normalize_controlled_collision_pairs((("A",),))
+
+    def test_collision_pairs_outside_local_domains_are_inactive(self):
+        requested = frozenset((("A", "B"), ("A", "C")))
+        available = frozenset((("A", "B"), ("B", "C")))
+        self.assertEqual(
+            _inactive_controlled_collision_pairs(requested, available),
+            frozenset((("A", "C"),)),
+        )
 
     def test_coordinate_solution_identifies_one_candidate_site(self):
         choices = {

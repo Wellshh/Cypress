@@ -301,6 +301,26 @@ def _partial_fix_refdes(constraints, movable_refdes):
     return frozenset(available - movable_refdes)
 
 
+def _normalize_controlled_collision_pairs(pair_rows):
+    pairs = set()
+    for row in pair_rows or ():
+        if len(row) != 2:
+            raise ValueError(
+                "controlled collision pairs require exactly two refdes"
+            )
+        first, second = str(row[0]), str(row[1])
+        if first == second:
+            raise ValueError(
+                "controlled collision pair must contain two refdes"
+            )
+        pairs.add(tuple(sorted((first, second))))
+    return frozenset(pairs)
+
+
+def _inactive_controlled_collision_pairs(requested_pairs, available_pairs):
+    return frozenset(requested_pairs) - frozenset(available_pairs)
+
+
 def _side_legality_report(legality, side):
     violations = [
         row for row in legality["violations"] if row["side"] == side
@@ -1248,6 +1268,7 @@ def _build_model(
     prune_fixed_obstacle_sites=False,
     fix_site_hint=False,
     controlled_collision_relaxation="none",
+    controlled_collision_pairs=(),
 ):
     if site_model not in ("element", "coordinate-table"):
         raise ValueError("unknown site model: %s" % site_model)
@@ -1275,6 +1296,20 @@ def _build_model(
             "controlled nonrectangle relaxation requires decomposed "
             "packing-only mode"
         )
+    controlled_collision_pairs = _normalize_controlled_collision_pairs(
+        controlled_collision_pairs
+    )
+    if controlled_collision_pairs:
+        if controlled_collision_relaxation != "none":
+            raise ValueError(
+                "collision pair allowlists and category relaxations are "
+                "mutually exclusive"
+            )
+        if collision_mode != "decomposed" or enforce_hpwl:
+            raise ValueError(
+                "collision pair allowlists require decomposed packing-only "
+                "mode"
+            )
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
     model = cp_model.CpModel()
@@ -1684,11 +1719,43 @@ def _build_model(
                 model.add_hint(x_var, int(x_values[nearest]))
                 model.add_hint(y_var, int(y_values[nearest]))
 
+    controlled_shape_index = {
+        shape["name"]: (side, shape)
+        for side, shapes in controlled_shapes.items()
+        for shape in shapes
+    }
+    requested_refdes = {
+        refdes
+        for pair in controlled_collision_pairs
+        for refdes in pair
+    }
+    unknown_refdes = sorted(requested_refdes - set(controlled_shape_index))
+    if unknown_refdes:
+        raise ValueError(
+            "collision pair refdes are not modeled controlled components: %s"
+            % ", ".join(unknown_refdes)
+        )
+    for first_name, second_name in controlled_collision_pairs:
+        first_side, first_shape = controlled_shape_index[first_name]
+        second_side, second_shape = controlled_shape_index[second_name]
+        if first_side != second_side:
+            raise ValueError(
+                "controlled collision pair crosses board sides: %s/%s"
+                % (first_name, second_name)
+            )
+        if first_shape["is_rectangle"] and second_shape["is_rectangle"]:
+            raise ValueError(
+                "rectangle collision pair is already in NoOverlap2D: %s/%s"
+                % (first_name, second_name)
+            )
+
     collision_pair_constraint_count = 0
     collision_component_pair_count = 0
     collision_skipped_component_pair_count = 0
     fixed_obstacle_pair_eliminated_count = 0
     relaxed_controlled_component_pair_count = 0
+    exact_controlled_component_pair_count = 0
+    available_controlled_collision_pairs = set()
     fixed_shapes = {"TOP": [], "BOTTOM": []}
     if collision_mode in ("convex", "decomposed"):
         for node_id in range(placedb.num_physical_nodes):
@@ -1780,22 +1847,35 @@ def _build_model(
                         collision_skipped_component_pair_count += 1
                         continue
                     collision_component_pair_count += 1
-                    relax_pair = (
-                        controlled_collision_relaxation
-                        == "all-nonrectangle"
-                        or (
+                    pair = tuple(sorted((first["name"], second["name"])))
+                    available_controlled_collision_pairs.add(pair)
+                    if controlled_collision_pairs:
+                        relax_pair = pair not in controlled_collision_pairs
+                    else:
+                        relax_pair = (
                             controlled_collision_relaxation
-                            == "mixed-nonrectangle"
-                            and first["is_rectangle"]
-                            != second["is_rectangle"]
+                            == "all-nonrectangle"
+                            or (
+                                controlled_collision_relaxation
+                                == "mixed-nonrectangle"
+                                and first["is_rectangle"]
+                                != second["is_rectangle"]
+                            )
                         )
-                    )
                     if relax_pair:
                         relaxed_controlled_component_pair_count += 1
                         continue
+                    exact_controlled_component_pair_count += 1
                     collision_pair_constraint_count += _add_part_nonoverlap(
                         model, first, second
                     )
+
+    inactive_controlled_collision_pairs = sorted(
+        _inactive_controlled_collision_pairs(
+            controlled_collision_pairs,
+            available_controlled_collision_pairs,
+        )
+    )
 
     hpwl_limit = None
     hpwl_limit_integer = None
@@ -1927,9 +2007,21 @@ def _build_model(
         "relaxed_controlled_component_pair_count": (
             relaxed_controlled_component_pair_count
         ),
+        "exact_controlled_component_pair_count": (
+            exact_controlled_component_pair_count
+        ),
         "controlled_collision_relaxation": (
             controlled_collision_relaxation
         ),
+        "controlled_collision_pair_allowlist": [
+            list(pair) for pair in sorted(controlled_collision_pairs)
+        ],
+        "inactive_controlled_collision_pair_count": len(
+            inactive_controlled_collision_pairs
+        ),
+        "inactive_controlled_collision_pairs": [
+            list(pair) for pair in inactive_controlled_collision_pairs
+        ],
         "fixed_obstacle_pruning_enabled": bool(
             prune_fixed_obstacle_sites
         ),
@@ -2017,8 +2109,20 @@ def _model_report(args, state, assignment_space):
         "relaxed_controlled_component_pair_count": state[
             "relaxed_controlled_component_pair_count"
         ],
+        "exact_controlled_component_pair_count": state[
+            "exact_controlled_component_pair_count"
+        ],
         "controlled_collision_relaxation": state[
             "controlled_collision_relaxation"
+        ],
+        "controlled_collision_pair_allowlist": state[
+            "controlled_collision_pair_allowlist"
+        ],
+        "inactive_controlled_collision_pair_count": state[
+            "inactive_controlled_collision_pair_count"
+        ],
+        "inactive_controlled_collision_pairs": state[
+            "inactive_controlled_collision_pairs"
         ],
         "fixed_obstacle_pruning_enabled": state[
             "fixed_obstacle_pruning_enabled"
@@ -2275,6 +2379,7 @@ def solve(args):
         args.prune_fixed_obstacle_sites,
         args.fix_site_hint,
         args.controlled_collision_relaxation,
+        args.controlled_collision_pair,
     )
 
     solver = cp_model.CpSolver()
@@ -2597,6 +2702,17 @@ def main():
         help=(
             "diagnostic packing stage: omit mixed nonrectangle/rectangle "
             "pairs or every pair involving a nonrectangle"
+        ),
+    )
+    parser.add_argument(
+        "--controlled-collision-pair",
+        action="append",
+        nargs=2,
+        default=[],
+        metavar=("FIRST", "SECOND"),
+        help=(
+            "diagnostic: enforce one controlled nonrectangle-related pair "
+            "and relax unlisted pairs; may be repeated"
         ),
     )
     parser.add_argument(
