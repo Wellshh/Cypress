@@ -10,6 +10,17 @@ from argparse import Namespace
 from importlib import metadata
 from pathlib import Path
 
+PREPROCESS_THREADS = int(os.environ.get("M336_PREPROCESS_THREADS", "1"))
+if PREPROCESS_THREADS <= 0:
+    raise ValueError("preprocess thread count must be positive")
+for thread_variable in (
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+):
+    os.environ[thread_variable] = str(PREPROCESS_THREADS)
+
 import numpy as np
 import torch
 from shapely import affinity
@@ -433,14 +444,28 @@ def main() -> int:
                         ],
                     )
                     nonrect_conflict_count += len(first_sites)
-    if os.environ.get("M336_MINIMIZE_GUIDE_RANK", "0") == "1":
+    minimize_guide_rank = os.environ.get("M336_MINIMIZE_GUIDE_RANK", "0") == "1"
+    if minimize_guide_rank:
         model.minimize(sum(row["site_var"] for row in rows))
     build_seconds = time.perf_counter() - build_started
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = float(os.environ.get("M336_TIME", "300"))
+    max_time_in_seconds = float(os.environ.get("M336_TIME", "300"))
+    max_deterministic_time = float(
+        os.environ.get("M336_DETERMINISTIC_TIME", "0")
+    )
+    random_seed = int(os.environ.get("M336_SEED", "1000"))
+    repair_hint = os.environ.get("M336_REPAIR_HINT", "0") == "1"
+    hint_conflict_limit = int(
+        os.environ.get("M336_HINT_CONFLICT_LIMIT", "10")
+    )
+    solver.parameters.max_time_in_seconds = max_time_in_seconds
+    if max_deterministic_time > 0:
+        solver.parameters.max_deterministic_time = max_deterministic_time
     solver.parameters.num_search_workers = 1
-    solver.parameters.random_seed = int(os.environ.get("M336_SEED", "1000"))
+    solver.parameters.random_seed = random_seed
+    solver.parameters.repair_hint = repair_hint
+    solver.parameters.hint_conflict_limit = hint_conflict_limit
     solver.parameters.log_search_progress = (
         os.environ.get("M336_LOG_SEARCH", "0") == "1"
     )
@@ -522,6 +547,16 @@ def main() -> int:
         "solver_deterministic_time": solver.response_proto.deterministic_time,
         "solver_conflicts": solver.num_conflicts,
         "solver_branches": solver.num_branches,
+        "solver_parameters": {
+            "hint_conflict_limit": hint_conflict_limit,
+            "max_deterministic_time": max_deterministic_time,
+            "max_time_in_seconds": max_time_in_seconds,
+            "minimize_guide_rank": minimize_guide_rank,
+            "num_search_workers": 1,
+            "preprocess_threads": PREPROCESS_THREADS,
+            "random_seed": random_seed,
+            "repair_hint": repair_hint,
+        },
         "solver_response_stats": solver.response_stats(),
         "legality": legality,
         "hpwl": hpwl,

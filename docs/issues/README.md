@@ -51,6 +51,7 @@ append evidence rather than replacing prior observations.
 | [M336-041](M336-041-quality-guide-k512-infeasible.md) | Critical | Open | Exact CNF proves the quality-guide K512 domain has no legal TOP packing |
 | [M336-042](M336-042-score-guide-global-repacking.md) | Critical | Open | Score-feasible collision-relaxed sites require near-global TOP repacking |
 | [M336-043](M336-043-exact-cpsat-local-domain-proof.md) | Critical | Open | Exact CP-SAT proves score-guide and manual-baseline K512 domains infeasible |
+| [M336-044](M336-044-cpsat-search-budget-reproducibility.md) | High | Mitigated | CP-SAT now records deterministic budgets, preprocessing threads, and hint repair controls |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
