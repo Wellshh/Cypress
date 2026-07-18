@@ -51,6 +51,11 @@ GUIDE = Path(
         ROOT / "results/m336/discrete_two_anchor/result-no-collision.json",
     )
 )
+ADDITIONAL_GUIDES = [
+    Path(value)
+    for value in os.environ.get("M336_ADDITIONAL_GUIDE_JSONS", "").split(",")
+    if value
+]
 OUTPUT = Path(
     os.environ.get("M336_OUTPUT_JSON", "/tmp/m336_exact_site_cpsat.json")
 )
@@ -199,19 +204,23 @@ def main() -> int:
     )
     use_baseline_guide = os.environ.get("M336_USE_BASELINE_GUIDE", "0") == "1"
     if use_baseline_guide:
-        guide_path = "<manual-baseline>"
-        guide = {
-            constraint.refdes: [
-                float(baseline_x[constraint.node_id])
-                + constraint.node_width / 2,
-                float(baseline_y[constraint.node_id])
-                + constraint.node_height / 2,
-            ]
-            for constraint in constraints
-        }
+        guide_paths = ["<manual-baseline>"]
+        guides = [
+            {
+                constraint.refdes: [
+                    float(baseline_x[constraint.node_id])
+                    + constraint.node_width / 2,
+                    float(baseline_y[constraint.node_id])
+                    + constraint.node_height / 2,
+                ]
+                for constraint in constraints
+            }
+        ]
     else:
-        guide_path = str(GUIDE)
-        guide = load_guide(GUIDE)
+        guide_paths = [str(GUIDE)]
+        guides = [load_guide(GUIDE)]
+    guide_paths.extend(str(path) for path in ADDITIONAL_GUIDES)
+    guides.extend(load_guide(path) for path in ADDITIONAL_GUIDES)
 
     candidate_limit = int(os.environ.get("M336_CANDIDATE_LIMIT", "512"))
     expanded_limit = int(os.environ.get("M336_EXPANDED_CANDIDATE_LIMIT", "0"))
@@ -245,16 +254,42 @@ def main() -> int:
             conservative_bbox_refdes.append(constraint.refdes)
         eligible = _obstacle_free_candidate_indices(constraint, obstacles)
         centers = constraint.domain.valid_centers[eligible]
-        preferred = np.asarray(guide[constraint.refdes], dtype=np.float64)
-        distances = np.square(centers - preferred).sum(axis=1)
-        order = np.lexsort((eligible, distances))
+        orders = []
+        for guide in guides:
+            preferred = np.asarray(guide[constraint.refdes], dtype=np.float64)
+            distances = np.square(centers - preferred).sum(axis=1)
+            orders.append(np.lexsort((eligible, distances)))
         local_limit = (
             expanded_limit
             if expanded_limit and constraint.refdes in expanded_refdes
             else candidate_limit
         )
-        if local_limit:
-            order = order[:local_limit]
+        if len(orders) == 1:
+            order = orders[0]
+            if local_limit:
+                order = order[:local_limit]
+        else:
+            target_count = min(local_limit or len(eligible), len(eligible))
+            selected = []
+            seen = set()
+            pointers = [0] * len(orders)
+            while len(selected) < target_count:
+                progressed = False
+                for guide_index, current_order in enumerate(orders):
+                    while pointers[guide_index] < len(current_order):
+                        index = int(current_order[pointers[guide_index]])
+                        pointers[guide_index] += 1
+                        if index in seen:
+                            continue
+                        seen.add(index)
+                        selected.append(index)
+                        progressed = True
+                        break
+                    if len(selected) >= target_count:
+                        break
+                if not progressed:
+                    break
+            order = np.asarray(selected, dtype=np.int64)
         eligible = eligible[order]
         centers = centers[order]
 
@@ -514,7 +549,8 @@ def main() -> int:
     result = {
         "status": status,
         "source_json": str(SOURCE),
-        "guide_json": guide_path,
+        "guide_json": guide_paths[0],
+        "guide_jsons": guide_paths,
         "grid_mm": args.grid_mm,
         "candidate_limit": candidate_limit,
         "expanded_candidate_limit": expanded_limit,

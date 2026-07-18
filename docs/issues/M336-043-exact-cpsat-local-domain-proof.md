@@ -37,6 +37,8 @@ positives and zero false negatives.
 | score guide K256 | 7,436 | 818,614 | `INFEASIBLE` | 0.009 |
 | score guide K512 | 14,806 | 3,421,121 | `INFEASIBLE` | 56.399 |
 | manual baseline K512 | 14,806 | 3,643,993 | `INFEASIBLE` | 53.415 |
+| score + one-overlap K256 | 7,436 | 841,503 | `INFEASIBLE` | 13.198 |
+| score + one-overlap K512 | 14,806 | 3,519,239 | `INFEASIBLE` | 168.826 |
 | score guide K1024 | 26,590 | 10,847,669 | `UNKNOWN` | 900.155 |
 | manual baseline K1024 | 26,590 | 10,604,651 | `UNKNOWN` | 900.103 |
 
@@ -45,6 +47,12 @@ for the full placement lattice. They explain the CNF timeouts without
 weakening legality. Both K1024 models audited 258,239,716 rectangle candidate
 pairs with zero classification errors, but timeout is not a proof of either
 feasibility or infeasibility.
+
+The multi-guide control selects nearest sites from each guide in deterministic
+round-robin order, removing duplicates without fixing a component. Combining
+the score guide with the one-overlap feasibility guide still makes both K256
+and K512 exactly infeasible. The K512 run audited all 78,796,800 rectangle
+candidate pairs with zero errors and closes the prior 901-second CNF timeout.
 
 Selective CNF expansion does not yet close the next boundary. Expanding only
 `RT201` to K1024 is `UNKNOWN` after 900.031 seconds. Under that domain, fixing
@@ -79,6 +87,8 @@ score K512: b64f7c44a0f087dbfcc20df2a75d7898cf84cd0931da5461842990be93eb2095
 manual K512: b7653d596017088e3d74dcc3effebe797bd8b33bef8ee86b4cea586fedd7c652
 score K1024: 9a48fe8137492b40cc3066442390e885f0992b4a6505bf6a58b5a9e94672afc8
 manual K1024: 39f855a6e12f09e301bbab5f1096e716f6cdc1ff7d6aa3b4aeab133396ad0a48
+mixed K256: 70241fd31293384230e366b9b723e8913f0f2e4882cba02b17aa491b9423654d
+mixed K512: e04c9fa0cb9c180d60ada181a1d226edaf061d1f47efdf339ddd887dcc401888
 ```
 
 ## Acceptance Impact

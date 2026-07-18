@@ -55,6 +55,12 @@ guide-rank objective does not change that boundary. A 1,000-conflict budget
 returns to regular search and hits the deterministic cap reproducibly, but has
 not found a legal packing.
 
+A separate default-search portfolio used seeds 1001 through 1004, one worker,
+and deterministic cap 500 on the score-guide K1024 domain. All four runs were
+`UNKNOWN`; they explored 14.37-16.14 million branches and 711,807-816,813
+conflicts. Fixed seeds make each run repeatable, but seed diversity alone did
+not expose a legal state.
+
 Evidence SHA-256 values are:
 
 ```text
@@ -62,6 +68,10 @@ score repair 1m:      f0118952658b3c51c1c79e57fe27bbaf8fcb1ba0c4e06a3d9783fa80fe
 score repair+rank 1m: 9436ab4ce6938bada3283b88131fda4d36ac058a6954977743a41d657bc3fb65
 one-overlap repair 1m: 3858b41d23ce2d14aa0374dcc431030e2284889e1f9c6400fe3cd23b944e9f1a
 score repair 1k:      dbfd777726a6e26e9ba0615cdefb2ac7c3d29c6f43bb0f76c051d248ec09146b
+seed 1001: 12ee77b50f8d5276558a06c82877f4180a43f9d6715f4eae358d6ac17b1e2d80
+seed 1002: 8f27f09feada02da41adbcc68dc8bff6af5e8164ba3004055cbef3504a495805
+seed 1003: fc3aaca90bdd6224a1d74a06a82c7f481f68b91de8f0c0af8278ee5e63543dba
+seed 1004: c3be6fbbaf058096e32b1b5b56c2a119ffd286979a2e1bd118ec90dddfad2785
 ```
 
 ## Remaining Risk
