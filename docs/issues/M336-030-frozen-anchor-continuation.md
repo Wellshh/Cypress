@@ -44,6 +44,14 @@ fixed replay was `OPTIMAL` in `0.027493 s`, zero branches, and reproduced
 placement SHA-256
 `892f8eafd94a951b71327ed664e5066c343f043b111b78b3f057456e14ab7051`.
 
+The next 5% step moved `Q601` to `(547.55125, 291.4431)`. Its input had four
+TOP overlaps; CP-SAT found a zero-overlap TOP packing in `8.325890 s` after
+178,042 branches and 2,526 conflicts. Fixed replay reproduced placement
+SHA-256
+`b03effceab7962cef80988887d687c9076e1b3c640daa62cb9830e42c3e96713`
+with zero branches. Feasibility-only search increased HPWL to `21748.257336`,
+so continuation preserves packing feasibility but does not preserve quality.
+
 ## Remaining Work
 
 The 80% endpoint is not the acceptance target. Its HPWL is `21359.767400` and
