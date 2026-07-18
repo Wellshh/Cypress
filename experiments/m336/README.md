@@ -94,3 +94,10 @@ site supplies an explicit region and region-local index. Candidate limiting
 retains a neighborhood in every eligible region, so the hint guides rather
 than fixes assignment. Raw placement hints remain fixed-assignment only. See
 `M336-020` for the validated hint contract.
+
+To limit alternate-region search without preventing global coordinate repair,
+repeat `--movable-subgroup <GROUP_ID>` with `--optimize-assignment` and one
+`--site-hint-result`. Listed subgroups retain all eligible regions; every other
+subgroup uses its hinted region, but every component site remains movable.
+This differs deliberately from `--movable-refdes`, which fixes unlisted sites.
+The result reports `assignment_mode: optimized_scoped`; see `M336-021`.

@@ -680,6 +680,49 @@ def _optimized_assignment_space(args, context):
     }
 
 
+def _scoped_assignment_space(assignment_space, site_hints, movable_subgroups):
+    movable_subgroups = set(movable_subgroups or ())
+    if not movable_subgroups:
+        return assignment_space
+    if assignment_space["mode"] != "optimized":
+        raise ValueError("scoped assignment requires optimized assignment")
+    unknown = sorted(
+        movable_subgroups - set(assignment_space["group_options"])
+    )
+    if unknown:
+        raise ValueError(
+            "unknown movable subgroups: %s" % ", ".join(unknown)
+        )
+    hinted_regions = _hinted_group_regions(site_hints, assignment_space)
+    missing = sorted(
+        group_id
+        for group_id, nodes in assignment_space["group_nodes"].items()
+        if nodes and group_id not in hinted_regions
+    )
+    if missing:
+        raise ValueError(
+            "scoped assignment requires complete subgroup hints: %s"
+            % ", ".join(missing)
+        )
+    output = dict(assignment_space)
+    output["mode"] = "optimized_scoped"
+    output["group_options"] = {
+        group_id: (
+            options
+            if group_id in movable_subgroups
+            else (
+                hinted_regions.get(
+                    group_id,
+                    assignment_space["preferred_regions"][group_id],
+                ),
+            )
+        )
+        for group_id, options in assignment_space["group_options"].items()
+    }
+    output["movable_subgroups"] = tuple(sorted(movable_subgroups))
+    return output
+
+
 def _capacity_integer_bounds(group_areas, region_capacities, scale):
     if scale <= 0:
         raise ValueError("capacity scale must be positive")
@@ -1521,6 +1564,7 @@ def _model_report(args, state, assignment_space):
             set(args.manual_baseline_endpoint)
         ),
         "assignment_mode": assignment_space["mode"],
+        "movable_subgroups": sorted(set(args.movable_subgroup)),
         "assignment_group_count": len(assignment_state["group_vars"]),
         "assignment_option_count": assignment_state["option_count"],
         "assignment_options": {
@@ -1620,6 +1664,15 @@ def solve(args):
             )
         if assignment_space["mode"] != "fixed":
             raise ValueError("partial site fixing requires a fixed assignment")
+    if args.movable_subgroup:
+        if not args.optimize_assignment:
+            raise ValueError(
+                "movable subgroups require optimized assignment"
+            )
+        if args.site_hint_result is None or hint_count != 1:
+            raise ValueError(
+                "movable subgroups require one structured result hint"
+            )
     if args.candidate_limit_per_region and hint_count != 1:
         raise ValueError("candidate limiting requires one site hint source")
     if args.candidate_guide_placement is not None:
@@ -1671,6 +1724,9 @@ def solve(args):
             baseline_hpwl,
             baseline_rsmt,
         )
+    assignment_space = _scoped_assignment_space(
+        assignment_space, site_hints, args.movable_subgroup
+    )
     model, state = _build_model(
         cp_model,
         placedb,
@@ -1955,6 +2011,15 @@ def main():
         help=(
             "allow one controlled component to move while all other hinted "
             "sites remain fixed; may be repeated"
+        ),
+    )
+    parser.add_argument(
+        "--movable-subgroup",
+        action="append",
+        default=[],
+        help=(
+            "retain alternate regions for one subgroup while all other "
+            "subgroups use their structured result-hint regions"
         ),
     )
     parser.add_argument(

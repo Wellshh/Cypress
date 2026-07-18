@@ -46,6 +46,7 @@ from solve_discrete_placement import (  # noqa: E402
     _partial_fix_refdes,
     _selected_assignment_data,
     _score_hpwl_limit,
+    _scoped_assignment_space,
     _site_hint_parts,
     _swept_bboxes_may_overlap,
 )
@@ -110,6 +111,45 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_scoped_assignment_only_retains_named_region_choices(self):
+        assignment_space = {
+            "mode": "optimized",
+            "node_groups": {1: "g1", 2: "g2"},
+            "group_options": {
+                "g1": ("left", "right"),
+                "g2": ("left", "right"),
+                "empty": ("left", "right"),
+            },
+            "group_nodes": {"g1": (1,), "g2": (2,), "empty": ()},
+            "preferred_regions": {
+                "g1": "left",
+                "g2": "left",
+                "empty": "left",
+            },
+        }
+        hints = {
+            1: {"region_id": "left", "site_index": 1},
+            2: {"region_id": "right", "site_index": 2},
+        }
+        scoped = _scoped_assignment_space(assignment_space, hints, ["g1"])
+        self.assertEqual(scoped["mode"], "optimized_scoped")
+        self.assertEqual(scoped["group_options"]["g1"], ("left", "right"))
+        self.assertEqual(scoped["group_options"]["g2"], ("right",))
+        self.assertEqual(scoped["group_options"]["empty"], ("left",))
+        self.assertEqual(
+            assignment_space["group_options"]["g2"], ("left", "right")
+        )
+        with self.assertRaises(ValueError):
+            _scoped_assignment_space(assignment_space, hints, ["unknown"])
+        with self.assertRaises(ValueError):
+            _scoped_assignment_space(
+                dict(assignment_space, mode="fixed"), hints, ["g1"]
+            )
+        with self.assertRaises(ValueError):
+            _scoped_assignment_space(
+                assignment_space, {1: hints[1]}, ["g1"]
+            )
+
     def test_structured_site_hints_preserve_subgroup_region_coherence(self):
         assignment_space = {
             "node_groups": {1: "g", 2: "g"},
