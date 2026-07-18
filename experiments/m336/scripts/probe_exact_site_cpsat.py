@@ -59,6 +59,9 @@ ADDITIONAL_GUIDES = [
 OUTPUT = Path(
     os.environ.get("M336_OUTPUT_JSON", "/tmp/m336_exact_site_cpsat.json")
 )
+PROGRESS = Path(
+    os.environ.get("M336_PROGRESS_JSON", f"{OUTPUT}.progress")
+)
 GEOMETRY_EPSILON = 1e-10
 
 
@@ -80,6 +83,13 @@ def load_guide(path: Path) -> dict[str, list[float]]:
     return {
         refdes: row["center"] for refdes, row in data["selected_sites"].items()
     }
+
+
+def write_json_atomic(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    os.replace(temporary, path)
 
 
 def strict_convex_overlap_mask(first, second, displacement):
@@ -243,6 +253,32 @@ def main() -> int:
         raise ValueError(f"unknown non-rectangle mode: {nonrect_mode}")
     nonrect_conflict_count = 0
     max_quantization_error = 0.0
+    fix_guide = os.environ.get("M336_FIX_GUIDE", "0") == "1"
+    movable_refdes = frozenset(
+        value
+        for value in os.environ.get("M336_MOVABLE_REFDES", "").split(",")
+        if value
+    )
+    core_chain = os.environ.get("M336_CORE_CHAIN", "0") == "1"
+    core_chain_max_steps = int(
+        os.environ.get("M336_CORE_CHAIN_MAX_STEPS", "30")
+    )
+    if core_chain_max_steps <= 0:
+        raise ValueError("core-chain max steps must be positive")
+    known_refdes = {constraint.refdes for constraint in constraints}
+    unknown_movable_refdes = movable_refdes - known_refdes
+    if unknown_movable_refdes:
+        raise ValueError(
+            "unknown movable refdes: "
+            + ", ".join(sorted(unknown_movable_refdes))
+        )
+    if movable_refdes and not fix_guide:
+        raise ValueError("movable refdes require M336_FIX_GUIDE=1")
+    if core_chain and not fix_guide:
+        raise ValueError("core-chain mode requires M336_FIX_GUIDE=1")
+    fixed_assumption_refdes = {}
+    fixed_assumptions = {}
+    guide_site_distances = {}
     build_started = time.perf_counter()
 
     for constraint in constraints:
@@ -306,6 +342,12 @@ def main() -> int:
         integer_starts = integer_starts[unique_indices]
         centers = centers[unique_indices]
         eligible = eligible[unique_indices]
+        guide_site_distances[constraint.refdes] = float(
+            np.linalg.norm(
+                centers[0]
+                - np.asarray(guides[0][constraint.refdes], dtype=np.float64)
+            )
+        )
 
         width = int(round((max_x - min_x) * integer_scale)) - 2 * interval_inset
         height = int(round((max_y - min_y) * integer_scale)) - 2 * interval_inset
@@ -338,6 +380,14 @@ def main() -> int:
         model.add_hint(x_var, int(integer_starts[0, 0]))
         model.add_hint(y_var, int(integer_starts[0, 1]))
         model.add_hint(site_var, 0)
+        if fix_guide and constraint.refdes not in movable_refdes:
+            assumption = model.new_bool_var(
+                f"assume_fixed_{constraint.refdes}"
+            )
+            model.add_assumption(assumption)
+            model.add(site_var == 0).only_enforce_if(assumption)
+            fixed_assumption_refdes[assumption.index] = constraint.refdes
+            fixed_assumptions[constraint.refdes] = assumption
         rows.append(
             {
                 "constraint": constraint,
@@ -479,12 +529,17 @@ def main() -> int:
                         ],
                     )
                     nonrect_conflict_count += len(first_sites)
+    candidate_domain_overlap_model_exact = (
+        rectangle_audit["enabled"]
+        and rectangle_audit["cp_false_positive_count"] == 0
+        and rectangle_audit["cp_false_negative_count"] == 0
+        and nonrect_mode == "exact"
+    )
     minimize_guide_rank = os.environ.get("M336_MINIMIZE_GUIDE_RANK", "0") == "1"
     if minimize_guide_rank:
         model.minimize(sum(row["site_var"] for row in rows))
     build_seconds = time.perf_counter() - build_started
 
-    solver = cp_model.CpSolver()
     max_time_in_seconds = float(os.environ.get("M336_TIME", "300"))
     max_deterministic_time = float(
         os.environ.get("M336_DETERMINISTIC_TIME", "0")
@@ -494,20 +549,119 @@ def main() -> int:
     hint_conflict_limit = int(
         os.environ.get("M336_HINT_CONFLICT_LIMIT", "10")
     )
-    solver.parameters.max_time_in_seconds = max_time_in_seconds
-    if max_deterministic_time > 0:
-        solver.parameters.max_deterministic_time = max_deterministic_time
-    solver.parameters.num_search_workers = 1
-    solver.parameters.random_seed = random_seed
-    solver.parameters.repair_hint = repair_hint
-    solver.parameters.hint_conflict_limit = hint_conflict_limit
-    solver.parameters.log_search_progress = (
-        os.environ.get("M336_LOG_SEARCH", "0") == "1"
-    )
-    solve_started = time.perf_counter()
-    status_code = solver.solve(model)
-    solve_seconds = time.perf_counter() - solve_started
-    status = solver.status_name(status_code)
+    log_search_progress = os.environ.get("M336_LOG_SEARCH", "0") == "1"
+
+    def new_solver():
+        current_solver = cp_model.CpSolver()
+        current_solver.parameters.max_time_in_seconds = max_time_in_seconds
+        if max_deterministic_time > 0:
+            current_solver.parameters.max_deterministic_time = (
+                max_deterministic_time
+            )
+        current_solver.parameters.num_search_workers = 1
+        current_solver.parameters.random_seed = random_seed
+        current_solver.parameters.repair_hint = repair_hint
+        current_solver.parameters.hint_conflict_limit = hint_conflict_limit
+        current_solver.parameters.log_search_progress = log_search_progress
+        return current_solver
+
+    def extract_fixed_core(current_solver, current_status_code):
+        current_core = []
+        if (
+            current_status_code == cp_model.INFEASIBLE
+            and fixed_assumption_refdes
+        ):
+            for literal in (
+                current_solver.sufficient_assumptions_for_infeasibility()
+            ):
+                literal = int(literal)
+                index = literal if literal >= 0 else -literal - 1
+                if index not in fixed_assumption_refdes:
+                    raise ValueError(
+                        "infeasibility core contains unknown assumption"
+                    )
+                current_core.append(fixed_assumption_refdes[index])
+            current_core.sort()
+        return current_core
+
+    core_chain_steps = []
+    released_refdes = set()
+    total_solve_seconds = 0.0
+    core_chain_stop_reason = None
+
+    def write_progress(complete, stop_reason=None):
+        progress = {
+            "candidate_domain_overlap_model_exact": (
+                candidate_domain_overlap_model_exact
+            ),
+            "complete": complete,
+            "core_chain_steps": core_chain_steps,
+            "guide_jsons": guide_paths,
+            "initial_movable_refdes": sorted(movable_refdes),
+            "output_json": str(OUTPUT),
+            "released_refdes": sorted(released_refdes),
+            "total_solve_seconds": total_solve_seconds,
+        }
+        if stop_reason is not None:
+            progress["core_chain_stop_reason"] = stop_reason
+        write_json_atomic(PROGRESS, progress)
+
+    while True:
+        active_fixed_refdes = sorted(
+            set(fixed_assumptions) - released_refdes
+        )
+        solver = new_solver()
+        solve_started = time.perf_counter()
+        status_code = solver.solve(model)
+        solve_seconds = time.perf_counter() - solve_started
+        total_solve_seconds += solve_seconds
+        status = solver.status_name(status_code)
+        fixed_core = extract_fixed_core(solver, status_code)
+        step_result = {
+            "step": len(core_chain_steps),
+            "status": status,
+            "fixed_assumption_count": len(active_fixed_refdes),
+            "fixed_refdes": active_fixed_refdes,
+            "fixed_core": fixed_core,
+            "solve_seconds": solve_seconds,
+            "solver_wall_time": solver.wall_time,
+            "solver_deterministic_time": (
+                solver.response_proto.deterministic_time
+            ),
+            "solver_conflicts": solver.num_conflicts,
+            "solver_branches": solver.num_branches,
+        }
+        core_chain_steps.append(step_result)
+        write_progress(complete=False)
+        print(
+            "\nM336_CORE_CHAIN_STEP "
+            + json.dumps({"core_chain_step": step_result}),
+            flush=True,
+        )
+        if not core_chain:
+            core_chain_stop_reason = "disabled"
+            break
+        if status_code != cp_model.INFEASIBLE:
+            core_chain_stop_reason = status.lower()
+            break
+        if not fixed_core:
+            core_chain_stop_reason = "empty_core"
+            break
+        if len(core_chain_steps) >= core_chain_max_steps:
+            core_chain_stop_reason = "max_steps"
+            break
+        newly_released = set(fixed_core) - released_refdes
+        if not newly_released:
+            raise ValueError("core chain did not release a new assumption")
+        model.clear_assumptions()
+        for refdes in sorted(newly_released):
+            model.add(fixed_assumptions[refdes] == 0)
+        released_refdes.update(newly_released)
+        model.add_assumptions(
+            fixed_assumptions[refdes]
+            for refdes in sorted(set(fixed_assumptions) - released_refdes)
+        )
+        write_progress(complete=False)
 
     selected_sites = None
     legality = None
@@ -551,6 +705,20 @@ def main() -> int:
         "source_json": str(SOURCE),
         "guide_json": guide_paths[0],
         "guide_jsons": guide_paths,
+        "guide_site_distances": guide_site_distances,
+        "fix_guide": fix_guide,
+        "movable_refdes": sorted(movable_refdes),
+        "effective_movable_refdes": sorted(movable_refdes | released_refdes),
+        "initial_fixed_assumption_count": len(fixed_assumption_refdes),
+        "initial_fixed_refdes": sorted(fixed_assumptions),
+        "fixed_assumption_count": len(active_fixed_refdes),
+        "fixed_refdes": active_fixed_refdes,
+        "fixed_core": fixed_core,
+        "core_chain": core_chain,
+        "core_chain_max_steps": core_chain_max_steps,
+        "core_chain_released_refdes": sorted(released_refdes),
+        "core_chain_steps": core_chain_steps,
+        "core_chain_stop_reason": core_chain_stop_reason,
         "grid_mm": args.grid_mm,
         "candidate_limit": candidate_limit,
         "expanded_candidate_limit": expanded_limit,
@@ -568,10 +736,7 @@ def main() -> int:
         "area_epsilon": area_epsilon,
         "rectangle_equivalence_audit": rectangle_audit,
         "candidate_domain_overlap_model_exact": (
-            rectangle_audit["enabled"]
-            and rectangle_audit["cp_false_positive_count"] == 0
-            and rectangle_audit["cp_false_negative_count"] == 0
-            and nonrect_mode == "exact"
+            candidate_domain_overlap_model_exact
         ),
         "ortools_version": metadata.version("ortools"),
         "integer_scale": integer_scale,
@@ -579,6 +744,7 @@ def main() -> int:
         "max_quantization_error": max_quantization_error,
         "build_seconds": build_seconds,
         "solve_seconds": solve_seconds,
+        "total_solve_seconds": total_solve_seconds,
         "solver_wall_time": solver.wall_time,
         "solver_deterministic_time": solver.response_proto.deterministic_time,
         "solver_conflicts": solver.num_conflicts,
@@ -599,7 +765,8 @@ def main() -> int:
         "normalized_score_upper_bound": score,
         "selected_sites": selected_sites,
     }
-    OUTPUT.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    write_json_atomic(OUTPUT, result)
+    write_progress(complete=True, stop_reason=core_chain_stop_reason)
     print(
         json.dumps(
             {
