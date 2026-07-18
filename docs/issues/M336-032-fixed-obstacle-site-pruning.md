@@ -43,8 +43,22 @@ concave-obstacle voids, positive-area overlap removal, and legal boundary
 contact. The M336, anchor/keep-in, and reproducibility suites pass 30/30,
 15/15, and 8/8 tests.
 
+At the exact restored `Q601` endpoint, preprocessing removed 17,210 of 50,425
+full-domain TOP sites and retained 33,215 candidates. It eliminated 84 static
+component pairs and reduced convex-part collision constraints from 620 to 110.
+Six sites from the 93.75% continuation hint were no longer legal against fixed
+obstacles; their nearest same-region remaps moved as far as `23.406886 mm`.
+
+Despite the smaller model, the eight-worker search remained `UNKNOWN` after
+`300.176078 s`, 5,197,905 branches, and 1,677,948 conflicts, with 1,044,364 KiB
+peak RSS. The unpruned comparison had 49,682 retained candidates, 620 part
+constraints, and also timed out. Static pruning is therefore validated, but
+independently remapping invalid hint sites does not recover a coherent packing.
+Neither timeout is evidence of endpoint infeasibility.
+
 ## Remaining Work
 
-- Measure domain and constraint reduction at the exact restored endpoint.
+- Build a coherent intermediate packing instead of remapping each invalid hint
+  independently.
 - Require exact validation and deterministic fixed replay for any candidate.
 - Do not interpret a timed-out pruned model as endpoint infeasibility.
