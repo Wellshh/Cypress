@@ -49,6 +49,7 @@ append evidence rather than replacing prior observations.
 | [M336-039](M336-039-discrete-packing-stalls-at-one-overlap.md) | Critical | Open | Exact heuristic packing reaches one overlap; CP encodings remain unresolved and require quantization audit |
 | [M336-040](M336-040-exact-site-cnf-core-boundary.md) | Critical | Open | Validator-aligned CNF closes K256 and exposes a global K512 repacking boundary |
 | [M336-041](M336-041-quality-guide-k512-infeasible.md) | Critical | Open | Exact CNF proves the quality-guide K512 domain has no legal TOP packing |
+| [M336-042](M336-042-score-guide-global-repacking.md) | Critical | Open | Score-feasible collision-relaxed sites require near-global TOP repacking |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
