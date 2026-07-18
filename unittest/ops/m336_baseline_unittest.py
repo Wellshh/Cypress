@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+from shapely.geometry import box
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -27,10 +28,19 @@ from analyze_quality_bound import (  # noqa: E402
     minimum_interval_span,
 )
 from finalize_assignment import packing_exclusion_reason  # noqa: E402
-from optimize_assignment import solve_interval_assignment  # noqa: E402
+from optimize_assignment import (  # noqa: E402
+    _candidate_domains,
+    solve_interval_assignment,
+)
 from solve_discrete_placement import (  # noqa: E402
+    _capacity_integer_bounds,
     _hpwl_rounding_allowance_units,
+    _selected_assignment_data,
     _score_hpwl_limit,
+)
+from dreamplace.constraints.region_projection import (  # noqa: E402
+    FeasibleDomain,
+    NodeConstraint,
 )
 
 
@@ -88,6 +98,94 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_assignment_search_capacity_scaling_is_conservative(self):
+        area, capacity = _capacity_integer_bounds(
+            {"g": 1.0000001}, {"r": 2.9999999}, 1000000
+        )
+        self.assertEqual(area, {"g": 1000001})
+        self.assertEqual(capacity, {"r": 2999999})
+
+    def test_selected_assignment_data_updates_rows_and_candidates(self):
+        template = {
+            "assignments": [
+                {"subgroup_id": "g", "proposed_region_id": "left"}
+            ],
+            "candidate_diagnostics": [
+                {
+                    "subgroup_id": "g",
+                    "candidates": [
+                        {"region_id": "left", "selected": True},
+                        {"region_id": "right", "selected": False},
+                    ],
+                }
+            ],
+        }
+        output = _selected_assignment_data(
+            template, {"g": "right"}, {"status": "FEASIBLE"}
+        )
+        self.assertEqual(output["schema"], "m336_region_assignment_v4")
+        self.assertEqual(
+            output["assignments"][0]["proposed_region_id"], "right"
+        )
+        self.assertEqual(
+            [row["selected"] for row in output["candidate_diagnostics"][0]["candidates"]],
+            [False, True],
+        )
+
+    def test_candidate_domains_do_not_apply_clearance_twice(self):
+        region = box(0, 0, 10, 10)
+        source_domain = FeasibleDomain.build(
+            region, width=1.0, height=1.0, grid=1.0, clearance=1.0
+        )
+        constraint = NodeConstraint(
+            node_id=0,
+            refdes="U1",
+            side="TOP",
+            group_id="g",
+            subgroup_id="g__top",
+            region_id="top_0",
+            domain=source_domain,
+            target_center=(5.0, 5.0),
+            node_width=1.0,
+            node_height=1.0,
+        )
+        context = SimpleNamespace(
+            constraints=[constraint],
+            geometry=SimpleNamespace(
+                regions={"top_0": SimpleNamespace(side="TOP")}
+            ),
+            regions={"top_0": region},
+            grid=1.0,
+            alignment=SimpleNamespace(scale=1.0),
+        )
+        template = {
+            "assignments": [
+                {
+                    "subgroup_id": "g__top",
+                    "member_refdes": ["U1"],
+                    "placement_side": "TOP",
+                }
+            ],
+            "candidate_diagnostics": [
+                {
+                    "subgroup_id": "g__top",
+                    "member_area_mm2": 1.0,
+                    "candidates": [
+                        {"region_id": "top_0", "feasible": True}
+                    ],
+                }
+            ],
+        }
+        _, _, _, domains = _candidate_domains(
+            context, template, clearance_mm=1.0
+        )
+        self.assertEqual(
+            domains[(0, "top_0")].footprint_local.bounds,
+            source_domain.footprint_local.bounds,
+        )
+        with self.assertRaises(ValueError):
+            _candidate_domains(context, template, clearance_mm=0.5)
+
     def test_score_hpwl_limit_is_a_necessary_combined_quality_gate(self):
         baseline_hpwl = 10.0
         baseline_rsmt = 20.0

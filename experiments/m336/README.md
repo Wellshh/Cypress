@@ -36,3 +36,7 @@ PYTHONPATH="$PWD/install:$PWD" python3.11 \
   --baseline-result results/m336/baseline_warmstart_smoke/baseline/baseline-result.json \
   --grid-mm 0.05 --collision-mode none --minimum-score 1.0
 ```
+
+Add `--optimize-assignment` to couple all eligible subgroup-region choices to
+the component sites. `--ignore-area-capacity` is a diagnostic relaxation only;
+its output cannot be promoted as a legal assignment.

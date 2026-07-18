@@ -131,3 +131,14 @@ still cannot pass (`15817.4414`, upper bound `0.964781`). At `0.05 mm`, interval
 optimization reaches upper bound `1.039878`, but the conservative shared-site
 CP-SAT model proves that fixed assignment infeasible for score `1.0`; see
 `M336-010` and `M336-011`.
+
+## 2026-07-18: Global Discrete Assignment Rejection
+
+- A coupled CP-SAT model searched all 61 same-side subgroup-region options and
+  1,410,293 exact `0.05 mm` sites with shared component coordinates.
+- Removing both overlap and area capacity still returned `INFEASIBLE` for the
+  score-1 HPWL limit: one worker, seed 1000, 226 branches, `65.510 s`.
+- The result is limited to the current grid, regions, sides, and 40 frozen
+  endpoints. Continuous/finer-grid feasibility remains the next audit step.
+- Assignment search also double-applied nonzero clearance; the alternate-domain
+  rebuild now reuses the already buffered runtime footprint exactly once.

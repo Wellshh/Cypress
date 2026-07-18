@@ -165,9 +165,11 @@ state, its `0.1 mm` relaxed HPWL is `17996.2459` versus the manual baseline's
 MILP improves the upper bound to `0.964781`, which is still impossible. At
 `0.05 mm`, an interval relaxation reaches `1.039878`, but a shared-component
 site model proves the selected assignment cannot meet score `1.0` even with
-collisions disabled. See [`M336-007`](issues/M336-007-fixed-assignment-quality-bound.md),
+collisions disabled. A coupled search then rejects all 61 same-side assignment
+options on the `0.05 mm` lattice, even after removing collision and capacity
+constraints. See [`M336-007`](issues/M336-007-fixed-assignment-quality-bound.md),
 [`M336-009`](issues/M336-009-runtime-fixed-endpoint-bound.md), and
-[`M336-010`](issues/M336-010-shared-coordinate-quality-bound.md).
+[`M336-012`](issues/M336-012-global-discrete-quality-infeasibility.md).
 
 ## Validation Plan
 

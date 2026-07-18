@@ -280,7 +280,7 @@ def _candidate_domains(
     }
     domains = {}
     cache = {}
-    clearance = float(clearance_mm) * abs(context.alignment.scale)
+    expected_clearance = float(clearance_mm) * abs(context.alignment.scale)
     for assignment in template["assignments"]:
         group_id = assignment["subgroup_id"]
         diagnostics = candidate_rows[group_id]
@@ -291,6 +291,16 @@ def _candidate_domains(
             if refdes in constraints
         )
         group_nodes[group_id] = members
+        for constraint in members:
+            if not math.isclose(
+                constraint.domain.clearance,
+                expected_clearance,
+                abs_tol=1e-12,
+            ):
+                raise ValueError(
+                    "context clearance differs from assignment search: %s"
+                    % constraint.refdes
+                )
         if ignore_candidate_exclusions:
             candidate_regions = tuple(
                 sorted(
@@ -324,7 +334,9 @@ def _candidate_domains(
                             width=constraint.domain.width,
                             height=constraint.domain.height,
                             grid=context.grid,
-                            clearance=clearance,
+                            # The context domain already stores the effective
+                            # clearance-buffered footprint.
+                            clearance=0.0,
                             footprint_local=constraint.domain.footprint_local,
                         )
                     region_domains[(constraint.node_id, region_id)] = cache[key]

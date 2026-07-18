@@ -1489,9 +1489,12 @@ class AnchorKeepInContext:
             "regions": region_stats,
         }
 
-    def exact_report(self, pos, placedb):
+    def exact_report(self, pos, placedb, constraints=None):
+        active_constraints = (
+            self.constraints if constraints is None else tuple(constraints)
+        )
         constrained = []
-        for constraint in self.constraints:
+        for constraint in active_constraints:
             center = (
                 float(pos[constraint.node_id].detach().cpu()) + constraint.node_width / 2,
                 float(pos[self.num_nodes + constraint.node_id].detach().cpu())
@@ -1515,7 +1518,9 @@ class AnchorKeepInContext:
 
         fixed = []
         names = [_decode_name(name) for name in placedb.node_names]
-        constrained_ids = {constraint.node_id for constraint in self.constraints}
+        constrained_ids = {
+            constraint.node_id for constraint in active_constraints
+        }
         fixed_ids = set(range(placedb.num_physical_nodes)) - constrained_ids
         for node_id in sorted(fixed_ids):
             refdes = names[node_id]
