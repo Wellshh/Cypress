@@ -27,20 +27,12 @@ import torch
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
-INPUT_FILES = (
-    "experiments/m336/input/pcb_geometry_keepin.json",
-    "experiments/m336/input/m336_clusters.json",
-    "results/m336/bookshelf/m336.aux",
-    "results/m336/bookshelf/m336.nodes",
-    "results/m336/bookshelf/m336.nets",
-    "results/m336/bookshelf/m336.pl",
-    "results/m336/bookshelf/m336.scl",
-    "results/m336/bookshelf/manifest.json",
-)
 IMPLEMENTATION_FILES = (
     "dreamplace/BasicPlace.py",
     "dreamplace/NonLinearPlace.py",
     "dreamplace/PlaceObj.py",
+    "dreamplace/Placer.py",
+    "dreamplace/params.json",
     "dreamplace/constraints/anchor_keepin.py",
     "dreamplace/constraints/pcb_geometry.py",
     "dreamplace/constraints/region_assignment.py",
@@ -49,10 +41,12 @@ IMPLEMENTATION_FILES = (
     "dreamplace/ops/anchor_keepin/anchor_keepin.py",
     "experiments/m336/scripts/finalize_assignment.py",
     "experiments/m336/scripts/generate_bookshelf.py",
+    "experiments/m336/scripts/prepare_baseline.py",
     "experiments/m336/scripts/run_matrix.py",
     "install/dreamplace/BasicPlace.py",
     "install/dreamplace/NonLinearPlace.py",
     "install/dreamplace/PlaceObj.py",
+    "install/dreamplace/Placer.py",
     "install/dreamplace/constraints/anchor_keepin.py",
     "install/dreamplace/constraints/pcb_geometry.py",
     "install/dreamplace/constraints/region_assignment.py",
@@ -204,17 +198,46 @@ def runtime_environment():
     return environment
 
 
-def input_hashes(assignment):
-    return hash_paths((*INPUT_FILES, assignment))
+def input_hashes(args):
+    bookshelf_files = (
+        args.bookshelf_dir / name
+        for name in (
+            "m336.aux",
+            "m336.nodes",
+            "m336.nets",
+            "m336.pl",
+            "m336.baseline.aux",
+            "m336.baseline.pl",
+            "m336.scl",
+            "manifest.json",
+            "baseline_manifest.json",
+        )
+    )
+    return hash_paths(
+        (
+            args.baseline_geometry,
+            REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json",
+            REPO_ROOT / "experiments/m336/input/m336_clusters.json",
+            args.assignment,
+            *bookshelf_files,
+        )
+    )
 
 
 def constraint_config(run_dir, spec, assignment, grid_mm, clearance_mm):
+    cluster_path = REPO_ROOT / "experiments/m336/input/m336_clusters.json"
+    cluster_manifest = json.loads(cluster_path.read_text())
     return {
         "schema": "m336_anchor_keepin_config_v1",
         "enabled": True,
-        "geometry_file": "experiments/m336/input/pcb_geometry_keepin.json",
-        "cluster_file": "experiments/m336/input/m336_clusters.json",
-        "region_assignment_file": str(assignment.relative_to(REPO_ROOT)),
+        "geometry_file": str(
+            (REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json").resolve()
+        ),
+        "cluster_file": str(cluster_path.resolve()),
+        "region_assignment_file": str(Path(assignment).resolve()),
+        "fixed_components": sorted(
+            row["refdes"] for row in cluster_manifest.get("unclustered", [])
+        ),
         "allow_region_reassignment": False,
         "feature_flags": {
             "enable_anchor_loss": spec["anchor_loss"],
@@ -230,7 +253,7 @@ def constraint_config(run_dir, spec, assignment, grid_mm, clearance_mm):
             "no_board_bbox_fallback": True,
         },
         "reporting": {
-            "output_dir": str((run_dir / "constraints").relative_to(REPO_ROOT)),
+            "output_dir": str((run_dir / "constraints").resolve()),
             "area_epsilon_mm2": 1e-5,
             "emit_per_group_metrics": True,
             "emit_exact_legality_report": True,
@@ -249,9 +272,11 @@ def placement_config(
     anchor_weight,
     grid_mm,
     clearance_mm,
+    aux_input,
+    initial_placement=None,
 ):
     config = {
-        "aux_input": "results/m336/bookshelf/m336.aux",
+        "aux_input": str(Path(aux_input).resolve()),
         "gpu": int(gpu),
         "gpu_id": 0,
         "num_bins_x": 64,
@@ -274,7 +299,7 @@ def placement_config(
         "net_crossing_weight": 0.0,
         "gamma": 4.0,
         "random_seed": seed,
-        "result_dir": str(run_dir.relative_to(REPO_ROOT)),
+        "result_dir": str(run_dir.resolve()),
         "scale_factor": 1.0,
         "ignore_net_degree": 100,
         "enable_fillers": 0,
@@ -285,18 +310,22 @@ def placement_config(
         "stop_overflow": 1.0,
         "dtype": "float32",
         "plot_flag": 0,
-        "random_center_init_flag": int(spec["integrated_context"]),
+        "random_center_init_flag": (
+            0 if initial_placement else int(spec["integrated_context"])
+        ),
         "sort_nets_by_degree": 0,
         "num_threads": 8,
         "deterministic_flag": 1,
         "enable_rotation": 0,
+        "initial_placement_file": (
+            str(Path(initial_placement).resolve()) if initial_placement else ""
+        ),
+        "initial_placement_strict": True,
     }
     if spec["integrated_context"]:
         config.update(
             {
-                "anchor_keepin_config": str(
-                    constraint_path.relative_to(REPO_ROOT)
-                ),
+                "anchor_keepin_config": str(constraint_path.resolve()),
                 "anchor_keepin_flag": True,
                 "anchor_loss_flag": spec["anchor_loss"],
                 "anchor_loss_weight_scale": anchor_weight,
@@ -308,6 +337,9 @@ def placement_config(
                 "freeze_anchor_nodes": spec["freeze_anchors"],
                 "allow_region_reassignment": False,
                 "exact_repair_flag": spec["repair"],
+                "anchor_keepin_initialization": (
+                    "current" if initial_placement else "anchor"
+                ),
             }
         )
     return config
@@ -326,7 +358,9 @@ def parse_placement(path):
     return positions
 
 
-def evaluate_feature_off(config, constraint_path, placement_path, output_path):
+def evaluate_feature_off(
+    config, constraint_path, placement_path, output_path, database_aux=None
+):
     install_path = str(REPO_ROOT / "install")
     if install_path not in sys.path:
         sys.path.insert(0, install_path)
@@ -335,7 +369,9 @@ def evaluate_feature_off(config, constraint_path, placement_path, output_path):
 
     params = Params.Params()
     params.update(config)
-    params.anchor_keepin_config = str(constraint_path.relative_to(REPO_ROOT))
+    if database_aux is not None:
+        params.aux_input = str(Path(database_aux).resolve())
+    params.anchor_keepin_config = str(Path(constraint_path).resolve())
     params.anchor_keepin_flag = True
     params.anchor_loss_flag = False
     params.keepin_soft_loss_flag = False
@@ -457,6 +493,110 @@ def legality_summary(legality):
     }
 
 
+def score_manual_baseline(args):
+    """Score the manual placement without optimizing or refitting geometry."""
+    run_dir = args.baseline_output_dir
+    run_dir.mkdir(parents=True, exist_ok=True)
+    constraint_path = run_dir / "anchor_keepin.json"
+    config_path = run_dir / "placement.json"
+    write_json(
+        constraint_path,
+        constraint_config(
+            run_dir,
+            EXPERIMENTS["E0"],
+            args.assignment,
+            args.grid_mm,
+            args.clearance_mm,
+        ),
+    )
+    config = placement_config(
+        run_dir,
+        constraint_path,
+        EXPERIMENTS["E0"],
+        args.seeds[0],
+        0,
+        args.gpu,
+        args.anchor_weight,
+        args.grid_mm,
+        args.clearance_mm,
+        args.bookshelf_dir / "m336.aux",
+    )
+    config.update(
+        {
+            "aux_input": str(args.baseline_aux),
+            "global_place_flag": 0,
+            "evaluate_pl": 0,
+            "plot_flag": 0,
+            "random_center_init_flag": 0,
+        }
+    )
+    write_json(config_path, config)
+    command = [args.python, str(args.placer), str(config_path)]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(REPO_ROOT / "install")
+    environment["PYTHONFAULTHANDLER"] = "1"
+    started = time.perf_counter()
+    completed = subprocess.run(
+        command,
+        cwd=run_dir,
+        env=environment,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    runtime = time.perf_counter() - started
+    (run_dir / "process.log").write_text(completed.stdout)
+    if completed.returncode:
+        raise RuntimeError(
+            "manual baseline scoring failed with exit code %d; see %s"
+            % (completed.returncode, run_dir / "process.log")
+        )
+
+    placement_dir = run_dir / "m336.baseline"
+    log_path = placement_dir / "DREAMPlace.log"
+    ppa = parse_final_ppa(log_path.read_text())
+    legality_path = run_dir / "constraints" / "legality.json"
+    legality = evaluate_feature_off(
+        config,
+        constraint_path,
+        args.baseline_pl,
+        legality_path,
+        database_aux=args.bookshelf_dir / "m336.aux",
+    )
+    site_mm = float(args.baseline_manifest["site_mm"])
+    result = {
+        "schema": "m336_manual_baseline_result_v1",
+        "name": "manual_pcb_geometry",
+        "git_sha": git_sha(),
+        "command": command,
+        "runtime_seconds": runtime,
+        "input_sha256": args.baseline_manifest["sha256"],
+        "compatibility": args.baseline_manifest["compatibility"],
+        "pin_alignment": args.baseline_manifest["pin_alignment"],
+        "metrics": {
+            "hpwl": float(ppa["hpwl"]),
+            "hpwl_mm": float(ppa["hpwl"]) * site_mm,
+            "rsmt": float(ppa["rsmt"]),
+            "rsmt_mm": float(ppa["rsmt"]) * site_mm,
+            "direct_json_hpwl_mm": float(
+                args.baseline_manifest["direct_hpwl_mm"]["baseline"]
+            ),
+            "site_mm": site_mm,
+        },
+        "legality": legality_summary(legality),
+        "artifacts": {
+            "config": repo_path(config_path),
+            "constraint_config": repo_path(constraint_path),
+            "legality": repo_path(legality_path),
+            "log": repo_path(log_path),
+            "placement": repo_path(args.baseline_pl),
+            "manifest": repo_path(args.bookshelf_dir / "baseline_manifest.json"),
+        },
+    }
+    write_json(run_dir / "baseline-result.json", result)
+    return result
+
+
 def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
     spec = EXPERIMENTS[experiment_id]
     output_dir = output_dir or args.output_dir
@@ -509,6 +649,9 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
                     "movable_non_anchor_constraint_count"
                 ],
                 "frozen_anchor_count": preflight["frozen_anchor_count"],
+                "frozen_fixed_obstacle_count": preflight.get(
+                    "frozen_fixed_obstacle_count", 0
+                ),
                 "infeasible_domain_count": len(preflight["infeasible_domains"]),
                 "alignment": preflight["alignment"],
             }
@@ -519,10 +662,18 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         repair_path = run_dir / "constraints" / "repair.json"
         if repair_path.exists():
             result["artifacts"]["repair"] = repo_path(repair_path)
+        result["manual_baseline_comparison"] = compare_with_manual_baseline(
+            result["metrics"], args.manual_baseline
+        )
         write_json(result_path, result)
         return result
     if args.resume and result_path.exists():
-        return json.loads(result_path.read_text())
+        result = json.loads(result_path.read_text())
+        result["manual_baseline_comparison"] = compare_with_manual_baseline(
+            result["metrics"], args.manual_baseline
+        )
+        write_json(result_path, result)
+        return result
     run_dir.mkdir(parents=True, exist_ok=True)
     constraint_path = run_dir / "anchor_keepin.json"
     config_path = run_dir / "placement.json"
@@ -542,6 +693,8 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         anchor_weight,
         args.grid_mm,
         args.clearance_mm,
+        args.bookshelf_dir / "m336.aux",
+        initial_placement=args.baseline_pl,
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -551,7 +704,7 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
     started = time.perf_counter()
     completed = subprocess.run(
         command,
-        cwd=REPO_ROOT,
+        cwd=run_dir,
         env=environment,
         text=True,
         stdout=subprocess.PIPE,
@@ -604,6 +757,9 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
                 "movable_non_anchor_constraint_count"
             ],
             "frozen_anchor_count": preflight["frozen_anchor_count"],
+            "frozen_fixed_obstacle_count": preflight.get(
+                "frozen_fixed_obstacle_count", 0
+            ),
             "infeasible_domain_count": len(preflight["infeasible_domains"]),
             "alignment": preflight["alignment"],
         },
@@ -638,6 +794,10 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         "warnings": [
             "Source declares 27 clusters but enumerates 25 rows/125 unique members."
         ],
+        "manual_baseline_comparison": compare_with_manual_baseline(
+            {"hpwl": float(ppa["hpwl"]), "rsmt": float(ppa["rsmt"])},
+            args.manual_baseline,
+        ),
     }
     repair_path = run_dir / "constraints" / "repair.json"
     if repair_path.exists():
@@ -647,7 +807,23 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
     return result
 
 
-def aggregate(results):
+def compare_with_manual_baseline(metrics, baseline):
+    baseline_metrics = baseline["metrics"]
+    hpwl_ratio = float(metrics["hpwl"]) / baseline_metrics["hpwl"]
+    rsmt_ratio = float(metrics["rsmt"]) / baseline_metrics["rsmt"]
+    return {
+        "hpwl_ratio": hpwl_ratio,
+        "hpwl_regression": hpwl_ratio - 1.0,
+        "rsmt_ratio": rsmt_ratio,
+        "rsmt_regression": rsmt_ratio - 1.0,
+        "normalized_quality_score": 2.0 / (hpwl_ratio + rsmt_ratio),
+        "baseline_quality_score": 1.0,
+        "hpwl_no_worse": hpwl_ratio <= 1.0,
+        "rsmt_no_worse": rsmt_ratio <= 1.0,
+    }
+
+
+def aggregate(results, baseline=None):
     rows = {}
     for experiment_id in DEFAULT_EXPERIMENTS:
         selected = [row for row in results if row["experiment_id"] == experiment_id]
@@ -656,6 +832,7 @@ def aggregate(results):
         rows[experiment_id] = {
             "run_count": len(selected),
             "hpwl_mean": statistics.mean(row["metrics"]["hpwl"] for row in selected),
+            "rsmt_mean": statistics.mean(row["metrics"]["rsmt"] for row in selected),
             "runtime_seconds_mean": statistics.mean(
                 row["runtime_seconds"] for row in selected
             ),
@@ -688,6 +865,14 @@ def aggregate(results):
             "runtime_ratio": rows["E4"]["runtime_seconds_mean"]
             / rows["E0"]["runtime_seconds_mean"],
         }
+    if baseline is not None and "E4" in rows:
+        comparisons["e4_vs_manual_baseline"] = compare_with_manual_baseline(
+            {
+                "hpwl": rows["E4"]["hpwl_mean"],
+                "rsmt": rows["E4"]["rsmt_mean"],
+            },
+            baseline,
+        )
     return rows, comparisons
 
 
@@ -777,6 +962,11 @@ def acceptance_summary(results, aggregate_rows, comparisons, validation=None):
     input_resolution = bool(results) and all(
         row.get("preflight", {}).get("resolved_member_count") == 125
         and row.get("preflight", {}).get("infeasible_domain_count") == 0
+        and row.get("preflight", {}).get("frozen_fixed_obstacle_count") == 15
+        and (
+            not EXPERIMENTS[row["experiment_id"]]["integrated_context"]
+            or row.get("preflight", {}).get("frozen_anchor_count") == 25
+        )
         for row in results
     )
     required = {
@@ -789,6 +979,12 @@ def acceptance_summary(results, aggregate_rows, comparisons, validation=None):
         "e4_zero_overlap": bool(e4_runs)
         and all(row["legality"]["overlap_pair_count"] == 0 for row in e4_runs),
         "all_input_refdes_resolved": input_resolution,
+        "e4_score_at_least_manual_baseline": bool(e4_runs)
+        and all(
+            row["manual_baseline_comparison"]["normalized_quality_score"]
+            >= row["manual_baseline_comparison"]["baseline_quality_score"]
+            for row in e4_runs
+        ),
         "feature_off_smoke": (
             validation.get("feature_off_smoke") if validation else None
         ),
@@ -818,6 +1014,22 @@ def acceptance_summary(results, aggregate_rows, comparisons, validation=None):
                 <= 2.0,
             }
         )
+    if "e4_vs_manual_baseline" in comparisons:
+        baseline_comparison = comparisons["e4_vs_manual_baseline"]
+        goals.update(
+            {
+                "hpwl_no_worse_than_manual_baseline": baseline_comparison[
+                    "hpwl_no_worse"
+                ],
+                "rsmt_no_worse_than_manual_baseline": baseline_comparison[
+                    "rsmt_no_worse"
+                ],
+                "normalized_score_at_least_manual_baseline": baseline_comparison[
+                    "normalized_quality_score"
+                ]
+                >= baseline_comparison["baseline_quality_score"],
+            }
+        )
     return {"required": required, "goals": goals}
 
 
@@ -835,6 +1047,20 @@ def assignment_diagnostics(path):
 def optional_json(path):
     path = Path(path)
     return json.loads(path.read_text()) if path.exists() else None
+
+
+def prepare_manual_baseline_assets(
+    source_path, baseline_path, cluster_path, bookshelf_dir, site_mm
+):
+    try:
+        from experiments.m336.scripts.prepare_baseline import prepare_baseline
+        from experiments.m336.scripts.generate_bookshelf import generate
+    except ModuleNotFoundError:
+        from prepare_baseline import prepare_baseline
+        from generate_bookshelf import generate
+
+    generate(source_path, cluster_path, bookshelf_dir, site_mm)
+    return prepare_baseline(source_path, baseline_path, bookshelf_dir)
 
 
 def _status(value):
@@ -871,10 +1097,35 @@ def render_report(summary):
     ]
     for path, digest in sorted(summary["input_sha256"].items()):
         lines.append("| `%s` | `%s` |" % (path, digest))
+    baseline = summary["manual_baseline"]
+    baseline_metrics = baseline["metrics"]
+    baseline_legality = baseline["legality"]
     lines.extend(
         [
             "",
             "Implementation-file hashes and the complete dirty-path inventory are in `summary.json`.",
+            "",
+            "## Manual Baseline",
+            "",
+            "- Cypress HPWL/RSMT: `%.3f` / `%.3f` (`%.4f mm` / `%.4f mm`)."
+            % (
+                baseline_metrics["hpwl"],
+                baseline_metrics["rsmt"],
+                baseline_metrics["hpwl_mm"],
+                baseline_metrics["rsmt_mm"],
+            ),
+            "- Independent JSON-pin HPWL: `%.4f mm`; Bookshelf pre-quantization pin residual: `%.3g mm`."
+            % (
+                baseline_metrics["direct_json_hpwl_mm"],
+                baseline["pin_alignment"]["max_residual_mm"],
+            ),
+            "- Exact legality: `%d/%d` contained, `%d` keep-in violations, `%d` overlaps."
+            % (
+                baseline_legality["fully_contained_components"],
+                baseline_legality["constrained_components"],
+                baseline_legality["keepin_violation_count"],
+                baseline_legality["overlap_pair_count"],
+            ),
             "",
             "## Commands",
             "",
@@ -889,19 +1140,21 @@ def render_report(summary):
     lines.extend(["```", "", "## Run Results", ""])
     lines.extend(
         [
-            "| Run | Seed | HPWL | Mean anchor mm | P90 mm | Keep-in | Overlaps | Runtime s |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|",
+            "| Run | Seed | HPWL | RSMT | Score | Mean anchor mm | P90 mm | Keep-in | Overlaps | Runtime s |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in sorted(
         summary["runs"], key=lambda item: (item["experiment_id"], item["seed"])
     ):
         lines.append(
-            "| %s | %d | %.3f | %.3f | %.3f | %d | %d | %.2f |"
+            "| %s | %d | %.3f | %.3f | %.4f | %.3f | %.3f | %d | %d | %.2f |"
             % (
                 row["experiment_id"],
                 row["seed"],
                 row["metrics"]["hpwl"],
+                row["metrics"]["rsmt"],
+                row["manual_baseline_comparison"]["normalized_quality_score"],
                 row["metrics"]["anchor_distance_mm"]["mean"],
                 row["metrics"]["anchor_distance_mm"]["p90"],
                 row["legality"]["keepin_violation_count"],
@@ -914,17 +1167,18 @@ def render_report(summary):
             "",
             "## Aggregate",
             "",
-            "| Experiment | Runs | HPWL | Mean anchor mm | P90 mm | Max violations | Max overlaps |",
-            "|---|---:|---:|---:|---:|---:|---:|",
+            "| Experiment | Runs | HPWL | RSMT | Mean anchor mm | P90 mm | Max violations | Max overlaps |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for experiment_id, row in aggregate_rows.items():
         lines.append(
-            "| %s | %d | %.3f | %.3f | %.3f | %d | %d |"
+            "| %s | %d | %.3f | %.3f | %.3f | %.3f | %d | %d |"
             % (
                 experiment_id,
                 row["run_count"],
                 row["hpwl_mean"],
+                row["rsmt_mean"],
                 row["anchor_distance_mm_mean"],
                 row["anchor_distance_mm_p90_mean"],
                 row["keepin_violation_count_max"],
@@ -976,6 +1230,20 @@ def render_report(summary):
             % (
                 _status(summary["acceptance"]["goals"]["runtime_at_most_2x"]),
                 comparison["runtime_ratio"],
+            )
+        )
+    if "e4_vs_manual_baseline" in comparisons:
+        comparison = comparisons["e4_vs_manual_baseline"]
+        lines.append(
+            "- `%s` E4 vs manual HPWL: `%.2f%%`; RSMT: `%.2f%%`; normalized score: `%.4f` (baseline 1.0)."
+            % (
+                _status(
+                    comparison["hpwl_no_worse"]
+                    and comparison["rsmt_no_worse"]
+                ),
+                100 * comparison["hpwl_regression"],
+                100 * comparison["rsmt_regression"],
+                comparison["normalized_quality_score"],
             )
         )
     for name, value in summary["acceptance"]["required"].items():
@@ -1067,15 +1335,13 @@ def render_report(summary):
             "",
             "## Findings",
             "",
-            "- E0 uses the supplied physical placement with all new flags off; exact constraints are evaluated only after placement.",
-            "- E2 uses keep-in-aware initialization without anchor targets; E3 adds projected-anchor initialization and anchor loss.",
+            "- The manual placement is scored without optimization and is used as the common E0-E4 warm start; it is a quality reference, not a legal fallback.",
+            "- E2 uses keep-in-aware initialization near current manual positions without anchor loss; E3 adds projected-anchor loss.",
             "- Exact comparisons use `1e-5 mm^2` area tolerance for float32 boundary contact and validate 40 non-constrained physical obstacles.",
         ]
     )
     if len([row for row in summary["runs"] if row["experiment_id"] == "E4"]) == 3:
-        lines.append(
-            "- E4 repair removes all exact overlaps in all three seeds with an HPWL improvement relative to E0."
-        )
+        lines.append("- E4 exact legality was evaluated for all three seeds.")
     lines.extend(
         [
             "- The soft keep-in gradient is zero after mandatory pre-objective hard projection; it is currently a diagnostic no-op, not evidence of stabilization.",
@@ -1145,6 +1411,18 @@ def reproduction_command(args, weights=None):
         format(args.grid_mm, "g"),
         "--clearance-mm",
         format(args.clearance_mm, "g"),
+        "--site-mm",
+        format(args.site_mm, "g"),
+        "--assignment",
+        repo_path(args.assignment),
+        "--baseline-geometry",
+        repo_path(args.baseline_geometry),
+        "--bookshelf-dir",
+        repo_path(args.bookshelf_dir),
+        "--baseline-output-dir",
+        repo_path(args.baseline_output_dir),
+        "--placer",
+        repo_path(args.placer),
     ]
     if weights:
         command.extend(
@@ -1181,6 +1459,19 @@ def main():
     parser.add_argument(
         "--output-dir", type=Path, default=REPO_ROOT / "results/m336/runs"
     )
+    parser.add_argument(
+        "--baseline-geometry", type=Path, default=REPO_ROOT / "pcb_geometry.json"
+    )
+    parser.add_argument(
+        "--bookshelf-dir",
+        type=Path,
+        default=REPO_ROOT / "results/m336/bookshelf",
+    )
+    parser.add_argument(
+        "--baseline-output-dir",
+        type=Path,
+        default=REPO_ROOT / "results/m336/baseline",
+    )
     parser.add_argument("--anchor-weight", type=float, default=1.0)
     parser.add_argument("--anchor-weight-sweep", nargs="+", type=float)
     parser.add_argument(
@@ -1190,6 +1481,7 @@ def main():
     )
     parser.add_argument("--grid-mm", type=float, default=0.1)
     parser.add_argument("--clearance-mm", type=float, default=0.0)
+    parser.add_argument("--site-mm", type=float, default=0.05)
     parser.add_argument("--summary-path", type=Path)
     parser.add_argument("--report-path", type=Path)
     parser.add_argument(
@@ -1202,23 +1494,45 @@ def main():
     args = parser.parse_args()
     args.output_dir = args.output_dir.resolve()
     args.sweep_output_dir = args.sweep_output_dir.resolve()
+    args.baseline_geometry = args.baseline_geometry.resolve()
+    args.bookshelf_dir = args.bookshelf_dir.resolve()
+    args.baseline_output_dir = args.baseline_output_dir.resolve()
     args.assignment = args.assignment.resolve()
     args.placer = args.placer.resolve()
     invalid = sorted(set(args.experiments) - set(EXPERIMENTS))
     if invalid:
         parser.error("unknown experiments: %s" % invalid)
-    if not args.assignment.exists() or not args.placer.exists():
-        parser.error("assignment and installed placer must exist")
-    if args.anchor_weight <= 0 or args.grid_mm <= 0 or args.clearance_mm < 0:
+    if (
+        not args.assignment.exists()
+        or not args.placer.exists()
+        or not args.baseline_geometry.exists()
+    ):
+        parser.error("assignment, installed placer, and baseline geometry must exist")
+    if (
+        args.anchor_weight <= 0
+        or args.grid_mm <= 0
+        or args.clearance_mm < 0
+        or args.site_mm <= 0
+    ):
         parser.error("weights/grid must be positive and clearance non-negative")
     if args.anchor_weight_sweep and any(
         weight <= 0 for weight in args.anchor_weight_sweep
     ):
         parser.error("all sweep weights must be positive")
 
+    args.baseline_manifest = prepare_manual_baseline_assets(
+        REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json",
+        args.baseline_geometry,
+        REPO_ROOT / "experiments/m336/input/m336_clusters.json",
+        args.bookshelf_dir,
+        args.site_mm,
+    )
+    args.baseline_aux = (args.bookshelf_dir / "m336.baseline.aux").resolve()
+    args.baseline_pl = (args.bookshelf_dir / "m336.baseline.pl").resolve()
     args.source_identity = source_state()
-    args.input_identity = input_hashes(args.assignment)
+    args.input_identity = input_hashes(args)
     args.environment_identity = runtime_environment()
+    args.manual_baseline = score_manual_baseline(args)
 
     results = []
     invocation = " ".join([sys.executable, *sys.argv])
@@ -1257,6 +1571,7 @@ def main():
             "keepin_clearance_mm": args.clearance_mm,
             "invocation": invocation,
             "reproduction_command": reproduction_command(args, weights),
+            "manual_baseline": args.manual_baseline,
             "runs": results,
             "aggregate": aggregate_weight_sweep(results),
         }
@@ -1266,14 +1581,14 @@ def main():
         report_path = args.report_path or (
             REPO_ROOT / "results/m336/weight_sweep/REPORT.md"
         )
-        report = render_weight_sweep_report(summary)
+        report_renderer = render_weight_sweep_report
     else:
         for experiment_id in args.experiments:
             for seed in args.seeds:
                 print("running %s seed %d" % (experiment_id, seed), flush=True)
                 results.append(run_one(args, experiment_id, seed))
 
-        aggregate_rows, comparisons = aggregate(results)
+        aggregate_rows, comparisons = aggregate(results, args.manual_baseline)
         sweep_path = REPO_ROOT / "results/m336/weight_sweep/summary.json"
         sweep_summary = optional_json(sweep_path)
         summary = {
@@ -1290,6 +1605,7 @@ def main():
             "device": results[0]["device"] if results else "unknown",
             "invocation": invocation,
             "reproduction_command": reproduction_command(args),
+            "manual_baseline": args.manual_baseline,
             "runs": results,
             "aggregate": aggregate_rows,
             "comparisons": comparisons,
@@ -1309,11 +1625,12 @@ def main():
             }
         summary_path = args.summary_path or REPO_ROOT / "results/m336/summary.json"
         report_path = args.report_path or REPO_ROOT / "results/m336/REPORT.md"
-        report = render_report(summary)
+        report_renderer = render_report
 
     summary_path = Path(summary_path).resolve()
     report_path = Path(report_path).resolve()
     write_json(summary_path, summary)
+    report = report_renderer(summary)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(report)
     print("wrote %s and %s" % (summary_path, report_path))

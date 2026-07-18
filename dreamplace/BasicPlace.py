@@ -49,6 +49,86 @@ import dreamplace.ops.independent_set_matching.independent_set_matching as indep
 import pdb
 
 
+def load_initial_placement(path, placedb, position, strict=True):
+    """Load physical lower-left coordinates from a Bookshelf placement."""
+    path = os.path.abspath(os.path.expanduser(str(path)))
+    if not os.path.isfile(path):
+        raise FileNotFoundError("initial placement does not exist: %s" % path)
+
+    names = [
+        name.decode("utf-8") if isinstance(name, bytes) else str(name)
+        for name in placedb.node_names[: placedb.num_physical_nodes]
+    ]
+    expected = {name: node_id for node_id, name in enumerate(names)}
+    if len(expected) != len(names):
+        raise ValueError("placement database contains duplicate physical node names")
+    orientations = [
+        orient.decode("utf-8") if isinstance(orient, bytes) else str(orient)
+        for orient in placedb.node_orient[: placedb.num_physical_nodes]
+    ]
+    loaded = {}
+    unknown = []
+    with open(path) as stream:
+        for line_number, line in enumerate(stream, start=1):
+            fields = line.split()
+            if not fields or fields[0].startswith("#") or fields[0] == "UCLA":
+                continue
+            name = fields[0]
+            if name not in expected:
+                unknown.append(name)
+                continue
+            if name in loaded:
+                raise ValueError(
+                    "duplicate node %s in initial placement at line %d"
+                    % (name, line_number)
+                )
+            if len(fields) < 3:
+                raise ValueError(
+                    "invalid initial placement row at line %d: %s"
+                    % (line_number, line.rstrip())
+                )
+            try:
+                x, y = float(fields[1]), float(fields[2])
+            except ValueError as error:
+                raise ValueError(
+                    "invalid coordinates for %s at line %d" % (name, line_number)
+                ) from error
+            if not np.isfinite(x) or not np.isfinite(y):
+                raise ValueError("non-finite initial coordinates for %s" % name)
+            orientation = None
+            if ":" in fields:
+                marker = fields.index(":")
+                if marker + 1 < len(fields):
+                    orientation = fields[marker + 1]
+            node_id = expected[name]
+            if strict and orientation is None:
+                raise ValueError(
+                    "initial orientation missing for %s at line %d"
+                    % (name, line_number)
+                )
+            if orientation and orientation != orientations[node_id]:
+                raise ValueError(
+                    "initial orientation mismatch for %s: %s != %s"
+                    % (name, orientation, orientations[node_id])
+                )
+            loaded[name] = (x, y)
+
+    missing = sorted(set(expected) - set(loaded))
+    if strict and (missing or unknown):
+        raise ValueError(
+            "initial placement identity mismatch: missing=%s unknown=%s"
+            % (missing, sorted(set(unknown)))
+        )
+    for name, (x, y) in loaded.items():
+        node_id = expected[name]
+        position[node_id] = x
+        position[placedb.num_nodes + node_id] = y
+    logging.info(
+        "loaded %d physical nodes from initial placement %s", len(loaded), path
+    )
+    return {"loaded_node_count": len(loaded), "missing": missing, "unknown": unknown}
+
+
 @dataclass
 class FloorplanInfo:
     xl: float
@@ -464,6 +544,14 @@ class BasicPlace(nn.Module):
                     size=placedb.num_movable_nodes,
                 )
                 - placedb.node_size_y[0 : placedb.num_movable_nodes] / 2
+            )
+
+        if getattr(params, "initial_placement_file", ""):
+            load_initial_placement(
+                params.initial_placement_file,
+                placedb,
+                self.init_pos,
+                strict=bool(getattr(params, "initial_placement_strict", True)),
             )
 
         if placedb.num_filler_nodes:  # uniformly distribute filler cells in the layout

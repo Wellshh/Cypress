@@ -17,6 +17,7 @@ thirdparty/flute
 bin
 tuner_logs/
 *.json
+!pcb_geometry.json
 !experiments/m336/configs/*.json
 !experiments/m336/input/*.json
 !experiments/m336/schemas/*.json

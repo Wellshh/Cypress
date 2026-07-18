@@ -1,23 +1,77 @@
 import os
 import random
+import subprocess
 import sys
+import tempfile
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 import torch
 
-sys.path.append(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
+sys.path.append(REPO_ROOT)
 
 from dreamplace.NesterovAcceleratedGradientOptimizer import (
     NesterovAcceleratedGradientOptimizer,
 )
 from dreamplace.Placer import seed_all
+from dreamplace.BasicPlace import load_initial_placement
 from tuner.tuner_worker import AutoDMPWorker
 
 
 class ReproducibilityTest(unittest.TestCase):
+    def test_importing_placer_does_not_create_a_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = os.pathsep.join(
+                filter(
+                    None,
+                    [
+                        os.path.join(REPO_ROOT, "install"),
+                        environment.get("PYTHONPATH"),
+                    ],
+                )
+            )
+            subprocess.run(
+                [sys.executable, "-c", "import dreamplace.Placer"],
+                cwd=directory,
+                env=environment,
+                check=True,
+            )
+            self.assertFalse(os.path.exists(os.path.join(directory, "DREAMPlace.log")))
+
+    def test_initial_placement_is_strict_and_preserves_float_coordinates(self):
+        placedb = SimpleNamespace(
+            node_names=np.array([b"A", b"B"]),
+            node_orient=np.array([b"N", b"FN"]),
+            num_physical_nodes=2,
+            num_nodes=2,
+        )
+        position = np.zeros(4, dtype=np.float32)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pl") as stream:
+            stream.write(
+                "UCLA pl 1.0\nA 1.125 2.25 : N\nB 3.375 4.5 : FN\n"
+            )
+            stream.flush()
+            report = load_initial_placement(stream.name, placedb, position)
+        self.assertEqual(report["loaded_node_count"], 2)
+        np.testing.assert_allclose(position, [1.125, 3.375, 2.25, 4.5])
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pl") as stream:
+            stream.write("UCLA pl 1.0\nA 1 2 : N\n")
+            stream.flush()
+            with self.assertRaises(ValueError):
+                load_initial_placement(stream.name, placedb, position)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pl") as stream:
+            stream.write("UCLA pl 1.0\nA 1 2\nB 3 4 : FN\n")
+            stream.flush()
+            with self.assertRaises(ValueError):
+                load_initial_placement(stream.name, placedb, position)
+
     def test_seed_all_resets_python_numpy_and_torch(self):
         seed_all(17, deterministic=True)
         first = (random.random(), np.random.random(), torch.rand(4))

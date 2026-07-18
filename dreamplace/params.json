@@ -147,6 +147,14 @@
         "description": "whether perform random initialization for global placement",
         "default": 1
     },
+    "initial_placement_file": {
+        "description": "optional Bookshelf .pl file used to initialize physical node locations",
+        "default": ""
+    },
+    "initial_placement_strict": {
+        "description": "require an initial placement to contain every physical node with matching orientation",
+        "default": true
+    },
     "init_loc_perc_x": {
         "description": "initial horizontal location of cells for global placement (% of layout width)",
         "default": 0.5
@@ -330,6 +338,10 @@
     "anchor_loss_weight_scale": {
         "description": "scale applied to gradient-norm-matched anchor loss weight",
         "default": 1.0
+    },
+    "anchor_keepin_initialization": {
+        "description": "anchor/keep-in packing preference: anchor or current",
+        "default": "anchor"
     },
     "keepin_soft_loss_flag": {
         "description": "enable soft distance penalty outside component feasible domains",

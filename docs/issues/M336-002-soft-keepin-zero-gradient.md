@@ -26,7 +26,10 @@ CUDA_VISIBLE_DEVICES=3 PYTHONPATH="$PWD/install" python3.11 \
 All 12 runs recorded soft keep-in gradient norm `0`. Anchor lambda scaled from
 approximately `120050.7` to `960405.2`, but mean anchor distance only moved from
 `9.17595 mm` to `9.17137 mm`; p90 remained approximately `16.9911 mm`. Initial
-anchor loss was identical (`0.001716386`).
+anchor loss was identical (`0.001716386`). Those absolute placement metrics are
+not final evidence because of M336-004, but the zero-gradient diagnosis is
+architectural. The corrected manual-warm-start E4 independently recorded soft
+loss `0`, gradient L1 `0`, and matched weight `1.0`.
 
 ## Impact
 

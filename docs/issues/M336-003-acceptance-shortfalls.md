@@ -24,15 +24,25 @@ successful experiment.
 
 Mean runtime was `4.52 s` for E0 and `26.95 s` for E4. E4 mean anchor distance
 was `9.1923 mm`, while E2 was `10.8553 mm`. The E4 HPWL comparison is not valid
-against the manual board; see M336-001.
+against the manual board, and the old matrix used incorrect BOTTOM pin offsets;
+see M336-001 and M336-004.
+
+The corrected one-iteration warm-start E4 confirms exact legality but exposes a
+larger gap: `178.14 s` runtime, `9.9564 mm` mean anchor distance, `18.2941 mm`
+p90, and normalized manual-baseline score `0.5975`. This is diagnostic evidence,
+not a replacement three-seed matrix. Initialization alone consumed `173.66 s`;
+see M336-005.
 
 ## Likely Contributors
 
 - Region capacity and narrow feasible domains constrain achievable anchor
   distance, so aggregate weight changes have little effect.
 - Python geometric projection and greedy exact repair dominate a short run.
-- Repair currently moves nodes even when a legal warm start may require no
-  changes.
+- Initialization tries repeated full candidate scans before finding a legal
+  packing for the most crowded region.
+- Repair correctly skips an already exact-legal placement, but the corrected
+  smoke still had one pre-repair overlap and moved all constrained components
+  by a small grid displacement.
 - Five iterations are sufficient for smoke testing but not a final convergence
   comparison.
 

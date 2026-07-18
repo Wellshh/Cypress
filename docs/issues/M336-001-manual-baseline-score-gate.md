@@ -1,15 +1,16 @@
-# M336-001: Manual Baseline Is Not the Score Reference
+# M336-001: Manual Baseline Quality Gate Is Not Met
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Mitigated
 **Found:** 2026-07-17
 **Affected commit:** `d9e7674`
 
 ## Problem
 
-The initial M336 report compares E4 with a generated/random E0 placement, not
-the manually placed root `pcb_geometry.json`. It can therefore report an HPWL
-improvement while remaining substantially worse than the required baseline.
+The initial M336 report compared E4 with a generated/random E0 placement, not
+the manually placed root `pcb_geometry.json`. The runner now imports and scores
+the manual board, but the first legal warm-start E4 remains substantially worse
+than that reference.
 
 ## Evidence
 
@@ -22,10 +23,18 @@ improvement while remaining substantially worse than the required baseline.
   component positions differ.
 - Direct absolute-pin HPWL is `751.8613 mm` for the manual input and
   `1367.7118 mm` for the keep-in source placement.
-- The 5-iteration E4 mean is `23524.1796875` Cypress units, or `1176.2090 mm`
-  at `0.05 mm/site`: approximately 56.44% worse than the manual HPWL.
-- The reported E4-versus-E0 HPWL change of `-16.38%` therefore uses the wrong
-  reference. RSMT and exact baseline legality have not yet been measured.
+- Fail-closed compatibility proves identical refdes, side, orientation,
+  footprint, pin, and net topology. It rejects any non-placement mismatch.
+- Same-operator manual scores at `0.05 mm/site` are HPWL `14627.84765625`
+  (`731.3924 mm`) and RSMT `15950.0654296875` (`797.5033 mm`).
+- Exact validation finds only `25/100` constrained components contained, `75`
+  keep-in violations (`28.2565 mm2`), and `5` overlaps (`0.6160 mm2`). The
+  manual board is therefore a quality reference, not a legal fallback.
+- A one-iteration E4 warm-start is exact legal but scores HPWL `24823.8262` and
+  RSMT `26321.7852`. Its normalized score is `0.5975` versus baseline `1.0`,
+  with HPWL/RSMT regressions of `69.70%/65.03%`.
+- Earlier matrix values used incorrect BOTTOM pin offsets and are not valid
+  final evidence; see M336-004.
 
 ## Impact
 
@@ -38,11 +47,15 @@ from an avoidably poor state, and mixed unit paths can hide regressions.
    for refdes, side, orientation, footprint, pins, and nets.
 2. Evaluate baseline and candidates through the same PlaceDB, PinPos, HPWL,
    RSMT, exact source-polygon containment, and exact overlap paths.
-3. Warm-start ablations from the manual baseline where the matrix permits.
+3. Warm-start ablations from the manual baseline while restoring source anchors
+   and the 15 explicitly fixed unclustered obstacles.
 4. Add a design-agnostic, feature-gated reference-quality guard. If an
    exact-legal candidate regresses a required metric, retain the reference.
 5. Record hashes, units, raw metrics, normalized comparisons, and fallback
    decisions in `summary.json` and `REPORT.md`.
+
+Items 1-3 and machine-readable scoring are implemented. Candidate quality and
+the final three-seed gate remain open.
 
 ## Acceptance Criteria
 

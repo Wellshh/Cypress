@@ -589,6 +589,8 @@ class AnchorKeepInContext:
         regions,
         constraints,
         frozen_lower_left,
+        frozen_anchor_ids,
+        frozen_fixed_ids,
         anchor_centers,
         resolved_members,
         input_paths,
@@ -598,6 +600,7 @@ class AnchorKeepInContext:
         anchor_loss_enabled,
         soft_loss_enabled,
         exact_repair_enabled,
+        initialization_mode,
         grid,
     ):
         self.config = config
@@ -606,6 +609,8 @@ class AnchorKeepInContext:
         self.regions = regions
         self.constraints = tuple(constraints)
         self.frozen_lower_left = dict(frozen_lower_left)
+        self.frozen_anchor_ids = frozenset(frozen_anchor_ids)
+        self.frozen_fixed_ids = frozenset(frozen_fixed_ids)
         self.anchor_centers = dict(anchor_centers)
         self.resolved_members = tuple(resolved_members)
         self.input_paths = dict(input_paths)
@@ -615,6 +620,7 @@ class AnchorKeepInContext:
         self.anchor_loss_enabled = bool(anchor_loss_enabled)
         self.soft_loss_enabled = bool(soft_loss_enabled)
         self.exact_repair_enabled = bool(exact_repair_enabled)
+        self.initialization_mode = str(initialization_mode)
         self.grid = float(grid)
         self.projector = RegionProjector(
             num_nodes=self.num_nodes,
@@ -637,6 +643,13 @@ class AnchorKeepInContext:
             config = json.load(stream)
         if not config.get("enabled", False):
             raise ValueError("anchor/keep-in config is not enabled")
+        initialization_mode = str(
+            getattr(params, "anchor_keepin_initialization", "anchor")
+        ).lower()
+        if initialization_mode not in {"anchor", "current"}:
+            raise ValueError(
+                "anchor_keepin_initialization must be 'anchor' or 'current'"
+            )
 
         geometry_path = _resolve_path(config_path, config["geometry_file"])
         cluster_path = _resolve_path(config_path, config["cluster_file"])
@@ -695,6 +708,8 @@ class AnchorKeepInContext:
         domain_cache = {}
         constraints = []
         frozen_lower_left = {}
+        frozen_anchor_ids = set()
+        frozen_fixed_ids = set()
         anchor_centers = {}
         resolved_members = []
         infeasible = []
@@ -718,6 +733,7 @@ class AnchorKeepInContext:
                     center[0] - float(placedb.node_size_x[node_id]) / 2,
                     center[1] - float(placedb.node_size_y[node_id]) / 2,
                 )
+                frozen_anchor_ids.add(node_id)
 
         for assignment in assignments:
             subgroup = assignment.subgroup
@@ -817,6 +833,30 @@ class AnchorKeepInContext:
                 for row in infeasible
             )
             raise InfeasibleDomainError("infeasible assigned domains: " + details)
+
+        fixed_components = config.get("fixed_components", [])
+        if not isinstance(fixed_components, list) or any(
+            not isinstance(refdes, str) or not refdes for refdes in fixed_components
+        ):
+            raise ValueError("fixed_components must be a list of non-empty refdes")
+        if len(fixed_components) != len(set(fixed_components)):
+            raise ValueError("fixed_components contains duplicate refdes")
+        clustered_refdes = set(resolved_members)
+        for refdes in sorted(fixed_components):
+            if refdes in clustered_refdes:
+                raise ValueError("fixed component is also clustered: %s" % refdes)
+            if refdes not in name_to_id or refdes not in geometry.symbols:
+                raise KeyError("fixed component missing from M336 inputs: %s" % refdes)
+            node_id = name_to_id[refdes]
+            if node_id >= placedb.num_physical_nodes:
+                raise ValueError("fixed component is not physical: %s" % refdes)
+            center = alignment.transform_point(geometry.symbols[refdes].center_mm)
+            if node_id < placedb.num_movable_nodes:
+                frozen_lower_left[node_id] = (
+                    center[0] - float(placedb.node_size_x[node_id]) / 2,
+                    center[1] - float(placedb.node_size_y[node_id]) / 2,
+                )
+                frozen_fixed_ids.add(node_id)
         logging.info(
             "anchor/keep-in preflight: resolved %d domains in %.3fs",
             domain_count,
@@ -831,6 +871,8 @@ class AnchorKeepInContext:
             regions=transformed_regions,
             constraints=constraints,
             frozen_lower_left=frozen_lower_left,
+            frozen_anchor_ids=frozen_anchor_ids,
+            frozen_fixed_ids=frozen_fixed_ids,
             anchor_centers=anchor_centers,
             resolved_members=resolved_members,
             input_paths={
@@ -844,6 +886,7 @@ class AnchorKeepInContext:
             anchor_loss_enabled=getattr(params, "anchor_loss_flag", False),
             soft_loss_enabled=getattr(params, "keepin_soft_loss_flag", False),
             exact_repair_enabled=getattr(params, "exact_repair_flag", False),
+            initialization_mode=initialization_mode,
             grid=grid,
         )
         context.write_preflight(infeasible)
@@ -855,7 +898,8 @@ class AnchorKeepInContext:
         report = {
             "resolved_member_count": len(set(self.resolved_members)),
             "movable_non_anchor_constraint_count": len(self.constraints),
-            "frozen_anchor_count": len(self.frozen_lower_left),
+            "frozen_anchor_count": len(self.frozen_anchor_ids),
+            "frozen_fixed_obstacle_count": len(self.frozen_fixed_ids),
             "infeasible_domains": infeasible,
             "input_sha256": {
                 name: _sha256(path) for name, path in self.input_paths.items()
@@ -875,8 +919,10 @@ class AnchorKeepInContext:
             return
 
         occupied = {"TOP": [], "BOTTOM": []}
-        fixed_end = placedb.num_physical_nodes
-        for node_id in range(placedb.num_movable_nodes, fixed_end):
+        constrained_ids = {constraint.node_id for constraint in self.constraints}
+        for node_id in range(placedb.num_physical_nodes):
+            if node_id in constrained_ids:
+                continue
             side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
             occupied[side].append(
                 box(
@@ -886,17 +932,6 @@ class AnchorKeepInContext:
                     position[self.num_nodes + node_id] + placedb.node_size_y[node_id],
                 )
             )
-        for node_id, lower_left in self.frozen_lower_left.items():
-            side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
-            occupied[side].append(
-                box(
-                    lower_left[0],
-                    lower_left[1],
-                    lower_left[0] + placedb.node_size_x[node_id],
-                    lower_left[1] + placedb.node_size_y[node_id],
-                )
-            )
-
         constraints_by_region = defaultdict(list)
         for constraint in self.constraints:
             constraints_by_region[(constraint.side, constraint.region_id)].append(
@@ -915,7 +950,7 @@ class AnchorKeepInContext:
                 len(region_constraints),
             )
             preferred_centers = None
-            if not self.anchor_loss_enabled:
+            if self.initialization_mode == "current" or not self.anchor_loss_enabled:
                 preferred_centers = {}
                 for constraint in region_constraints:
                     current_center = (
@@ -1172,8 +1207,9 @@ class AnchorKeepInContext:
     def log_summary(self):
         logging.info(
             "anchor/keep-in: %d constrained movable nodes, %d frozen anchors, "
-            "alignment max residual %.6g mm",
+            "%d frozen fixed obstacles, alignment max residual %.6g mm",
             len(self.constraints),
-            len(self.frozen_lower_left),
+            len(self.frozen_anchor_ids),
+            len(self.frozen_fixed_ids),
             self.alignment.max_residual_mm,
         )

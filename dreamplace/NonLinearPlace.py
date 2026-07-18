@@ -1214,7 +1214,22 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             if context.exact_repair_enabled:
                 exact_before = context.exact_report(self.pos[0], placedb)
                 hpwl_before = float(self.op_collections.hpwl_op(self.pos[0]))
-                repair_stats = context.repair_positions(self.pos[0], placedb)
+                already_legal = (
+                    exact_before["keepin_violation_count"] == 0
+                    and exact_before["overlap_pair_count"] == 0
+                )
+                repair_stats = (
+                    {
+                        "component_count": len(context.constraints),
+                        "moved_component_count": 0,
+                        "mean_displacement": 0.0,
+                        "max_displacement": 0.0,
+                        "regions": [],
+                        "skipped_already_legal": True,
+                    }
+                    if already_legal
+                    else context.repair_positions(self.pos[0], placedb)
+                )
                 exact_after = context.exact_report(self.pos[0], placedb)
                 hpwl_after = float(self.op_collections.hpwl_op(self.pos[0]))
                 repair_report = {

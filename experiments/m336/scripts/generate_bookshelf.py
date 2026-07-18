@@ -105,6 +105,7 @@ def generate(geometry_path, cluster_path, output_dir, site_mm):
 
     pins_by_net = defaultdict(list)
     for refdes in sorted(symbols):
+        side = symbols[refdes]["layer"].upper()
         for pin in symbols[refdes].get("pins", []):
             net = pin.get("net", "").strip()
             if not net:
@@ -116,6 +117,10 @@ def generate(geometry_path, cluster_path, output_dir, site_mm):
             )
             offset_x = pin_center[0] - centers[refdes][0]
             offset_y = pin_center[1] - centers[refdes][1]
+            # Bookshelf offsets are expressed in the N orientation. PlaceIO
+            # horizontally flips them for FN/BOTTOM nodes during preparation.
+            if side == "BOTTOM":
+                offset_x = -offset_x
             pins_by_net[net].append((refdes, offset_x, offset_y))
 
     benchmark = "m336"

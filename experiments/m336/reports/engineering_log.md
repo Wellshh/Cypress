@@ -76,3 +76,31 @@ Creating a GitHub issue through the API failed with HTTP 410 because Issues are
 disabled for this fork. Detailed issues are maintained under `docs/issues/` and
 pushed at every key milestone. Each subsequent milestone starts with a pull and
 review of upstream edits or responses.
+
+## 2026-07-18: Corrected Manual Baseline Integration
+
+- The runner now regenerates a `0.05 mm/site` Bookshelf database and performs
+  fail-closed identity checks before importing `pcb_geometry.json`.
+- A BOTTOM pin convention defect was found: `.nets` offsets must be expressed
+  in N orientation because PlaceIO mirrors them for FN. Earlier matrix scores
+  used double-mirrored BOTTOM offsets and are invalid as final evidence.
+- The manual board scores HPWL `14627.8477` and RSMT `15950.0654` through the
+  native operators. Its independent JSON-pin HPWL is `751.8613 mm`.
+- The manual board is not M336-legal under the fixed assignment: `25/100`
+  constrained components are contained, with `75` keep-in violations and `5`
+  same-side overlaps. It remains the required quality reference, not a fallback.
+- The initialization path now restores and freezes 25 source anchors plus all
+  15 explicitly unclustered fixed obstacles. Preflight reports each set.
+- A corrected one-iteration E4 is exact legal but has HPWL `24823.8262`, RSMT
+  `26321.7852`, and normalized score `0.5975` versus baseline `1.0`. Runtime is
+  `178.14 s`, of which `173.66 s` is initialization and only `0.528 s` is Adam.
+- An E4-only report initially raised `KeyError` because no E0 runtime comparison
+  existed. Conditional rendering and write-JSON-before-Markdown were validated
+  by a successful `--resume` run.
+- Importing `dreamplace.Placer` opened a relative log in write mode and
+  repeatedly truncated the tracked root `DREAMPlace.log` during tests. Logging
+  is now initialized only by the CLI entrypoint; isolated imports are read-only.
+
+Open quality and performance work is tracked in M336-001, M336-003, and
+M336-005. Coordinate-fidelity and partial-report details are in M336-004 and
+M336-006.

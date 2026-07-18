@@ -48,7 +48,7 @@ states, and single-objective candidates are ranked by the recorded robust cost.
 ## F-03: Net-Crossing CUDA Races
 
 **Severity:** Critical
-**Status:** Remediated, pending GPU validation
+**Status:** Remediated; focused GPU tests pass
 
 Multiple pair threads updated the same forward accumulator, while gradients used
 floating-point atomics. The fast CUDA path now assigns one thread to each net's
@@ -105,6 +105,54 @@ devices, CSR structure, pin coverage, and pin IDs before execution; the wrapper
 always applies PinPos first. Detailed evidence and remaining criteria are in
 [`CUDA-001`](issues/CUDA-001-net-crossing-input-contract.md).
 
+## F-08: M336 Baseline Used Inconsistent Coordinate Paths
+
+**Severity:** Critical
+**Status:** Mitigated; baseline round-trip tests pass
+
+BOTTOM pin offsets were written in board orientation and then mirrored again by
+PlaceIO for `FN` nodes. The old M336 matrix therefore used incorrect pin
+coordinates. The generator now pre-flips BOTTOM x offsets, and baseline import
+validates all 378 connected source pins before native site quantization.
+Baseline scoring uses the float placement path because `evaluate_pl=1` silently
+rounds node positions through C++ integer storage. Details are in
+[`M336-004`](issues/M336-004-bookshelf-coordinate-fidelity.md).
+
+## F-09: Reported Fixed Obstacles Were Still Optimizer-Movable
+
+**Severity:** High
+**Status:** Remediated; integrated preflight evidence passes
+
+Exact validation classified all 40 non-constrained components as fixed, while
+only 25 anchors were actually frozen. The 15 unclustered components could move
+during optimization, making initialization, optimization, and validation use
+different obstacle semantics. Runtime config now explicitly lists those 15
+refdes; the core validates they are physical, unclustered, and present before
+restoring source coordinates and zeroing their gradients. Preflight reports the
+two frozen sets separately as `25` anchors and `15` fixed obstacles.
+
+## F-10: Report Rendering Could Erase Completed Experiment Evidence
+
+**Severity:** Medium
+**Status:** Remediated; E4-only resume path passes
+
+The E4-only report indexed an E0/E4 runtime comparison that did not exist and
+raised `KeyError`. Since Markdown was rendered before `summary.json` was
+written, the completed run lacked an aggregate artifact. Runtime output is now
+conditional, and JSON is persisted before report rendering. See
+[`M336-006`](issues/M336-006-partial-matrix-reporting.md).
+
+## F-11: Importing Placer Truncated a Relative Log File
+
+**Severity:** High
+**Status:** Remediated; isolated import test passes
+
+`dreamplace.Placer` opened `DREAMPlace.log` in write mode at import time. Tests
+and programmatic tuning could therefore mutate the caller's working directory
+before a run started. CLI logging is now configured only in the CLI entrypoint;
+tuning retains its existing per-replicate handlers. Detailed evidence is in
+[`REPRO-001`](issues/REPRO-001-placer-import-log-side-effect.md).
+
 ## Validation Plan
 
 1. Run CPU operator and optimizer unit tests.
@@ -119,10 +167,12 @@ always applies PinPos first. Detailed evidence and remaining criteria are in
 As of 2026-07-18, the environment can access an NVIDIA H100 with driver
 550.54.14, CUDA 12.4, and PyTorch 2.5.1+cu124. Native build and installation
 pass. The focused net-crossing suite passes 3/3 on GPU, including the CPU golden
-result and 20 bitwise-equal deterministic GPU forward/backward repetitions. Six
-reproducibility tests pass for RNG reset, schedule-independent seed panels,
-same-seed ConfigSpace sampling, bounded BB steps, finite Nesterov progress, and
-non-finite rollback. The feature-off small placement smoke also completes.
+result and 20 bitwise-equal deterministic GPU forward/backward repetitions.
+Eight reproducibility tests pass for RNG reset, schedule-independent seed
+panels, same-seed ConfigSpace sampling, bounded BB steps, finite Nesterov
+progress, non-finite rollback, strict float initial-placement loading, and
+side-effect-free Placer import. Four manual-baseline tests and fourteen
+anchor/keep-in tests also pass. The feature-off small placement smoke completes.
 
 Multi-worker Pyro integration, a 50-repeat net-crossing run, sanitizer coverage,
 and end-to-end repeated tuning remain pending. Deterministic net crossing still

@@ -43,16 +43,22 @@ import dreamplace.PlaceDB as PlaceDB
 import dreamplace.NonLinearPlace as NonLinearPlace
 
 
-# set up logging
-logging.root.name = "DREAMPlace"
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)-7s] %(name)s - %(message)s",
-    handlers=[
-        logging.FileHandler("DREAMPlace.log", mode="w"),
-        # logging.StreamHandler(sys.stdout),
-    ],
-)
+def configure_cli_logging(path="DREAMPlace.log"):
+    """Configure the legacy CLI log without mutating files during import."""
+    root_logger = logging.getLogger()
+    root_logger.name = "DREAMPlace"
+    root_logger.setLevel(logging.INFO)
+    for handler in root_logger.handlers[:]:
+        if getattr(handler, "_dreamplace_cli_handler", False):
+            root_logger.removeHandler(handler)
+            handler.close()
+    handler = logging.FileHandler(path, mode="w")
+    handler._dreamplace_cli_handler = True
+    handler.setFormatter(
+        logging.Formatter("[%(levelname)-7s] %(name)s - %(message)s")
+    )
+    root_logger.addHandler(handler)
+    return handler
 
 
 def seed_all(seed, deterministic=False):
@@ -367,6 +373,7 @@ if __name__ == "__main__":
         params.printHelp()
         exit()
 
+    configure_cli_logging()
     engine = PlacementEngine(sys.argv[1:])
     ppa = engine.run()
 
