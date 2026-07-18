@@ -59,6 +59,15 @@ branches and 13,047 conflicts. Fixed replay reproduced placement SHA-256
 HPWL was `21828.103303`, confirming that the feasibility path remains stable
 while its unconstrained quality does not improve monotonically.
 
+A direct 5% step from 90% to 95%, `(533.22375, 262.1277)`, was strictly
+`INFEASIBLE` in the prior-state 1,024-site neighborhoods after `212.824688 s`,
+2,803,412 branches, and 1,097,800 conflicts. This does not prove the full
+lattice infeasible. Bisecting to 92.5%, `(536.805625, 269.45655)`, produced a
+zero-overlap TOP placement in `30.133537 s`; fixed replay reproduced SHA-256
+`bd08afa07e28b3ea65d48d7eedd785175503724e174a3308f3574375ac35745f`.
+The bisected state has HPWL `22132.494702`, so it is a continuation waypoint,
+not a quality candidate.
+
 ## Remaining Work
 
 The 80% endpoint is not the acceptance target. Its HPWL is `21359.767400` and
