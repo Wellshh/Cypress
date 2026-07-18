@@ -36,6 +36,7 @@ from optimize_assignment import (  # noqa: E402
     solve_interval_assignment,
 )
 from solve_discrete_placement import (  # noqa: E402
+    _assumption_core_refdes,
     _candidate_indices_without_obstacle_overlap,
     _capacity_integer_bounds,
     _coordinate_choice_index,
@@ -241,6 +242,14 @@ class M336BaselineTest(unittest.TestCase):
             _inactive_controlled_collision_pairs(requested, available),
             frozenset((("A", "C"),)),
         )
+
+    def test_assumption_core_literals_map_to_refdes(self):
+        self.assertEqual(
+            _assumption_core_refdes((5, 3, -4, 5), {3: "A", 5: "B"}),
+            ["A", "B"],
+        )
+        with self.assertRaises(ValueError):
+            _assumption_core_refdes((7,), {3: "A"})
 
     def test_rotated_footprint_inner_slices_are_exact_and_disjoint(self):
         footprint = Polygon(((0, 1), (2, 0), (0, -1), (-2, 0)))

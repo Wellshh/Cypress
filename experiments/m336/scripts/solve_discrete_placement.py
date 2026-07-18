@@ -321,6 +321,19 @@ def _inactive_controlled_collision_pairs(requested_pairs, available_pairs):
     return frozenset(requested_pairs) - frozenset(available_pairs)
 
 
+def _assumption_core_refdes(core_literals, refdes_by_index):
+    refdes = set()
+    for literal in core_literals:
+        literal = int(literal)
+        index = literal if literal >= 0 else -literal - 1
+        if index not in refdes_by_index:
+            raise ValueError(
+                "infeasibility core contains an unknown assumption"
+            )
+        refdes.add(refdes_by_index[index])
+    return sorted(refdes)
+
+
 def _side_legality_report(legality, side):
     violations = [
         row for row in legality["violations"] if row["side"] == side
@@ -1360,6 +1373,7 @@ def _build_model(
     controlled_collision_relaxation="none",
     controlled_collision_pairs=(),
     nonrectangle_inner_slices=0,
+    diagnose_fixed_hint_core=False,
 ):
     if site_model not in ("element", "coordinate-table"):
         raise ValueError("unknown site model: %s" % site_model)
@@ -1426,6 +1440,9 @@ def _build_model(
     )
     if fixed_hint_refdes and not site_hints:
         raise ValueError("partial site fixing requires a complete site hint")
+    if diagnose_fixed_hint_core and not fixed_hint_refdes:
+        raise ValueError("fixed-hint core diagnosis requires fixed site hints")
+    fixed_hint_assumption_refdes = {}
     fixed_obstacles = {"TOP": [], "BOTTOM": []}
     if prune_fixed_obstacle_sites:
         for node_id in range(placedb.num_physical_nodes):
@@ -1516,7 +1533,12 @@ def _build_model(
                 len(domain.valid_centers) - len(eligible)
             )
             eligible_indices.append(eligible)
-        if constraint.refdes in fixed_hint_refdes:
+        # Core diagnosis must guard the fixing constraint, not a domain that
+        # has already been collapsed to the hinted site.
+        if (
+            constraint.refdes in fixed_hint_refdes
+            and not diagnose_fixed_hint_core
+        ):
             selected_indices = _fixed_hint_candidate_indices(
                 options, hint_region_id, hint_local_index
             )
@@ -1808,11 +1830,29 @@ def _build_model(
                     model.add_hint(x_var, int(x_values[match_index]))
                     model.add_hint(y_var, int(y_values[match_index]))
             if constraint.refdes in fixed_hint_refdes:
+                assumption = None
+                if diagnose_fixed_hint_core:
+                    assumption = model.new_bool_var(
+                        "assume_fixed_hint_%s" % constraint.refdes
+                    )
+                    model.add_assumption(assumption)
+                    fixed_hint_assumption_refdes[
+                        assumption.index
+                    ] = constraint.refdes
                 if site_model == "element":
-                    model.add(site == match_index)
+                    fixed_constraint = model.add(site == match_index)
+                    if assumption is not None:
+                        fixed_constraint.only_enforce_if(assumption)
                 else:
-                    model.add(x_var == int(x_values[match_index]))
-                    model.add(y_var == int(y_values[match_index]))
+                    fixed_x_constraint = model.add(
+                        x_var == int(x_values[match_index])
+                    )
+                    fixed_y_constraint = model.add(
+                        y_var == int(y_values[match_index])
+                    )
+                    if assumption is not None:
+                        fixed_x_constraint.only_enforce_if(assumption)
+                        fixed_y_constraint.only_enforce_if(assumption)
             if packing_objective == "hint-l1":
                 hinted_x = _scaled(
                     hint_center[0] - constraint.node_width / 2,
@@ -2194,6 +2234,8 @@ def _build_model(
         ),
         "site_hint_remaps": site_hint_remaps,
         "fixed_hint_site_count": len(fixed_hint_refdes),
+        "diagnose_fixed_hint_core": bool(diagnose_fixed_hint_core),
+        "fixed_hint_assumption_refdes": fixed_hint_assumption_refdes,
         "movable_refdes": sorted(set(movable_refdes or ())),
         "site_hint": site_hint_report,
         "candidate_limit_per_region": candidate_limit_per_region,
@@ -2305,6 +2347,13 @@ def _model_report(args, state, assignment_space):
         ],
         "site_hint_remaps": state["site_hint_remaps"],
         "fixed_hint_site_count": state["fixed_hint_site_count"],
+        "diagnose_fixed_hint_core": state["diagnose_fixed_hint_core"],
+        "fixed_hint_assumption_count": len(
+            state["fixed_hint_assumption_refdes"]
+        ),
+        "fixed_hint_assumption_refdes": sorted(
+            state["fixed_hint_assumption_refdes"].values()
+        ),
         "movable_refdes": state["movable_refdes"],
         "packing_side": state["packing_side"],
         "fixed_endpoint_mode": args.fixed_endpoint_mode,
@@ -2436,6 +2485,15 @@ def solve(args):
             )
         if assignment_space["mode"] != "fixed":
             raise ValueError("partial site fixing requires a fixed assignment")
+    if args.diagnose_fixed_hint_core:
+        if not args.movable_refdes:
+            raise ValueError(
+                "fixed-hint core diagnosis requires partial site fixing"
+            )
+        if args.workers != 1:
+            raise ValueError(
+                "fixed-hint core diagnosis requires exactly one worker"
+            )
     if args.movable_subgroup:
         if not args.optimize_assignment:
             raise ValueError(
@@ -2453,10 +2511,6 @@ def solve(args):
         if args.site_hint_result is None or hint_count != 1:
             raise ValueError(
                 "packing side requires one structured result hint"
-            )
-        if args.movable_refdes:
-            raise ValueError(
-                "packing side and movable refdes are mutually exclusive"
             )
     if args.candidate_limit_per_region and hint_count != 1:
         raise ValueError("candidate limiting requires one site hint source")
@@ -2546,6 +2600,7 @@ def solve(args):
         args.controlled_collision_relaxation,
         args.controlled_collision_pair,
         args.nonrectangle_inner_slices,
+        args.diagnose_fixed_hint_core,
     )
 
     solver = cp_model.CpSolver()
@@ -2560,6 +2615,15 @@ def solve(args):
         solver.parameters.max_deterministic_time = args.deterministic_time
     status = solver.solve(model)
     status_name = solver.status_name(status)
+    fixed_hint_infeasibility_core = []
+    if (
+        status == cp_model.INFEASIBLE
+        and state["fixed_hint_assumption_refdes"]
+    ):
+        fixed_hint_infeasibility_core = _assumption_core_refdes(
+            solver.sufficient_assumptions_for_infeasibility(),
+            state["fixed_hint_assumption_refdes"],
+        )
     input_sha256 = {
         "assignment": sha256_file(args.assignment),
         "baseline_result": sha256_file(args.baseline_result),
@@ -2598,6 +2662,13 @@ def solve(args):
         "random_seed": args.seed,
         "repair_hint": args.repair_hint,
         "hint_conflict_limit": args.hint_conflict_limit,
+        "fixed_hint_infeasibility_core": fixed_hint_infeasibility_core,
+        "fixed_hint_infeasibility_core_count": len(
+            fixed_hint_infeasibility_core
+        ),
+        "fixed_hint_infeasibility_core_is_minimal": (
+            False if fixed_hint_infeasibility_core else None
+        ),
         "max_time_seconds": args.time_limit,
         "max_deterministic_time": (
             args.deterministic_time if args.workers == 1 else None
@@ -2922,6 +2993,14 @@ def main():
         help=(
             "allow one controlled component to move while all other hinted "
             "sites remain fixed; may be repeated"
+        ),
+    )
+    parser.add_argument(
+        "--diagnose-fixed-hint-core",
+        action="store_true",
+        help=(
+            "diagnostic: guard fixed hinted sites with assumptions and "
+            "report a sufficient infeasibility core; requires one worker"
         ),
     )
     parser.add_argument(
