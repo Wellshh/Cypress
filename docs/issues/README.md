@@ -54,6 +54,7 @@ append evidence rather than replacing prior observations.
 | [M336-044](M336-044-cpsat-search-budget-reproducibility.md) | High | Mitigated | CP-SAT now records deterministic budgets, preprocessing threads, and hint repair controls |
 | [M336-045](M336-045-known-legal-fixed-site-core-chain.md) | Critical | Open | Restored obstacles turn known-legal TOP repair into a near-global K1024 repacking problem |
 | [M336-046](M336-046-no-overlap-2d-propagation-regression.md) | High | Resolved | Optional NoOverlap2D propagators regress K512 and do not find a K1024 placement |
+| [M336-047](M336-047-emi-only-legal-skeleton.md) | Critical | Mitigated | EMI-only restores exact K512 TOP packing, but BOTTOM quality remains below the score gate |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

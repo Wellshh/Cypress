@@ -180,6 +180,13 @@ def main() -> int:
     fixed_x, fixed_y = _select_fixed_endpoints(
         context, baseline_x, baseline_y, "runtime"
     )
+    manual_baseline_endpoints = frozenset(
+        value
+        for value in os.environ.get(
+            "M336_MANUAL_BASELINE_ENDPOINTS", "Q601"
+        ).split(",")
+        if value
+    )
     fixed_x, fixed_y = _override_manual_baseline_endpoints(
         context,
         placedb,
@@ -187,7 +194,7 @@ def main() -> int:
         baseline_y,
         fixed_x,
         fixed_y,
-        ["Q601"],
+        manual_baseline_endpoints,
     )
 
     controlled_ids = {constraint.node_id for constraint in context.constraints}
@@ -705,6 +712,7 @@ def main() -> int:
         "source_json": str(SOURCE),
         "guide_json": guide_paths[0],
         "guide_jsons": guide_paths,
+        "manual_baseline_endpoints": sorted(manual_baseline_endpoints),
         "guide_site_distances": guide_site_distances,
         "fix_guide": fix_guide,
         "movable_refdes": sorted(movable_refdes),
