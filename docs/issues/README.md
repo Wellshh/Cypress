@@ -31,6 +31,7 @@ append evidence rather than replacing prior observations.
 | [M336-021](M336-021-scope-hinted-assignment-search.md) | High | Resolved | Structured hints can limit alternate-region choices without freezing component coordinates |
 | [M336-022](M336-022-local-restored-anchor-domain-infeasible.md) | Critical | Open | Hint-centered restored-anchor domains remain infeasible through 4,096 sites per component-region |
 | [M336-023](M336-023-project-candidate-guides-per-region.md) | High | Resolved | Physical candidate guides now project independently into every eligible region |
+| [M336-024](M336-024-isolate-packing-from-hpwl.md) | High | Resolved | Diagnostic packing can omit HPWL, confirming collision search is the remaining bottleneck |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

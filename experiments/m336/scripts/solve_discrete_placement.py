@@ -1115,6 +1115,7 @@ def _build_model(
     candidate_guide_report=None,
     optimize_hpwl=True,
     movable_refdes=(),
+    enforce_hpwl=True,
 ):
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
@@ -1431,56 +1432,79 @@ def _build_model(
                         model, first, second
                     )
 
-    net_spans = []
-    populated_net_weights = []
-    coordinate_limit = 2**50
-    for net_id, pins in enumerate(placedb.net2pin_map):
-        pin_x = []
-        pin_y = []
-        for pin_id in pins:
-            node_id = int(placedb.pin2node_map[pin_id])
-            x_offset = _scaled(placedb.pin_offset_x[pin_id], integer_scale)
-            y_offset = _scaled(placedb.pin_offset_y[pin_id], integer_scale)
-            if node_id in constraint_by_node:
-                pin_x.append(x_vars[node_id] + x_offset)
-                pin_y.append(y_vars[node_id] + y_offset)
-            else:
-                pin_x.append(_scaled(fixed_x[node_id], integer_scale) + x_offset)
-                pin_y.append(_scaled(fixed_y[node_id], integer_scale) + y_offset)
-        if not pin_x:
-            continue
-        net_name = _decode(placedb.net_names[net_id])
-        max_x = model.new_int_var(-coordinate_limit, coordinate_limit, "max_x_%s" % net_id)
-        min_x = model.new_int_var(-coordinate_limit, coordinate_limit, "min_x_%s" % net_id)
-        max_y = model.new_int_var(-coordinate_limit, coordinate_limit, "max_y_%s" % net_id)
-        min_y = model.new_int_var(-coordinate_limit, coordinate_limit, "min_y_%s" % net_id)
-        model.add_max_equality(max_x, pin_x)
-        model.add_min_equality(min_x, pin_x)
-        model.add_max_equality(max_y, pin_y)
-        model.add_min_equality(min_y, pin_y)
-        weight = float(placedb.net_weights[net_id])
-        if (
-            weight < 0
-            or not math.isclose(weight, round(weight), abs_tol=1e-12)
-        ):
-            raise ValueError("CP-SAT requires integral net weights: %s" % net_name)
-        integral_weight = int(round(weight))
-        populated_net_weights.append(integral_weight)
-        net_spans.append(integral_weight * (max_x - min_x + max_y - min_y))
+    hpwl_limit = None
+    hpwl_limit_integer = None
+    rounding_allowance = 0
+    if enforce_hpwl:
+        net_spans = []
+        populated_net_weights = []
+        coordinate_limit = 2**50
+        for net_id, pins in enumerate(placedb.net2pin_map):
+            pin_x = []
+            pin_y = []
+            for pin_id in pins:
+                node_id = int(placedb.pin2node_map[pin_id])
+                x_offset = _scaled(
+                    placedb.pin_offset_x[pin_id], integer_scale
+                )
+                y_offset = _scaled(
+                    placedb.pin_offset_y[pin_id], integer_scale
+                )
+                if node_id in constraint_by_node:
+                    pin_x.append(x_vars[node_id] + x_offset)
+                    pin_y.append(y_vars[node_id] + y_offset)
+                else:
+                    pin_x.append(
+                        _scaled(fixed_x[node_id], integer_scale) + x_offset
+                    )
+                    pin_y.append(
+                        _scaled(fixed_y[node_id], integer_scale) + y_offset
+                    )
+            if not pin_x:
+                continue
+            net_name = _decode(placedb.net_names[net_id])
+            max_x = model.new_int_var(
+                -coordinate_limit, coordinate_limit, "max_x_%s" % net_id
+            )
+            min_x = model.new_int_var(
+                -coordinate_limit, coordinate_limit, "min_x_%s" % net_id
+            )
+            max_y = model.new_int_var(
+                -coordinate_limit, coordinate_limit, "max_y_%s" % net_id
+            )
+            min_y = model.new_int_var(
+                -coordinate_limit, coordinate_limit, "min_y_%s" % net_id
+            )
+            model.add_max_equality(max_x, pin_x)
+            model.add_min_equality(min_x, pin_x)
+            model.add_max_equality(max_y, pin_y)
+            model.add_min_equality(min_y, pin_y)
+            weight = float(placedb.net_weights[net_id])
+            if weight < 0 or not math.isclose(
+                weight, round(weight), abs_tol=1e-12
+            ):
+                raise ValueError(
+                    "CP-SAT requires integral net weights: %s" % net_name
+                )
+            integral_weight = int(round(weight))
+            populated_net_weights.append(integral_weight)
+            net_spans.append(
+                integral_weight * (max_x - min_x + max_y - min_y)
+            )
 
-    hpwl_objective = sum(net_spans)
-    hpwl_limit = _score_hpwl_limit(
-        baseline_hpwl, baseline_rsmt, minimum_score
-    )
-    rounding_allowance = _hpwl_rounding_allowance_units(
-        populated_net_weights
-    )
-    hpwl_limit_integer = (
-        math.floor(hpwl_limit * integer_scale) + rounding_allowance
-    )
-    model.add(hpwl_objective <= hpwl_limit_integer)
-    if optimize_hpwl:
-        model.minimize(hpwl_objective)
+        hpwl_objective = sum(net_spans)
+        hpwl_limit = _score_hpwl_limit(
+            baseline_hpwl, baseline_rsmt, minimum_score
+        )
+        rounding_allowance = _hpwl_rounding_allowance_units(
+            populated_net_weights
+        )
+        hpwl_limit_integer = (
+            math.floor(hpwl_limit * integer_scale) + rounding_allowance
+        )
+        model.add(hpwl_objective <= hpwl_limit_integer)
+        if optimize_hpwl:
+            model.minimize(hpwl_objective)
     return model, {
         "site_vars": site_vars,
         "site_choices": site_choices,
@@ -1524,7 +1548,8 @@ def _build_model(
         "site_hint": site_hint_report,
         "candidate_limit_per_region": candidate_limit_per_region,
         "candidate_guide": candidate_guide_report,
-        "optimize_hpwl": bool(optimize_hpwl),
+        "hpwl_gate_enabled": bool(enforce_hpwl),
+        "optimize_hpwl": bool(optimize_hpwl and enforce_hpwl),
     }
 
 
@@ -1535,10 +1560,15 @@ def _model_report(args, state, assignment_space):
         "constraint_grid_mm": args.grid_mm,
         "minimum_score": args.minimum_score,
         "objective_mode": (
-            "minimize_hpwl"
-            if state["optimize_hpwl"]
-            else "first_feasible"
+            "packing_only"
+            if not state["hpwl_gate_enabled"]
+            else (
+                "minimize_hpwl"
+                if state["optimize_hpwl"]
+                else "first_feasible"
+            )
         ),
+        "hpwl_gate_enabled": state["hpwl_gate_enabled"],
         "necessary_hpwl_limit": state["hpwl_limit"],
         "integer_hpwl_limit": state["hpwl_limit_integer"],
         "hpwl_rounding_allowance": state["hpwl_rounding_allowance"],
@@ -1755,6 +1785,7 @@ def solve(args):
         candidate_guide_report,
         not args.feasibility_only,
         args.movable_refdes,
+        not args.packing_only,
     )
 
     solver = cp_model.CpSolver()
@@ -1782,8 +1813,11 @@ def solve(args):
             and status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
             else None
         ),
-        "best_objective_bound_hpwl": solver.best_objective_bound
-        / args.integer_scale,
+        "best_objective_bound_hpwl": (
+            solver.best_objective_bound / args.integer_scale
+            if state["optimize_hpwl"]
+            else None
+        ),
         "wall_time_seconds": solver.wall_time,
         "branches": solver.num_branches,
         "conflicts": solver.num_conflicts,
@@ -1903,7 +1937,10 @@ def solve(args):
     write_json(args.output, result)
     if legality["keepin_violation_count"] or legality["overlap_pair_count"]:
         raise RuntimeError("CP-SAT placement failed exact geometry validation")
-    if score_upper_bound + 1e-12 < args.minimum_score:
+    if (
+        state["hpwl_gate_enabled"]
+        and score_upper_bound + 1e-12 < args.minimum_score
+    ):
         raise RuntimeError("CP-SAT placement failed the necessary HPWL score gate")
     args.placement.parent.mkdir(parents=True, exist_ok=True)
     placedb.write_pl(None, str(args.placement), node_x, node_y)
@@ -1948,6 +1985,11 @@ def main():
         "--feasibility-only",
         action="store_true",
         help="return the first solution under the configured HPWL limit",
+    )
+    parser.add_argument(
+        "--packing-only",
+        action="store_true",
+        help="diagnostic: omit HPWL variables and the score gate",
     )
     parser.add_argument(
         "--fixed-endpoint-mode",
@@ -2047,6 +2089,8 @@ def main():
     parser.add_argument("--seed", type=int, default=1000)
     parser.add_argument("--log-search-progress", action="store_true")
     args = parser.parse_args()
+    if args.packing_only and not args.feasibility_only:
+        parser.error("packing-only requires feasibility-only")
     for name in (
         "bookshelf_dir",
         "assignment",

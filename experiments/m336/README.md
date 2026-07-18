@@ -106,3 +106,8 @@ The result reports `assignment_mode: optimized_scoped`; see `M336-021`.
 each component's limited site domain. The guide is projected independently in
 every eligible region, so it is safe with optimized or scoped assignment. It
 does not alter the structured result hint or fix any site.
+
+Use `--packing-only --feasibility-only` only to isolate keep-in, capacity, and
+collision feasibility. This diagnostic mode omits all HPWL variables and the
+score gate; it still reports actual HPWL after finding a candidate, but its
+placement cannot be accepted until a later score-gated solve passes.
