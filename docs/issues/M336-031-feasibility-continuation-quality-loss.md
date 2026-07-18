@@ -54,6 +54,15 @@ seed 1000's 4,357,459 and 1,372,410, respectively. This large trajectory
 change without a candidate confirms seed sensitivity but does not justify
 additional blind random restarts.
 
+Combining the replayed 93.75% state as the CP-SAT site hint with the manual
+baseline placement as the 2,048-site candidate-ordering guide did not improve
+the exact final-endpoint search. The model still contained 49,682 candidates
+and 620 exact part-pair constraints, then remained `UNKNOWN` after
+`300.123534 s`, 18,488,193 branches, and 592,873 conflicts with 1,106,800 KiB
+peak RSS. Candidate ordering therefore changed the search trajectory without
+reducing the domain or producing an incumbent. Like the other timed-out runs,
+this result is not evidence that the endpoint is infeasible.
+
 ## Required Improvement
 
 - Reach the exact manual endpoint with a replayable globally legal placement.
