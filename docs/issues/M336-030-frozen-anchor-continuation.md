@@ -77,6 +77,13 @@ reproduced SHA-256
 The HPWL `22287.766734` confirms that smaller endpoint steps recover packing
 feasibility but do not address quality loss.
 
+Advancing another 0.625% to 94.375%, `(534.11921875, 263.9599125)`, did not
+find a candidate within the same budget. The coordinate-table run remained
+`UNKNOWN` after `300.200368 s`, 2,020,056 branches, and 67,048 conflicts. This
+is an inconclusive search boundary, not an infeasibility proof; the next A/B
+must preserve the endpoint and 1,024-site candidate set while changing only
+the site encoding or search strategy.
+
 ## Remaining Work
 
 The 80% endpoint is not the acceptance target. Its HPWL is `21359.767400` and
