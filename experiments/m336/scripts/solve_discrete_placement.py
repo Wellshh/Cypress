@@ -1247,6 +1247,7 @@ def _build_model(
     packing_objective="none",
     prune_fixed_obstacle_sites=False,
     fix_site_hint=False,
+    controlled_collision_relaxation="none",
 ):
     if site_model not in ("element", "coordinate-table"):
         raise ValueError("unknown site model: %s" % site_model)
@@ -1257,6 +1258,22 @@ def _build_model(
     if prune_fixed_obstacle_sites and collision_mode != "decomposed":
         raise ValueError(
             "fixed-obstacle site pruning requires decomposed collision mode"
+        )
+    if controlled_collision_relaxation not in (
+        "none",
+        "mixed-nonrectangle",
+        "all-nonrectangle",
+    ):
+        raise ValueError(
+            "unknown controlled collision relaxation: %s"
+            % controlled_collision_relaxation
+        )
+    if controlled_collision_relaxation != "none" and (
+        collision_mode != "decomposed" or enforce_hpwl
+    ):
+        raise ValueError(
+            "controlled nonrectangle relaxation requires decomposed "
+            "packing-only mode"
         )
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
@@ -1314,6 +1331,7 @@ def _build_model(
     fixed_obstacle_pruned_site_count = 0
     site_hint_remapped_count = 0
     site_hint_maximum_remap_distance = 0.0
+    site_hint_remaps = []
 
     for constraint in sorted(modeled_constraints, key=lambda item: item.refdes):
         node_id = constraint.node_id
@@ -1584,6 +1602,20 @@ def _build_model(
                     site_hint_maximum_remap_distance = max(
                         site_hint_maximum_remap_distance, remap_distance
                     )
+                    site_hint_remaps.append(
+                        {
+                            "refdes": constraint.refdes,
+                            "from_center": [
+                                float(hint_center[0]),
+                                float(hint_center[1]),
+                            ],
+                            "to_center": [
+                                float(centers[match_index, 0]),
+                                float(centers[match_index, 1]),
+                            ],
+                            "distance": remap_distance,
+                        }
+                    )
             else:
                 match_index = int(matches[0])
             if match_index is not None:
@@ -1656,6 +1688,7 @@ def _build_model(
     collision_component_pair_count = 0
     collision_skipped_component_pair_count = 0
     fixed_obstacle_pair_eliminated_count = 0
+    relaxed_controlled_component_pair_count = 0
     fixed_shapes = {"TOP": [], "BOTTOM": []}
     if collision_mode in ("convex", "decomposed"):
         for node_id in range(placedb.num_physical_nodes):
@@ -1747,6 +1780,19 @@ def _build_model(
                         collision_skipped_component_pair_count += 1
                         continue
                     collision_component_pair_count += 1
+                    relax_pair = (
+                        controlled_collision_relaxation
+                        == "all-nonrectangle"
+                        or (
+                            controlled_collision_relaxation
+                            == "mixed-nonrectangle"
+                            and first["is_rectangle"]
+                            != second["is_rectangle"]
+                        )
+                    )
+                    if relax_pair:
+                        relaxed_controlled_component_pair_count += 1
+                        continue
                     collision_pair_constraint_count += _add_part_nonoverlap(
                         model, first, second
                     )
@@ -1849,6 +1895,12 @@ def _build_model(
             for shapes in controlled_shapes.values()
             for shape in shapes
         ),
+        "controlled_nonrectangle_refdes": sorted(
+            shape["name"]
+            for shapes in controlled_shapes.values()
+            for shape in shapes
+            if not shape["is_rectangle"]
+        ),
         "controlled_convex_piece_count": sum(
             len(shape["parts"])
             for shapes in controlled_shapes.values()
@@ -1872,6 +1924,12 @@ def _build_model(
         "fixed_obstacle_pair_eliminated_count": (
             fixed_obstacle_pair_eliminated_count
         ),
+        "relaxed_controlled_component_pair_count": (
+            relaxed_controlled_component_pair_count
+        ),
+        "controlled_collision_relaxation": (
+            controlled_collision_relaxation
+        ),
         "fixed_obstacle_pruning_enabled": bool(
             prune_fixed_obstacle_sites
         ),
@@ -1886,6 +1944,7 @@ def _build_model(
         "site_hint_maximum_remap_distance": (
             site_hint_maximum_remap_distance
         ),
+        "site_hint_remaps": site_hint_remaps,
         "fixed_hint_site_count": len(fixed_hint_refdes),
         "movable_refdes": sorted(set(movable_refdes or ())),
         "site_hint": site_hint_report,
@@ -1935,6 +1994,9 @@ def _model_report(args, state, assignment_space):
         "controlled_nonrectangle_count": state[
             "controlled_nonrectangle_count"
         ],
+        "controlled_nonrectangle_refdes": state[
+            "controlled_nonrectangle_refdes"
+        ],
         "controlled_convex_piece_count": state[
             "controlled_convex_piece_count"
         ],
@@ -1952,6 +2014,12 @@ def _model_report(args, state, assignment_space):
         "fixed_obstacle_pair_eliminated_count": state[
             "fixed_obstacle_pair_eliminated_count"
         ],
+        "relaxed_controlled_component_pair_count": state[
+            "relaxed_controlled_component_pair_count"
+        ],
+        "controlled_collision_relaxation": state[
+            "controlled_collision_relaxation"
+        ],
         "fixed_obstacle_pruning_enabled": state[
             "fixed_obstacle_pruning_enabled"
         ],
@@ -1966,6 +2034,7 @@ def _model_report(args, state, assignment_space):
         "site_hint_maximum_remap_distance": state[
             "site_hint_maximum_remap_distance"
         ],
+        "site_hint_remaps": state["site_hint_remaps"],
         "fixed_hint_site_count": state["fixed_hint_site_count"],
         "movable_refdes": state["movable_refdes"],
         "packing_side": state["packing_side"],
@@ -2205,6 +2274,7 @@ def solve(args):
         args.packing_objective,
         args.prune_fixed_obstacle_sites,
         args.fix_site_hint,
+        args.controlled_collision_relaxation,
     )
 
     solver = cp_model.CpSolver()
@@ -2518,6 +2588,15 @@ def main():
         help=(
             "remove exact candidate sites that overlap fixed obstacles "
             "before building decomposed collision constraints"
+        ),
+    )
+    parser.add_argument(
+        "--controlled-collision-relaxation",
+        choices=("none", "mixed-nonrectangle", "all-nonrectangle"),
+        default="none",
+        help=(
+            "diagnostic packing stage: omit mixed nonrectangle/rectangle "
+            "pairs or every pair involving a nonrectangle"
         ),
     )
     parser.add_argument(
