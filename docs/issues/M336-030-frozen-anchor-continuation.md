@@ -52,6 +52,13 @@ SHA-256
 with zero branches. Feasibility-only search increased HPWL to `21748.257336`,
 so continuation preserves packing feasibility but does not preserve quality.
 
+At 90%, `(540.3875, 276.7854)`, the prior state had five TOP overlaps. The
+same 1,024-site model found a legal TOP packing in `7.427512 s` after 230,949
+branches and 13,047 conflicts. Fixed replay reproduced placement SHA-256
+`c91aeba7794cb0dad4fbc5b237a0a78fdd752a41dbf7df31525212e36889ca30`.
+HPWL was `21828.103303`, confirming that the feasibility path remains stable
+while its unconstrained quality does not improve monotonically.
+
 ## Remaining Work
 
 The 80% endpoint is not the acceptance target. Its HPWL is `21359.767400` and
