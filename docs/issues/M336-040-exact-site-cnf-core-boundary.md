@@ -47,19 +47,18 @@ were within tolerance; the minimum area was `1.300819e-5` transformed units.
 Filtering every affected candidate pair removed the 3,991 clauses above.
 K256 remained `UNSAT`, so that boundary survives the correction.
 
-In the superseded strict-positive model, constraining each K512 domain to its
-first 256 sites through assumptions was `UNSAT` in 8.439 seconds. Its sufficient
-18-component diagnostic core was:
+Constraining each corrected K512 domain to its first 256 sites through
+assumptions was `UNSAT` in 9.926 seconds. Its sufficient 18-component core was:
 
 ```text
 C202 C502 C601 C604 C611 C612 FV601 FV602 FV617 FV701
 L8606 L8607 L8626 L8630 R602 R605 R704 RT201
 ```
 
-Releasing any one of six sampled core components, or any of six sampled pairs,
-remained `UNSAT`. Releasing all 18 at once was `UNKNOWN` after 180 seconds.
-These domain-assumption runs have not yet been repeated with the corrected
-threshold and are not acceptance proofs.
+In the superseded strict-positive model, releasing any one of six sampled core
+components, or any of six sampled pairs, remained `UNSAT`; releasing all 18 at
+once was `UNKNOWN` after 180 seconds. Those release samples have not yet been
+repeated with the corrected threshold and remain diagnostics only.
 
 ## Fixed-Site Core Chain
 
@@ -87,6 +86,7 @@ Acceptance-threshold artifact SHA-256 values are:
 ```text
 K256:              38678d2dcb33e0817b41eab05b4eb4eee7e785b88a73d787af9aad1292f2efc2
 area audit:         d237979c86e09ff87238327580a40fca005e1f5612f93bb7d205f5ba5f00bcbe
+K512/K256 core:     075e637920fefbf86799d7996b4a15aca0a4dec7278d84c349afcb850b305eb8
 fixed 30:           f90aca737d97bbd58657d601c8c31b751490ac33cc8fcb71b66357e1c3ea2151
 movable 1:          a13dac317713f9a7dddc6374e1d979307d31c67d003e41e5114a9a8696397f5c
 movable 9:          67a04922f8b3533ed82c6cdf488af04a02025d0e3e48dd2408215c8ceee8d505
