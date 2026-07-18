@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from shapely import affinity
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from analyze_quality_bound import (
@@ -1009,6 +1009,96 @@ def _convex_parts(shape, epsilon=1e-8):
     return parts
 
 
+def _horizontal_inner_rectangles(shape, slice_count, epsilon=1e-10):
+    if slice_count <= 0:
+        return ()
+    if shape.is_empty or not shape.is_valid:
+        raise ValueError("inner rectangles require a non-empty valid polygon")
+    if shape.convex_hull.symmetric_difference(shape).area > epsilon:
+        raise ValueError("inner rectangles require a convex polygon")
+
+    min_x, min_y, max_x, max_y = shape.bounds
+    y_edges = np.linspace(min_y, max_y, slice_count + 1)
+    vertex_y = sorted({float(y) for _, y in shape.exterior.coords[:-1]})
+    inset = max(epsilon, (max_y - min_y) * 1e-9)
+    rectangles = []
+    for low_y, high_y in zip(y_edges[:-1], y_edges[1:]):
+        sample_y = [low_y + inset, high_y - inset]
+        sample_y.extend(y for y in vertex_y if low_y < y < high_y)
+        intervals = []
+        for y in sample_y:
+            cross_section = shape.intersection(
+                LineString(((min_x - 1.0, y), (max_x + 1.0, y)))
+            )
+            if not cross_section.is_empty:
+                bounds = cross_section.bounds
+                intervals.append((bounds[0], bounds[2]))
+        if not intervals:
+            continue
+        low_x = max(interval[0] for interval in intervals) + inset
+        high_x = min(interval[1] for interval in intervals) - inset
+        if high_x <= low_x or high_y - low_y <= 2 * inset:
+            continue
+        rectangle = box(
+            low_x,
+            low_y + inset,
+            high_x,
+            high_y - inset,
+        )
+        if not shape.covers(rectangle):
+            raise ValueError("generated inner rectangle escaped its polygon")
+        rectangles.append(rectangle)
+    return tuple(rectangles)
+
+
+def _scaled_inner_rectangles(
+    shape,
+    node_width,
+    node_height,
+    integer_scale,
+    slice_count,
+):
+    rectangles = []
+    for rectangle in _horizontal_inner_rectangles(shape, slice_count):
+        min_x, min_y, max_x, max_y = rectangle.bounds
+        low_x = int(
+            math.ceil(
+                (node_width / 2 + min_x) * integer_scale - 1e-12
+            )
+        )
+        low_y = int(
+            math.ceil(
+                (node_height / 2 + min_y) * integer_scale - 1e-12
+            )
+        )
+        high_x = int(
+            math.floor(
+                (node_width / 2 + max_x) * integer_scale + 1e-12
+            )
+        )
+        high_y = int(
+            math.floor(
+                (node_height / 2 + max_y) * integer_scale + 1e-12
+            )
+        )
+        if high_x <= low_x or high_y <= low_y:
+            continue
+        scaled_rectangle = box(
+            low_x / integer_scale - node_width / 2,
+            low_y / integer_scale - node_height / 2,
+            high_x / integer_scale - node_width / 2,
+            high_y / integer_scale - node_height / 2,
+        )
+        if not shape.covers(scaled_rectangle):
+            raise ValueError(
+                "scaled inner rectangle escaped its footprint"
+            )
+        rectangles.append(
+            (low_x, low_y, high_x - low_x, high_y - low_y)
+        )
+    return tuple(rectangles)
+
+
 def _convex_vertices(shape, node_width, node_height, integer_scale):
     hull = shape.convex_hull
     return tuple(
@@ -1269,6 +1359,7 @@ def _build_model(
     fix_site_hint=False,
     controlled_collision_relaxation="none",
     controlled_collision_pairs=(),
+    nonrectangle_inner_slices=0,
 ):
     if site_model not in ("element", "coordinate-table"):
         raise ValueError("unknown site model: %s" % site_model)
@@ -1299,6 +1390,8 @@ def _build_model(
     controlled_collision_pairs = _normalize_controlled_collision_pairs(
         controlled_collision_pairs
     )
+    if nonrectangle_inner_slices < 0:
+        raise ValueError("nonrectangle inner slice count must be non-negative")
     if controlled_collision_pairs:
         if controlled_collision_relaxation != "none":
             raise ValueError(
@@ -1361,6 +1454,7 @@ def _build_model(
     x_intervals = {"TOP": [], "BOTTOM": []}
     y_intervals = {"TOP": [], "BOTTOM": []}
     controlled_shapes = {"TOP": [], "BOTTOM": []}
+    controlled_inner_rectangle_reports = []
     packing_distance_terms = []
     fixed_obstacle_candidate_count = 0
     fixed_obstacle_pruned_site_count = 0
@@ -1576,6 +1670,60 @@ def _build_model(
                 model.new_fixed_size_interval_var(
                     y_start, height, "iy_%s" % constraint.refdes
                 )
+            )
+        elif nonrectangle_inner_slices:
+            is_convex = (
+                footprint_local.convex_hull.symmetric_difference(
+                    footprint_local
+                ).area
+                <= 1e-8
+            )
+            inner_rectangles = (
+                _scaled_inner_rectangles(
+                    footprint_local,
+                    constraint.node_width,
+                    constraint.node_height,
+                    integer_scale,
+                    nonrectangle_inner_slices,
+                )
+                if is_convex
+                else ()
+            )
+            for inner_index, (
+                inner_x_offset,
+                inner_y_offset,
+                inner_width,
+                inner_height,
+            ) in enumerate(inner_rectangles):
+                x_intervals[constraint.side].append(
+                    model.new_fixed_size_interval_var(
+                        x_var + inner_x_offset,
+                        inner_width,
+                        "ix_inner_%s_%d"
+                        % (constraint.refdes, inner_index),
+                    )
+                )
+                y_intervals[constraint.side].append(
+                    model.new_fixed_size_interval_var(
+                        y_var + inner_y_offset,
+                        inner_height,
+                        "iy_inner_%s_%d"
+                        % (constraint.refdes, inner_index),
+                    )
+                )
+            inner_area = sum(
+                width_units * height_units
+                for _, _, width_units, height_units in inner_rectangles
+            ) / float(integer_scale**2)
+            controlled_inner_rectangle_reports.append(
+                {
+                    "refdes": constraint.refdes,
+                    "rectangle_count": len(inner_rectangles),
+                    "footprint_area": float(footprint_local.area),
+                    "inner_area": inner_area,
+                    "coverage": inner_area / float(footprint_local.area),
+                    "skip_reason": None if is_convex else "nonconvex",
+                }
             )
         controlled_shapes[constraint.side].append(
             {
@@ -2016,6 +2164,14 @@ def _build_model(
         "controlled_collision_pair_allowlist": [
             list(pair) for pair in sorted(controlled_collision_pairs)
         ],
+        "nonrectangle_inner_slices": nonrectangle_inner_slices,
+        "controlled_inner_rectangle_count": sum(
+            row["rectangle_count"]
+            for row in controlled_inner_rectangle_reports
+        ),
+        "controlled_inner_rectangles": (
+            controlled_inner_rectangle_reports
+        ),
         "inactive_controlled_collision_pair_count": len(
             inactive_controlled_collision_pairs
         ),
@@ -2117,6 +2273,15 @@ def _model_report(args, state, assignment_space):
         ],
         "controlled_collision_pair_allowlist": state[
             "controlled_collision_pair_allowlist"
+        ],
+        "nonrectangle_inner_slices": state[
+            "nonrectangle_inner_slices"
+        ],
+        "controlled_inner_rectangle_count": state[
+            "controlled_inner_rectangle_count"
+        ],
+        "controlled_inner_rectangles": state[
+            "controlled_inner_rectangles"
         ],
         "inactive_controlled_collision_pair_count": state[
             "inactive_controlled_collision_pair_count"
@@ -2380,6 +2545,7 @@ def solve(args):
         args.fix_site_hint,
         args.controlled_collision_relaxation,
         args.controlled_collision_pair,
+        args.nonrectangle_inner_slices,
     )
 
     solver = cp_model.CpSolver()
@@ -2716,6 +2882,15 @@ def main():
         ),
     )
     parser.add_argument(
+        "--nonrectangle-inner-slices",
+        type=int,
+        default=0,
+        help=(
+            "diagnostic: add exact-safe inner rectangle slices to global "
+            "NoOverlap2D propagation"
+        ),
+    )
+    parser.add_argument(
         "--use-packing-hint",
         action="store_true",
         help="seed a fixed-assignment solve with deterministic exact packing",
@@ -2815,6 +2990,7 @@ def main():
         or args.time_limit <= 0
         or args.workers <= 0
         or args.candidate_limit_per_region < 0
+        or args.nonrectangle_inner_slices < 0
         or args.hint_conflict_limit <= 0
     ):
         parser.error(

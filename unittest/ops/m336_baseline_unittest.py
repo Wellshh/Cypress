@@ -45,6 +45,7 @@ from solve_discrete_placement import (  # noqa: E402
     _guide_site_indices,
     _hpwl_rounding_allowance_units,
     _hinted_group_regions,
+    _horizontal_inner_rectangles,
     _inactive_controlled_collision_pairs,
     _nearest_site_index,
     _limited_candidate_indices,
@@ -53,6 +54,7 @@ from solve_discrete_placement import (  # noqa: E402
     _partial_fix_refdes,
     _selected_assignment_data,
     _score_hpwl_limit,
+    _scaled_inner_rectangles,
     _scoped_assignment_space,
     _side_legality_report,
     _site_hint_parts,
@@ -239,6 +241,50 @@ class M336BaselineTest(unittest.TestCase):
             _inactive_controlled_collision_pairs(requested, available),
             frozenset((("A", "C"),)),
         )
+
+    def test_rotated_footprint_inner_slices_are_exact_and_disjoint(self):
+        footprint = Polygon(((0, 1), (2, 0), (0, -1), (-2, 0)))
+        rectangles = _horizontal_inner_rectangles(footprint, 16)
+        self.assertEqual(len(rectangles), 16)
+        self.assertGreater(
+            sum(rectangle.area for rectangle in rectangles)
+            / footprint.area,
+            0.8,
+        )
+        self.assertTrue(
+            all(footprint.covers(rectangle) for rectangle in rectangles)
+        )
+        self.assertAlmostEqual(
+            unary_union(rectangles).area,
+            sum(rectangle.area for rectangle in rectangles),
+        )
+        scaled = _scaled_inner_rectangles(
+            footprint, 4.0, 2.0, 1000000, 16
+        )
+        self.assertGreaterEqual(len(scaled), 14)
+        self.assertLessEqual(len(scaled), len(rectangles))
+        scaled_rectangles = []
+        for low_x, low_y, width, height in scaled:
+            rectangle = box(
+                low_x / 1000000 - 2.0,
+                low_y / 1000000 - 1.0,
+                (low_x + width) / 1000000 - 2.0,
+                (low_y + height) / 1000000 - 1.0,
+            )
+            self.assertTrue(footprint.covers(rectangle))
+            scaled_rectangles.append(rectangle)
+        self.assertAlmostEqual(
+            unary_union(scaled_rectangles).area,
+            sum(rectangle.area for rectangle in scaled_rectangles),
+        )
+        with self.assertRaises(ValueError):
+            _scaled_inner_rectangles(
+                Polygon(((0, 0), (2, 0), (2, 1), (1, 1), (1, 2), (0, 2))),
+                2.0,
+                2.0,
+                1000000,
+                16,
+            )
 
     def test_coordinate_solution_identifies_one_candidate_site(self):
         choices = {
