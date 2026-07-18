@@ -153,6 +153,22 @@ def _fixed_hint_candidate_indices(
     )
 
 
+def _coordinate_choice_index(choices, region_id, x_value, y_value):
+    if region_id not in choices["regions"]:
+        raise ValueError("solved region is absent from site choices")
+    region_index = choices["regions"].index(region_id)
+    matches = np.flatnonzero(
+        (choices["region_indices"] == region_index)
+        & (choices["x_values"] == x_value)
+        & (choices["y_values"] == y_value)
+    )
+    if len(matches) != 1:
+        raise ValueError(
+            "solved coordinates must identify exactly one candidate site"
+        )
+    return int(matches[0])
+
+
 def _partial_fix_refdes(constraints, movable_refdes):
     movable_refdes = set(movable_refdes or ())
     if not movable_refdes:
@@ -1109,7 +1125,10 @@ def _build_model(
     movable_refdes=(),
     enforce_hpwl=True,
     packing_side=None,
+    site_model="element",
 ):
+    if site_model not in ("element", "coordinate-table"):
+        raise ValueError("unknown site model: %s" % site_model)
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
     model = cp_model.CpModel()
@@ -1234,23 +1253,59 @@ def _build_model(
         y_values = np.rint(
             (centers[:, 1] - constraint.node_height / 2) * integer_scale
         ).astype(np.int64)
-        site = model.new_int_var(0, len(centers) - 1, "site_%s" % constraint.refdes)
-        x_var = model.new_int_var(
-            int(x_values.min()), int(x_values.max()), "x_%s" % constraint.refdes
-        )
-        y_var = model.new_int_var(
-            int(y_values.min()), int(y_values.max()), "y_%s" % constraint.refdes
-        )
-        model.add_element(site, x_values.tolist(), x_var)
-        model.add_element(site, y_values.tolist(), y_var)
-        model.add_element(
-            site,
-            region_indices.tolist(),
-            assignment_state["group_vars"][group_id],
-        )
-        site_vars[node_id] = site
+        if site_model == "element":
+            site = model.new_int_var(
+                0, len(centers) - 1, "site_%s" % constraint.refdes
+            )
+            x_var = model.new_int_var(
+                int(x_values.min()),
+                int(x_values.max()),
+                "x_%s" % constraint.refdes,
+            )
+            y_var = model.new_int_var(
+                int(y_values.min()),
+                int(y_values.max()),
+                "y_%s" % constraint.refdes,
+            )
+            model.add_element(site, x_values.tolist(), x_var)
+            model.add_element(site, y_values.tolist(), y_var)
+            model.add_element(
+                site,
+                region_indices.tolist(),
+                assignment_state["group_vars"][group_id],
+            )
+            site_vars[node_id] = site
+        else:
+            site = None
+            x_var = model.new_int_var_from_domain(
+                cp_model.Domain.from_values(
+                    np.unique(x_values).astype(np.int64).tolist()
+                ),
+                "x_%s" % constraint.refdes,
+            )
+            y_var = model.new_int_var_from_domain(
+                cp_model.Domain.from_values(
+                    np.unique(y_values).astype(np.int64).tolist()
+                ),
+                "y_%s" % constraint.refdes,
+            )
+            model.add_allowed_assignments(
+                (
+                    x_var,
+                    y_var,
+                    assignment_state["group_vars"][group_id],
+                ),
+                [
+                    [int(x_value), int(y_value), int(region_index)]
+                    for x_value, y_value, region_index in zip(
+                        x_values, y_values, region_indices
+                    )
+                ],
+            )
         site_choices[node_id] = {
             "centers": centers,
+            "x_values": x_values,
+            "y_values": y_values,
             "region_indices": region_indices,
             "local_indices": local_indices,
             "regions": options,
@@ -1322,9 +1377,18 @@ def _build_model(
             )
             if len(matches) != 1:
                 raise ValueError("site hint is absent after candidate limiting")
-            model.add_hint(site, int(matches[0]))
+            match_index = int(matches[0])
+            if site_model == "element":
+                model.add_hint(site, match_index)
+            else:
+                model.add_hint(x_var, int(x_values[match_index]))
+                model.add_hint(y_var, int(y_values[match_index]))
             if constraint.refdes in fixed_hint_refdes:
-                model.add(site == int(matches[0]))
+                if site_model == "element":
+                    model.add(site == match_index)
+                else:
+                    model.add(x_var == int(x_values[match_index]))
+                    model.add(y_var == int(y_values[match_index]))
         else:
             target = np.asarray(
                 [
@@ -1347,7 +1411,11 @@ def _build_model(
                     )
                 ]
             )
-            model.add_hint(site, nearest)
+            if site_model == "element":
+                model.add_hint(site, nearest)
+            else:
+                model.add_hint(x_var, int(x_values[nearest]))
+                model.add_hint(y_var, int(y_values[nearest]))
 
     collision_pair_constraint_count = 0
     collision_component_pair_count = 0
@@ -1520,6 +1588,8 @@ def _build_model(
     return model, {
         "site_vars": site_vars,
         "site_choices": site_choices,
+        "x_vars": x_vars,
+        "y_vars": y_vars,
         "assignment": assignment_state,
         "fixed_x": fixed_x,
         "fixed_y": fixed_y,
@@ -1564,6 +1634,7 @@ def _build_model(
         "hpwl_gate_enabled": bool(enforce_hpwl),
         "optimize_hpwl": bool(optimize_hpwl and enforce_hpwl),
         "packing_side": packing_side,
+        "site_model": site_model,
     }
 
 
@@ -1587,6 +1658,7 @@ def _model_report(args, state, assignment_space):
         "integer_hpwl_limit": state["hpwl_limit_integer"],
         "hpwl_rounding_allowance": state["hpwl_rounding_allowance"],
         "candidate_count": state["candidate_count"],
+        "site_model": state["site_model"],
         "candidate_limit_per_region": state[
             "candidate_limit_per_region"
         ],
@@ -1816,6 +1888,7 @@ def solve(args):
         args.movable_refdes,
         not args.packing_only,
         args.packing_side,
+        args.site_model,
     )
 
     solver = cp_model.CpSolver()
@@ -1877,7 +1950,7 @@ def solve(args):
     node_x[: placedb.num_physical_nodes] = baseline_x
     node_y[: placedb.num_physical_nodes] = baseline_y
     for node_id in range(placedb.num_physical_nodes):
-        if node_id not in state["site_vars"]:
+        if node_id not in state["x_vars"]:
             node_x[node_id] = state["fixed_x"][node_id]
             node_y[node_id] = state["fixed_y"][node_id]
 
@@ -1892,9 +1965,19 @@ def solve(args):
     selected_constraints = []
     for constraint in sorted(context.constraints, key=lambda item: item.refdes):
         node_id = constraint.node_id
-        if node_id in state["site_vars"]:
-            site_index = int(solver.value(state["site_vars"][node_id]))
+        if node_id in state["x_vars"]:
             choices = state["site_choices"][node_id]
+            if state["site_model"] == "element":
+                site_index = int(
+                    solver.value(state["site_vars"][node_id])
+                )
+            else:
+                site_index = _coordinate_choice_index(
+                    choices,
+                    selected_regions[constraint.subgroup_id],
+                    int(solver.value(state["x_vars"][node_id])),
+                    int(solver.value(state["y_vars"][node_id])),
+                )
             region_index = int(choices["region_indices"][site_index])
             region_id = choices["regions"][region_index]
             local_index = int(choices["local_indices"][site_index])
@@ -2041,6 +2124,12 @@ def main():
         "--packing-side",
         choices=("TOP", "BOTTOM"),
         help="diagnostic: solve exact packing on only one board side",
+    )
+    parser.add_argument(
+        "--site-model",
+        choices=("element", "coordinate-table"),
+        default="element",
+        help="encode candidate sites by index elements or an (x, y, region) table",
     )
     parser.add_argument(
         "--fixed-endpoint-mode",

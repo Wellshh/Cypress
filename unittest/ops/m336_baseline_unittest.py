@@ -37,6 +37,7 @@ from optimize_assignment import (  # noqa: E402
 )
 from solve_discrete_placement import (  # noqa: E402
     _capacity_integer_bounds,
+    _coordinate_choice_index,
     _convex_parts,
     _exact_site_index,
     _fixed_hint_candidate_indices,
@@ -214,6 +215,21 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(sum(len(indices) for indices in selected), 1)
         with self.assertRaises(ValueError):
             _fixed_hint_candidate_indices(("left",), "right", 17)
+
+    def test_coordinate_solution_identifies_one_candidate_site(self):
+        choices = {
+            "regions": ("left", "right"),
+            "region_indices": np.asarray([0, 0, 1]),
+            "x_values": np.asarray([10, 20, 10]),
+            "y_values": np.asarray([30, 40, 30]),
+        }
+        self.assertEqual(
+            _coordinate_choice_index(choices, "right", 10, 30), 2
+        )
+        with self.assertRaises(ValueError):
+            _coordinate_choice_index(choices, "missing", 10, 30)
+        with self.assertRaises(ValueError):
+            _coordinate_choice_index(choices, "left", 99, 30)
 
     def test_side_legality_report_filters_other_side(self):
         legality = {
