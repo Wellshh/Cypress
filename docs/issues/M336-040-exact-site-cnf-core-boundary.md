@@ -57,13 +57,14 @@ candidate-pair clauses:
 | 1 | 29 | `UNSAT` | 0.126 s | `C201 C202 C601 C604 C612 FV602 FV617 L8607` |
 | 9 | 21 | `UNSAT` | 0.163 s | `C203 C502 C611 FV301 FV604 FV701 L8626 L8630 RT201` |
 | 18 | 12 | `UNSAT` | 39.766 s | `C204 FV607 L8606 R602 R605 R704` |
+| 24 | 6 | `UNSAT` | 158.229 s | `C301 C701 C8653 FV618 R604` |
 
-The union therefore leaves 24 components movable and only `C301`, `C501`,
-`C701`, `C8653`, `FV618`, and `R604` fixed. This is a sufficient release path,
-not a proof that 24 is the minimum. An incremental breadth-first audit queried
-100,000 alternative movable sets, reaching size 10 without a SAT result. A
-minimum-hitting-set audit queried another 1,000 size-six candidates; all were
-`UNSAT`.
+The next union leaves 29 components movable and only `C501` fixed. The 24/6
+solve used Glucose42 and accumulated 535,668 conflicts, 6,071,065 decisions,
+and 231,248,529 propagations. This is a sufficient release path, not a proof
+that 29 is the minimum. An incremental breadth-first audit queried 100,000
+alternative movable sets, reaching size 10 without a SAT result. A minimum-
+hitting-set audit queried another 1,000 size-six candidates; all were `UNSAT`.
 
 Artifact SHA-256 values are:
 
@@ -73,6 +74,7 @@ fixed 30:                  437779f8bd57ddb5174f12066149b27ed3ccbd581da5c542dbd9f
 movable 1:                 a58f83ebb272b9be04eb668f551064c15f575e2c906c26d0c43c8e6a9ed635db
 movable 9:                 e27c0da3dc86ca1b28af013d27b8e3b1a993412e884836fc330a8cbbd5ffe6b6
 movable 18:                e705bd7581ba8475205fefb1091b366f72f825e7185a32a72e7eb12b485bf790
+movable 24:                e3bf87f6b62a783ae4f43c84d2415cbec2044f6364b3d87757cc84cc3b1d3464
 100k BFS audit:            446815eb4c9a8515b7e75732f4dd63aa9ee77c0d5af4e4df6bcbe9fbc59e1fc4
 Hitman audit:              f70c9b170527969a8359ecf38817440e25a8ea0f024ec71661d9463473b64537
 ```
