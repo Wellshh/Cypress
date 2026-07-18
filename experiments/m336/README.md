@@ -78,3 +78,9 @@ it is retained only to reproduce the historical over-conservative model from
 bound and never produces an acceptable placement. In every mode, promote a
 result only after its emitted exact report shows full containment and zero
 overlaps.
+
+To audit how far a complete placement must move, provide a full site hint and
+repeat `--movable-refdes <REFDES>`. Every controlled component not listed is
+fixed to its hinted site by an explicit model equality. This mode is diagnostic
+and requires a fixed assignment; the result records both the movable list and
+fixed-site count. See `M336-018` for the anchor-relocation mobility proofs.

@@ -61,6 +61,12 @@ necessary condition and is not an accepted placement.
 `0.05 mm` candidate with HPWL `14114.9242` and score potential `1.08115`.
 Collision-free feasibility and native RSMT remain unresolved.
 
+`M336-018` then showed that changing only those two fixed coordinates creates
+seven exact collisions in the existing legal skeleton. Neither the seven
+direct conflicts nor their 17-component first neighbor ring can be repaired
+while all other sites remain fixed. Production integration therefore requires
+global repacking under the selected anchor policy, not an endpoint-only patch.
+
 ## Acceptance Criteria
 
 - Initialization reports the configured position source for every anchor.

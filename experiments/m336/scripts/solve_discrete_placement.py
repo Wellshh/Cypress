@@ -134,6 +134,20 @@ def _limited_candidate_indices(
     return np.sort(order)
 
 
+def _partial_fix_refdes(constraints, movable_refdes):
+    movable_refdes = set(movable_refdes or ())
+    if not movable_refdes:
+        return frozenset()
+    available = {constraint.refdes for constraint in constraints}
+    unknown = sorted(movable_refdes - available)
+    if unknown:
+        raise ValueError(
+            "movable refdes are not controlled components: %s"
+            % ", ".join(unknown)
+        )
+    return frozenset(available - movable_refdes)
+
+
 def _build_packing_hint(
     args,
     placedb,
@@ -975,6 +989,7 @@ def _build_model(
     candidate_guides=None,
     candidate_guide_report=None,
     optimize_hpwl=True,
+    movable_refdes=(),
 ):
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
@@ -985,6 +1000,11 @@ def _build_model(
     constraint_by_node = {
         constraint.node_id: constraint for constraint in context.constraints
     }
+    fixed_hint_refdes = _partial_fix_refdes(
+        context.constraints, movable_refdes
+    )
+    if fixed_hint_refdes and not site_hints:
+        raise ValueError("partial site fixing requires a complete site hint")
     site_vars = {}
     site_choices = {}
     x_vars = {}
@@ -1136,6 +1156,8 @@ def _build_model(
             if len(matches) != 1:
                 raise ValueError("packing site hint is absent after limiting")
             model.add_hint(site, int(matches[0]))
+            if constraint.refdes in fixed_hint_refdes:
+                model.add(site == int(matches[0]))
         else:
             target = np.asarray(
                 [
@@ -1319,6 +1341,8 @@ def _build_model(
             for shape in shapes
         ),
         "collision_pair_constraint_count": collision_pair_constraint_count,
+        "fixed_hint_site_count": len(fixed_hint_refdes),
+        "movable_refdes": sorted(set(movable_refdes or ())),
         "site_hint": site_hint_report,
         "candidate_limit_per_region": candidate_limit_per_region,
         "candidate_guide": candidate_guide_report,
@@ -1357,6 +1381,8 @@ def _model_report(args, state, assignment_space):
         "collision_pair_constraint_count": state[
             "collision_pair_constraint_count"
         ],
+        "fixed_hint_site_count": state["fixed_hint_site_count"],
+        "movable_refdes": state["movable_refdes"],
         "fixed_endpoint_mode": args.fixed_endpoint_mode,
         "manual_baseline_endpoint_overrides": sorted(
             set(args.manual_baseline_endpoint)
@@ -1452,6 +1478,15 @@ def solve(args):
         raise ValueError("select only one site hint source")
     if args.fix_site_hint and hint_count != 1:
         raise ValueError("fixing site hints requires one site hint source")
+    if args.movable_refdes:
+        if hint_count != 1:
+            raise ValueError("partial site fixing requires one site hint source")
+        if args.fix_site_hint:
+            raise ValueError(
+                "partial site fixing and full site fixing are mutually exclusive"
+            )
+        if assignment_space["mode"] != "fixed":
+            raise ValueError("partial site fixing requires a fixed assignment")
     if args.candidate_limit_per_region and hint_count != 1:
         raise ValueError("candidate limiting requires one site hint source")
     if args.candidate_guide_placement is not None:
@@ -1525,6 +1560,7 @@ def solve(args):
         candidate_guides,
         candidate_guide_report,
         not args.feasibility_only,
+        args.movable_refdes,
     )
 
     solver = cp_model.CpSolver()
@@ -1779,6 +1815,15 @@ def main():
         "--fix-site-hint",
         action="store_true",
         help="diagnostic: fix all site variables to their hinted values",
+    )
+    parser.add_argument(
+        "--movable-refdes",
+        action="append",
+        default=[],
+        help=(
+            "allow one controlled component to move while all other hinted "
+            "sites remain fixed; may be repeated"
+        ),
     )
     parser.add_argument(
         "--candidate-limit-per-region",

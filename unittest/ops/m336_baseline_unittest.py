@@ -42,6 +42,7 @@ from solve_discrete_placement import (  # noqa: E402
     _hpwl_rounding_allowance_units,
     _nearest_site_index,
     _limited_candidate_indices,
+    _partial_fix_refdes,
     _selected_assignment_data,
     _score_hpwl_limit,
 )
@@ -106,6 +107,20 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_partial_site_fix_releases_only_named_components(self):
+        constraints = [
+            SimpleNamespace(refdes="A"),
+            SimpleNamespace(refdes="B"),
+            SimpleNamespace(refdes="C"),
+        ]
+        self.assertEqual(
+            _partial_fix_refdes(constraints, ["B", "B"]),
+            frozenset(("A", "C")),
+        )
+        self.assertEqual(_partial_fix_refdes(constraints, []), frozenset())
+        with self.assertRaises(ValueError):
+            _partial_fix_refdes(constraints, ["UNKNOWN"])
+
     def test_concave_footprint_decomposition_is_exact_and_deterministic(self):
         footprint = Polygon(
             ((0, 0), (4, 0), (4, 1), (1, 1), (1, 4), (0, 4))
