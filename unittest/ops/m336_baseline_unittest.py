@@ -48,6 +48,7 @@ from solve_discrete_placement import (  # noqa: E402
     _selected_assignment_data,
     _score_hpwl_limit,
     _scoped_assignment_space,
+    _side_legality_report,
     _site_hint_parts,
     _swept_bboxes_may_overlap,
 )
@@ -202,6 +203,23 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(_partial_fix_refdes(constraints, []), frozenset())
         with self.assertRaises(ValueError):
             _partial_fix_refdes(constraints, ["UNKNOWN"])
+
+    def test_side_legality_report_filters_other_side(self):
+        legality = {
+            "violations": [
+                {"side": "TOP", "violation_area": 2.0},
+                {"side": "BOTTOM", "violation_area": 3.0},
+            ],
+            "overlap_pairs": [
+                {"side": "TOP", "overlap_area": 5.0},
+                {"side": "BOTTOM", "overlap_area": 7.0},
+            ],
+        }
+        report = _side_legality_report(legality, "TOP")
+        self.assertEqual(report["keepin_violation_count"], 1)
+        self.assertEqual(report["keepin_violation_area"], 2.0)
+        self.assertEqual(report["overlap_pair_count"], 1)
+        self.assertEqual(report["overlap_area"], 5.0)
 
     def test_concave_footprint_decomposition_is_exact_and_deterministic(self):
         footprint = Polygon(

@@ -111,3 +111,8 @@ Use `--packing-only --feasibility-only` only to isolate keep-in, capacity, and
 collision feasibility. This diagnostic mode omits all HPWL variables and the
 score gate; it still reports actual HPWL after finding a candidate, but its
 placement cannot be accepted until a later score-gated solve passes.
+
+`--packing-side TOP|BOTTOM` additionally restricts a packing-only fixed-
+assignment solve to one side. It requires a complete structured result hint;
+the other side is copied unchanged, and `packing_side_legality` controls only
+that stage. Chain both sides and require final global legality before reuse.

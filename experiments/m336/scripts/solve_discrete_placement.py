@@ -155,6 +155,26 @@ def _partial_fix_refdes(constraints, movable_refdes):
     return frozenset(available - movable_refdes)
 
 
+def _side_legality_report(legality, side):
+    violations = [
+        row for row in legality["violations"] if row["side"] == side
+    ]
+    overlap_pairs = [
+        row for row in legality["overlap_pairs"] if row["side"] == side
+    ]
+    return {
+        "side": side,
+        "keepin_violation_count": len(violations),
+        "keepin_violation_area": sum(
+            row["violation_area"] for row in violations
+        ),
+        "overlap_pair_count": len(overlap_pairs),
+        "overlap_area": sum(row["overlap_area"] for row in overlap_pairs),
+        "violations": violations,
+        "overlap_pairs": overlap_pairs,
+    }
+
+
 def _site_hint_parts(site_hint):
     if not isinstance(site_hint, dict):
         raise ValueError("site hints must include region_id and site_index")
@@ -1116,6 +1136,7 @@ def _build_model(
     optimize_hpwl=True,
     movable_refdes=(),
     enforce_hpwl=True,
+    packing_side=None,
 ):
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
@@ -1124,11 +1145,19 @@ def _build_model(
     assignment_state = _add_assignment_variables(
         model, assignment_space, capacity_scale, hinted_regions
     )
+    modeled_constraints = tuple(
+        constraint
+        for constraint in context.constraints
+        if packing_side is None or constraint.side == packing_side
+    )
     constraint_by_node = {
-        constraint.node_id: constraint for constraint in context.constraints
+        constraint.node_id: constraint for constraint in modeled_constraints
+    }
+    all_controlled_ids = {
+        constraint.node_id for constraint in context.constraints
     }
     fixed_hint_refdes = _partial_fix_refdes(
-        context.constraints, movable_refdes
+        modeled_constraints, movable_refdes
     )
     if fixed_hint_refdes and not site_hints:
         raise ValueError("partial site fixing requires a complete site hint")
@@ -1141,7 +1170,7 @@ def _build_model(
     y_intervals = {"TOP": [], "BOTTOM": []}
     controlled_shapes = {"TOP": [], "BOTTOM": []}
 
-    for constraint in sorted(context.constraints, key=lambda item: item.refdes):
+    for constraint in sorted(modeled_constraints, key=lambda item: item.refdes):
         node_id = constraint.node_id
         group_id = assignment_space["node_groups"][node_id]
         options = assignment_space["group_options"][group_id]
@@ -1341,16 +1370,17 @@ def _build_model(
             )
             model.add_hint(site, nearest)
 
-    constrained_ids = set(constraint_by_node)
     collision_pair_constraint_count = 0
     collision_component_pair_count = 0
     collision_skipped_component_pair_count = 0
     fixed_shapes = {"TOP": [], "BOTTOM": []}
     if collision_mode in ("convex", "decomposed"):
         for node_id in range(placedb.num_physical_nodes):
-            if node_id in constrained_ids:
+            if node_id in all_controlled_ids:
                 continue
             side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
+            if packing_side is not None and side != packing_side:
+                continue
             name = _decode(placedb.node_names[node_id])
             fixed_start_x = _scaled(fixed_x[node_id], integer_scale)
             fixed_start_y = _scaled(fixed_y[node_id], integer_scale)
@@ -1417,7 +1447,10 @@ def _build_model(
                         model, controlled, fixed_shape
                     )
 
-        for side in ("TOP", "BOTTOM"):
+        collision_sides = (
+            (packing_side,) if packing_side is not None else ("TOP", "BOTTOM")
+        )
+        for side in collision_sides:
             model.add_no_overlap_2d(x_intervals[side], y_intervals[side])
             shapes = controlled_shapes[side]
             for first_index, first in enumerate(shapes):
@@ -1517,6 +1550,7 @@ def _build_model(
         "hpwl_rounding_allowance": rounding_allowance / integer_scale,
         "candidate_count": candidate_count,
         "controlled_node_count": len(constraint_by_node),
+        "total_controlled_node_count": len(all_controlled_ids),
         "fixed_node_count": placedb.num_physical_nodes - len(constraint_by_node),
         "controlled_nonrectangle_count": sum(
             not shape["is_rectangle"]
@@ -1550,6 +1584,7 @@ def _build_model(
         "candidate_guide": candidate_guide_report,
         "hpwl_gate_enabled": bool(enforce_hpwl),
         "optimize_hpwl": bool(optimize_hpwl and enforce_hpwl),
+        "packing_side": packing_side,
     }
 
 
@@ -1577,6 +1612,7 @@ def _model_report(args, state, assignment_space):
             "candidate_limit_per_region"
         ],
         "controlled_node_count": state["controlled_node_count"],
+        "total_controlled_node_count": state["total_controlled_node_count"],
         "fixed_node_count": state["fixed_node_count"],
         "controlled_nonrectangle_count": state[
             "controlled_nonrectangle_count"
@@ -1597,6 +1633,7 @@ def _model_report(args, state, assignment_space):
         ],
         "fixed_hint_site_count": state["fixed_hint_site_count"],
         "movable_refdes": state["movable_refdes"],
+        "packing_side": state["packing_side"],
         "fixed_endpoint_mode": args.fixed_endpoint_mode,
         "manual_baseline_endpoint_overrides": sorted(
             set(args.manual_baseline_endpoint)
@@ -1711,6 +1748,19 @@ def solve(args):
             raise ValueError(
                 "movable subgroups require one structured result hint"
             )
+    if args.packing_side:
+        if not args.packing_only:
+            raise ValueError("packing side requires packing-only mode")
+        if assignment_space["mode"] != "fixed":
+            raise ValueError("packing side requires a fixed assignment")
+        if args.site_hint_result is None or hint_count != 1:
+            raise ValueError(
+                "packing side requires one structured result hint"
+            )
+        if args.movable_refdes:
+            raise ValueError(
+                "packing side and movable refdes are mutually exclusive"
+            )
     if args.candidate_limit_per_region and hint_count != 1:
         raise ValueError("candidate limiting requires one site hint source")
     if args.candidate_guide_placement is not None:
@@ -1786,6 +1836,7 @@ def solve(args):
         not args.feasibility_only,
         args.movable_refdes,
         not args.packing_only,
+        args.packing_side,
     )
 
     solver = cp_model.CpSolver()
@@ -1860,14 +1911,22 @@ def solve(args):
 
     selected_sites = {}
     selected_constraints = []
-    constraints = {item.node_id: item for item in context.constraints}
-    for node_id, site_var in state["site_vars"].items():
-        site_index = int(solver.value(site_var))
-        constraint = constraints[node_id]
-        choices = state["site_choices"][node_id]
-        region_index = int(choices["region_indices"][site_index])
-        region_id = choices["regions"][region_index]
-        local_index = int(choices["local_indices"][site_index])
+    for constraint in sorted(context.constraints, key=lambda item: item.refdes):
+        node_id = constraint.node_id
+        if node_id in state["site_vars"]:
+            site_index = int(solver.value(state["site_vars"][node_id]))
+            choices = state["site_choices"][node_id]
+            region_index = int(choices["region_indices"][site_index])
+            region_id = choices["regions"][region_index]
+            local_index = int(choices["local_indices"][site_index])
+        else:
+            if node_id not in site_hints:
+                raise RuntimeError(
+                    "unmodeled component has no site hint: %s"
+                    % constraint.refdes
+                )
+            region_id, local_index = _site_hint_parts(site_hints[node_id])
+            site_index = None
         if region_id != selected_regions[constraint.subgroup_id]:
             raise RuntimeError(
                 "site and subgroup region disagree for %s" % constraint.refdes
@@ -1920,6 +1979,10 @@ def solve(args):
         "selected_regions": selected_regions,
         "selected_sites": selected_sites,
     }
+    if args.packing_side:
+        result["packing_side_legality"] = _side_legality_report(
+            legality, args.packing_side
+        )
     if args.assignment_output is not None:
         assignment_output = _selected_assignment_data(
             assignment_space["template"],
@@ -1935,7 +1998,11 @@ def solve(args):
         write_json(args.assignment_output, assignment_output)
         result["selected_assignment"] = repo_path(args.assignment_output)
     write_json(args.output, result)
-    if legality["keepin_violation_count"] or legality["overlap_pair_count"]:
+    acceptance_legality = result.get("packing_side_legality", legality)
+    if (
+        acceptance_legality["keepin_violation_count"]
+        or acceptance_legality["overlap_pair_count"]
+    ):
         raise RuntimeError("CP-SAT placement failed exact geometry validation")
     if (
         state["hpwl_gate_enabled"]
@@ -1990,6 +2057,11 @@ def main():
         "--packing-only",
         action="store_true",
         help="diagnostic: omit HPWL variables and the score gate",
+    )
+    parser.add_argument(
+        "--packing-side",
+        choices=("TOP", "BOTTOM"),
+        help="diagnostic: solve exact packing on only one board side",
     )
     parser.add_argument(
         "--fixed-endpoint-mode",
@@ -2091,6 +2163,8 @@ def main():
     args = parser.parse_args()
     if args.packing_only and not args.feasibility_only:
         parser.error("packing-only requires feasibility-only")
+    if args.packing_side and not args.packing_only:
+        parser.error("packing-side requires packing-only")
     for name in (
         "bookshelf_dir",
         "assignment",
@@ -2158,6 +2232,9 @@ def main():
                         "overlap_pair_count"
                     ],
                 },
+                "packing_side_legality": result.get(
+                    "packing_side_legality"
+                ),
             },
             indent=2,
             sort_keys=True,
