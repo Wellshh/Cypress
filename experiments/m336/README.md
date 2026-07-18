@@ -88,3 +88,9 @@ fixed-site count. See `M336-018` for the anchor-relocation mobility proofs.
 Collision reports also expose encoded and safely skipped component-pair counts.
 The skip test uses swept bounds over every candidate site, never a heuristic
 distance cutoff; see `M336-019` for the semantic A/B validation.
+
+Optimized-assignment search may consume `--site-hint-result`; each selected
+site supplies an explicit region and region-local index. Candidate limiting
+retains a neighborhood in every eligible region, so the hint guides rather
+than fixes assignment. Raw placement hints remain fixed-assignment only. See
+`M336-020` for the validated hint contract.

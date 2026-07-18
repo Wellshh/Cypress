@@ -40,11 +40,13 @@ from solve_discrete_placement import (  # noqa: E402
     _convex_parts,
     _exact_site_index,
     _hpwl_rounding_allowance_units,
+    _hinted_group_regions,
     _nearest_site_index,
     _limited_candidate_indices,
     _partial_fix_refdes,
     _selected_assignment_data,
     _score_hpwl_limit,
+    _site_hint_parts,
     _swept_bboxes_may_overlap,
 )
 from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
@@ -108,6 +110,26 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_structured_site_hints_preserve_subgroup_region_coherence(self):
+        assignment_space = {
+            "node_groups": {1: "g", 2: "g"},
+            "group_options": {"g": ("left", "right")},
+        }
+        hints = {
+            1: {"region_id": "right", "site_index": 4},
+            2: {"region_id": "right", "site_index": 7},
+        }
+        self.assertEqual(
+            _hinted_group_regions(hints, assignment_space),
+            {"g": "right"},
+        )
+        self.assertEqual(_site_hint_parts(hints[1]), ("right", 4))
+        hints[2]["region_id"] = "left"
+        with self.assertRaises(ValueError):
+            _hinted_group_regions(hints, assignment_space)
+        with self.assertRaises(ValueError):
+            _site_hint_parts(4)
+
     def test_collision_pair_pruning_only_skips_disjoint_swept_boxes(self):
         first = {"swept_bbox": (0, 0, 10, 10)}
         self.assertFalse(

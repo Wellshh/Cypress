@@ -148,6 +148,27 @@ def _partial_fix_refdes(constraints, movable_refdes):
     return frozenset(available - movable_refdes)
 
 
+def _site_hint_parts(site_hint):
+    if not isinstance(site_hint, dict):
+        raise ValueError("site hints must include region_id and site_index")
+    if "region_id" not in site_hint or "site_index" not in site_hint:
+        raise ValueError("site hints must include region_id and site_index")
+    return str(site_hint["region_id"]), int(site_hint["site_index"])
+
+
+def _hinted_group_regions(site_hints, assignment_space):
+    hinted_regions = {}
+    for node_id, site_hint in site_hints.items():
+        region_id, _ = _site_hint_parts(site_hint)
+        group_id = assignment_space["node_groups"][node_id]
+        if region_id not in assignment_space["group_options"][group_id]:
+            raise ValueError("site hint region is ineligible for %s" % group_id)
+        if group_id in hinted_regions and hinted_regions[group_id] != region_id:
+            raise ValueError("site hints split subgroup %s across regions" % group_id)
+        hinted_regions[group_id] = region_id
+    return hinted_regions
+
+
 def _build_packing_hint(
     args,
     placedb,
@@ -311,7 +332,10 @@ def _build_packing_hint(
         site_index = _exact_site_index(
             constraint.domain.valid_centers, center
         )
-        site_indices[constraint.node_id] = site_index
+        site_indices[constraint.node_id] = {
+            "region_id": constraint.region_id,
+            "site_index": site_index,
+        }
         selected_sites[constraint.refdes] = {
             "site_index": site_index,
             "center": list(center),
@@ -403,7 +427,10 @@ def _load_site_hint(
                 % (constraint.refdes, snap_distance)
             )
         snapped_center = constraint.domain.valid_centers[site_index]
-        site_indices[constraint.node_id] = site_index
+        site_indices[constraint.node_id] = {
+            "region_id": constraint.region_id,
+            "site_index": site_index,
+        }
         snap_distances.append(snap_distance)
         position[constraint.node_id] = (
             snapped_center[0] - constraint.node_width / 2
@@ -446,6 +473,7 @@ def _load_result_site_hint(
     args,
     placedb,
     context,
+    assignment_space,
     baseline_x,
     baseline_y,
     fixed_x,
@@ -468,34 +496,61 @@ def _load_result_site_hint(
         position[placedb.num_nodes + node_id] = fixed_y[node_id]
 
     site_indices = {}
+    hinted_regions = {}
+    selected_constraints = []
     for constraint in context.constraints:
         if constraint.refdes not in selected_sites:
             raise ValueError(
                 "site hint result is missing %s" % constraint.refdes
             )
         row = selected_sites[constraint.refdes]
-        if row.get("region_id") != constraint.region_id:
+        group_id = assignment_space["node_groups"][constraint.node_id]
+        region_id = row.get("region_id")
+        if region_id not in assignment_space["group_options"][group_id]:
             raise ValueError(
-                "site hint result region differs for %s" % constraint.refdes
+                "site hint result region is ineligible for %s"
+                % constraint.refdes
             )
+        if group_id in hinted_regions and hinted_regions[group_id] != region_id:
+            raise ValueError(
+                "site hint result splits subgroup %s across regions" % group_id
+            )
+        hinted_regions[group_id] = region_id
+        domain = assignment_space["domains"][(constraint.node_id, region_id)]
         center = np.asarray(row["center"], dtype=np.float64)
         site_index = _exact_site_index(
-            constraint.domain.valid_centers, center, tolerance=1e-5
+            domain.valid_centers, center, tolerance=1e-5
         )
-        exact_center = constraint.domain.valid_centers[site_index]
-        site_indices[constraint.node_id] = site_index
+        exact_center = domain.valid_centers[site_index]
+        site_indices[constraint.node_id] = {
+            "region_id": region_id,
+            "site_index": site_index,
+        }
         position[constraint.node_id] = (
             exact_center[0] - constraint.node_width / 2
         )
         position[placedb.num_nodes + constraint.node_id] = (
             exact_center[1] - constraint.node_height / 2
         )
+        target, _ = domain.project(
+            context.anchor_centers[constraint.anchor_refdes]
+        )
+        selected_constraints.append(
+            replace(
+                constraint,
+                region_id=region_id,
+                domain=domain,
+                target_center=target,
+            )
+        )
 
     node_x = position[: placedb.num_physical_nodes]
     node_y = position[
         placedb.num_nodes : placedb.num_nodes + placedb.num_physical_nodes
     ]
-    legality = context.exact_report(torch.from_numpy(position), placedb)
+    legality = context.exact_report(
+        torch.from_numpy(position), placedb, constraints=selected_constraints
+    )
     hpwl = float(placedb.hpwl(node_x, node_y))
     score_upper_bound = 2.0 / (
         hpwl / baseline_hpwl + hpwl / baseline_rsmt
@@ -928,7 +983,10 @@ def _swept_bboxes_may_overlap(first, second):
     )
 
 
-def _add_assignment_variables(model, assignment_space, capacity_scale):
+def _add_assignment_variables(
+    model, assignment_space, capacity_scale, hinted_regions=None
+):
+    hinted_regions = dict(hinted_regions or {})
     group_vars = {}
     option_literals = {}
     for group_id in sorted(assignment_space["group_options"]):
@@ -950,7 +1008,9 @@ def _add_assignment_variables(model, assignment_space, capacity_scale):
             group_var
             == sum(index * literal for index, literal in enumerate(literals))
         )
-        preferred_region = assignment_space["preferred_regions"][group_id]
+        preferred_region = hinted_regions.get(
+            group_id, assignment_space["preferred_regions"][group_id]
+        )
         if preferred_region not in options:
             raise ValueError(
                 "preferred region is not eligible for subgroup: %s" % group_id
@@ -1009,8 +1069,9 @@ def _build_model(
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
     model = cp_model.CpModel()
+    hinted_regions = _hinted_group_regions(site_hints, assignment_space)
     assignment_state = _add_assignment_variables(
-        model, assignment_space, capacity_scale
+        model, assignment_space, capacity_scale, hinted_regions
     )
     constraint_by_node = {
         constraint.node_id: constraint for constraint in context.constraints
@@ -1045,17 +1106,41 @@ def _build_model(
                 "candidate regions changed the effective footprint: %s"
                 % constraint.refdes
             )
-        selected_indices = []
-        for region_index, domain in enumerate(domain_options):
-            preferred_index = (
-                site_hints.get(node_id)
-                if len(domain_options) == 1 and region_index == 0
-                else None
+        hint_region_id = None
+        hint_local_index = None
+        hint_center = None
+        if node_id in site_hints:
+            hint_region_id, hint_local_index = _site_hint_parts(
+                site_hints[node_id]
             )
+            if hint_region_id not in options:
+                raise ValueError(
+                    "site hint region is ineligible for %s"
+                    % constraint.refdes
+                )
+            hint_domain = assignment_space["domains"][
+                (node_id, hint_region_id)
+            ]
+            if not 0 <= hint_local_index < len(hint_domain.valid_centers):
+                raise ValueError(
+                    "site hint index is out of range for %s"
+                    % constraint.refdes
+                )
+            hint_center = hint_domain.valid_centers[hint_local_index]
+        selected_indices = []
+        for region_id, domain in zip(options, domain_options):
+            preferred_index = None
+            if hint_center is not None:
+                preferred_index = (
+                    hint_local_index
+                    if region_id == hint_region_id
+                    else _nearest_site_index(
+                        domain.valid_centers, hint_center
+                    )[0]
+                )
             guide_indices = (
                 (candidate_guides[node_id],)
                 if len(domain_options) == 1
-                and region_index == 0
                 and node_id in candidate_guides
                 else ()
             )
@@ -1170,12 +1255,13 @@ def _build_model(
         )
 
         if node_id in site_hints:
-            if len(options) != 1:
-                raise ValueError("packing site hints require a fixed assignment")
-            hint_index = int(site_hints[node_id])
-            matches = np.flatnonzero(local_indices == hint_index)
+            hint_region_index = options.index(hint_region_id)
+            matches = np.flatnonzero(
+                (region_indices == hint_region_index)
+                & (local_indices == hint_local_index)
+            )
             if len(matches) != 1:
-                raise ValueError("packing site hint is absent after limiting")
+                raise ValueError("site hint is absent after candidate limiting")
             model.add_hint(site, int(matches[0]))
             if constraint.refdes in fixed_hint_refdes:
                 model.add(site == int(matches[0]))
@@ -1545,12 +1631,11 @@ def solve(args):
             args, context
         )
     if args.site_hint_result is not None:
-        if assignment_space["mode"] != "fixed":
-            raise ValueError("site hints require a fixed assignment")
         site_hints, site_hint_report = _load_result_site_hint(
             args,
             placedb,
             context,
+            assignment_space,
             baseline_x,
             baseline_y,
             fixed_x,
