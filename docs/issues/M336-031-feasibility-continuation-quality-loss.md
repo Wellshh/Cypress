@@ -48,6 +48,12 @@ and 620 exact part constraints. Seed 1000 remained `UNKNOWN` after
 peak RSS. This broad-domain result is also inconclusive and must not be cited
 as endpoint infeasibility.
 
+Changing only the portfolio seed to 1001 also remained `UNKNOWN` after
+`300.132242 s`. It explored 1,725,608 branches and 29,778 conflicts versus
+seed 1000's 4,357,459 and 1,372,410, respectively. This large trajectory
+change without a candidate confirms seed sensitivity but does not justify
+additional blind random restarts.
+
 ## Required Improvement
 
 - Reach the exact manual endpoint with a replayable globally legal placement.
