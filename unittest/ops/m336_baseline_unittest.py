@@ -8,7 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
-from shapely.geometry import box
+from shapely.geometry import Polygon, box
+from shapely.ops import unary_union
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -36,7 +37,11 @@ from optimize_assignment import (  # noqa: E402
 )
 from solve_discrete_placement import (  # noqa: E402
     _capacity_integer_bounds,
+    _convex_parts,
+    _exact_site_index,
     _hpwl_rounding_allowance_units,
+    _nearest_site_index,
+    _limited_candidate_indices,
     _selected_assignment_data,
     _score_hpwl_limit,
 )
@@ -101,6 +106,48 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_concave_footprint_decomposition_is_exact_and_deterministic(self):
+        footprint = Polygon(
+            ((0, 0), (4, 0), (4, 1), (1, 1), (1, 4), (0, 4))
+        )
+        first = _convex_parts(footprint)
+        second = _convex_parts(footprint)
+        self.assertEqual(len(first), 4)
+        self.assertEqual(
+            [part.wkb_hex for part in first],
+            [part.wkb_hex for part in second],
+        )
+        self.assertAlmostEqual(
+            unary_union(first).symmetric_difference(footprint).area,
+            0.0,
+        )
+        self.assertAlmostEqual(sum(part.area for part in first), footprint.area)
+        for part in first:
+            self.assertAlmostEqual(part.convex_hull.area, part.area)
+
+    def test_discrete_packing_hint_requires_an_exact_site(self):
+        centers = np.asarray([[0.0, 0.0], [1.0, 2.0], [3.0, 4.0]])
+        self.assertEqual(_exact_site_index(centers, [1.0, 2.0]), 1)
+        index, distance = _nearest_site_index(centers, [1.1, 2.0])
+        self.assertEqual(index, 1)
+        self.assertAlmostEqual(distance, 0.1)
+        with self.assertRaises(ValueError):
+            _exact_site_index(centers, [1.1, 2.0])
+
+    def test_discrete_candidate_limit_is_deterministic_and_keeps_hint(self):
+        centers = np.asarray([[0.0, 0.0], [2.0, 0.0], [1.0, 0.0], [3.0, 0.0]])
+        indices = _limited_candidate_indices(centers, 2, preferred_index=1)
+        np.testing.assert_array_equal(indices, [1, 2])
+        np.testing.assert_array_equal(
+            _limited_candidate_indices(centers, 0), [0, 1, 2, 3]
+        )
+        np.testing.assert_array_equal(
+            _limited_candidate_indices(
+                centers, 2, preferred_index=0, guide_indices=(3,)
+            ),
+            [0, 3],
+        )
+
     def test_shared_box_fixed_endpoint_mode_is_explicit(self):
         context = SimpleNamespace(frozen_lower_left={1: (20.0, 30.0)})
         baseline_x = np.asarray([1.0, 2.0, 3.0])

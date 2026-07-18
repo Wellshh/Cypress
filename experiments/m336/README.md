@@ -69,3 +69,12 @@ continuous bound. `--manual-baseline-endpoint EMI601
 --manual-baseline-endpoint Q601` changes fixed net endpoints only; it does not
 yet update projected-anchor targets and therefore cannot be promoted directly
 to an E1-E4 result.
+
+The default `--collision-mode decomposed` preserves concave manual footprints
+through deterministic convex decomposition and uses the manual footprints for
+fixed obstacles. Do not use `--collision-mode convex` for feasibility claims:
+it is retained only to reproduce the historical over-conservative model from
+`M336-017`. `--collision-mode none` also remains a necessary-condition lower
+bound and never produces an acceptable placement. In every mode, promote a
+result only after its emitted exact report shows full containment and zero
+overlaps.

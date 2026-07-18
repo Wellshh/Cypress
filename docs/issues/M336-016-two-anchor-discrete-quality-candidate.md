@@ -51,6 +51,15 @@ convex-collision run exhausted its budget without a solution or proof:
 This does not establish infeasibility. The collision report hash is
 `e0e236618e1757a172149543b6b1c42d19d54543b6a8376a0e0081b541a6ce91`.
 
+## Collision Evidence Correction
+
+`M336-017` subsequently proved that the legacy `convex` model rejects a known
+zero-overlap placement because the convex hulls of `MHC8601` and `MHC8602`
+cover legal concavities. The `UNKNOWN` result above remains a historical run
+record but provides no evidence about exact physical packing feasibility. All
+collision searches for this candidate must be repeated with
+`--collision-mode decomposed`.
+
 ## Scope
 
 The override currently changes fixed net endpoints only. `context.anchor_centers`
