@@ -29,6 +29,7 @@ append evidence rather than replacing prior observations.
 | [M336-019](M336-019-prune-impossible-collision-pairs.md) | High | Resolved | Swept-domain bounds remove 94.55% of impossible convex-part collision constraints |
 | [M336-020](M336-020-structured-assignment-site-hints.md) | High | Resolved | Region-local result hints now seed optimized assignment without disabling alternate regions |
 | [M336-021](M336-021-scope-hinted-assignment-search.md) | High | Resolved | Structured hints can limit alternate-region choices without freezing component coordinates |
+| [M336-022](M336-022-local-restored-anchor-domain-infeasible.md) | Critical | Open | Hint-centered restored-anchor domains remain infeasible through 4,096 sites per component-region |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
