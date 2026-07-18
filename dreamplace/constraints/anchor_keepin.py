@@ -11,6 +11,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+import shapely
 import torch
 from shapely import affinity
 from shapely.geometry import box
@@ -89,7 +90,11 @@ def _ordered_candidate_indices(constraint, mode, preferred_center=None):
     x_values = candidates[:, 0]
     y_values = candidates[:, 1]
     if mode == "preferred":
-        target = np.asarray(preferred_center or constraint.target_center)
+        target = np.asarray(
+            constraint.target_center
+            if preferred_center is None
+            else preferred_center
+        )
         return np.argsort(
             np.square(candidates - target).sum(axis=1), kind="stable"
         )
@@ -290,6 +295,65 @@ def _overlap_metrics(footprint, others):
     return count, area
 
 
+def _batch_overlap_metrics(footprints, others, epsilon=1e-12):
+    """Score positive-area intersections for several candidate footprints."""
+    footprints = tuple(footprints)
+    others = tuple(others)
+    counts = np.zeros(len(footprints), dtype=np.int64)
+    areas = np.zeros(len(footprints), dtype=np.float64)
+    if not footprints or not others:
+        return counts, areas
+    if not hasattr(shapely, "intersection"):
+        metrics = [_overlap_metrics(footprint, others) for footprint in footprints]
+        return (
+            np.asarray([row[0] for row in metrics], dtype=np.int64),
+            np.asarray([row[1] for row in metrics], dtype=np.float64),
+        )
+
+    footprint_bounds = np.asarray(
+        [footprint.bounds for footprint in footprints], dtype=np.float64
+    )
+    other_bounds = np.asarray(
+        [other.bounds for other in others], dtype=np.float64
+    )
+    overlap_width = np.minimum(
+        footprint_bounds[:, None, 2], other_bounds[None, :, 2]
+    ) - np.maximum(
+        footprint_bounds[:, None, 0], other_bounds[None, :, 0]
+    )
+    overlap_height = np.minimum(
+        footprint_bounds[:, None, 3], other_bounds[None, :, 3]
+    ) - np.maximum(
+        footprint_bounds[:, None, 1], other_bounds[None, :, 1]
+    )
+    candidate_rows, other_columns = np.nonzero(
+        (overlap_width > epsilon) & (overlap_height > epsilon)
+    )
+    if not len(candidate_rows):
+        return counts, areas
+
+    footprint_array = np.asarray(footprints, dtype=object)
+    other_array = np.asarray(others, dtype=object)
+    intersection_areas = np.asarray(
+        shapely.area(
+            shapely.intersection(
+                footprint_array[candidate_rows],
+                other_array[other_columns],
+            )
+        ),
+        dtype=np.float64,
+    )
+    positive = intersection_areas > epsilon
+    positive_rows = candidate_rows[positive]
+    counts += np.bincount(positive_rows, minlength=len(footprints))
+    areas += np.bincount(
+        positive_rows,
+        weights=intersection_areas[positive],
+        minlength=len(footprints),
+    )
+    return counts, areas
+
+
 def _initialize_conflicts(constraints, footprints, obstacles):
     conflicts = {constraint.node_id: [0, 0.0] for constraint in constraints}
     obstacle_metrics = {}
@@ -360,6 +424,24 @@ def _bbox_overlap_scores(constraint, candidates, other_bounds):
     return _bbox_overlap_metrics(
         _candidate_bounds(constraint, candidates), other_bounds
     )[1]
+
+
+def _obstacle_free_candidate_indices(constraint, obstacles):
+    candidates = constraint.domain.valid_centers
+    if not obstacles:
+        return np.arange(len(candidates), dtype=np.int64)
+    obstacle_bounds = np.asarray(
+        [obstacle.bounds for obstacle in obstacles], dtype=np.float64
+    )
+    bbox_counts, _ = _bbox_overlap_metrics(
+        _candidate_bounds(constraint, candidates), obstacle_bounds
+    )
+    eligible = bbox_counts == 0
+    for candidate_index in np.flatnonzero(~eligible):
+        footprint = constraint.domain.footprint(candidates[candidate_index])
+        if not _has_overlap(footprint, obstacles):
+            eligible[candidate_index] = True
+    return np.flatnonzero(eligible).astype(np.int64)
 
 
 def _forward_check_rectangle_pack(
@@ -658,7 +740,17 @@ def _min_conflicts_pack(
     restart_count=8,
     max_steps=2500,
     exact_candidate_limit=48,
+    random_walk_probability=0.0,
+    breakout_probability=0.0,
 ):
+    if not 0.0 <= random_walk_probability <= 1.0:
+        raise ValueError(
+            "random-walk probability must be between zero and one"
+        )
+    if not 0.0 <= breakout_probability <= 1.0:
+        raise ValueError(
+            "breakout probability must be between zero and one"
+        )
     ordered = _ordered_constraints(constraints, "largest_area")
     seed_material = "|".join(item.refdes for item in ordered).encode("utf-8")
     seed = int.from_bytes(hashlib.sha256(seed_material).digest()[:8], "little")
@@ -668,12 +760,40 @@ def _min_conflicts_pack(
         _is_axis_aligned_rectangle(constraint.domain.footprint_local)
         for constraint in ordered
     ) and all(_is_axis_aligned_rectangle(obstacle) for obstacle in obstacles)
+    restart_summaries = []
+    eligible_indices = {
+        constraint.node_id: _obstacle_free_candidate_indices(
+            constraint, obstacles
+        )
+        for constraint in ordered
+    }
+    eligible_candidate_counts = {
+        constraint.refdes: len(eligible_indices[constraint.node_id])
+        for constraint in ordered
+    }
+    empty_refdes = [
+        constraint.refdes
+        for constraint in ordered
+        if not len(eligible_indices[constraint.node_id])
+    ]
+    if empty_refdes:
+        return None, {
+            "restart_count": 0,
+            "max_steps": max_steps,
+            "seed": seed,
+            "random_walk_probability": random_walk_probability,
+            "breakout_probability": breakout_probability,
+            "obstacle_infeasible_refdes": empty_refdes,
+            "restart_summaries": [],
+        }
 
     for restart in range(restart_count):
         placements = {}
+        placement_indices = {}
         footprints = {}
         for constraint in ordered:
             candidates = constraint.domain.valid_centers
+            eligible = eligible_indices[constraint.node_id]
             if restart == 0:
                 preferred = np.asarray(
                     preferred_centers.get(
@@ -681,26 +801,83 @@ def _min_conflicts_pack(
                     )
                 )
                 candidate_index = int(
-                    np.argmin(np.square(candidates - preferred).sum(axis=1))
+                    eligible[
+                        np.argmin(
+                            np.square(candidates[eligible] - preferred).sum(
+                                axis=1
+                            )
+                        )
+                    ]
                 )
             else:
-                candidate_index = int(rng.integers(len(candidates)))
+                candidate_index = int(
+                    eligible[int(rng.integers(len(eligible)))]
+                )
             center = candidates[candidate_index]
             placements[constraint.node_id] = center
+            placement_indices[constraint.node_id] = candidate_index
             footprints[constraint.node_id] = constraint.domain.footprint(center)
 
         conflicts, obstacle_metrics, pair_areas = _initialize_conflicts(
             ordered, footprints, obstacles
         )
+        best_key = None
+        best_step = 0
+        best_candidate_indices = None
+        best_obstacle_conflicts = None
+        best_component_conflicts = None
+        random_walk_steps = 0
+        breakout_steps = 0
         for step in range(max_steps):
             conflicted = [
                 item for item in ordered if conflicts[item.node_id][0] > 0
             ]
+            incident_count = sum(row[0] for row in conflicts.values())
+            incident_area = sum(row[1] for row in conflicts.values())
+            key = (len(conflicted), incident_count, incident_area)
+            if best_key is None or key < best_key:
+                best_key = key
+                best_step = step
+                best_candidate_indices = {
+                    item.refdes: int(placement_indices[item.node_id])
+                    for item in ordered
+                }
+                best_obstacle_conflicts = [
+                    {
+                        "refdes": item.refdes,
+                        "count": obstacle_metrics[item.node_id][0],
+                        "area": obstacle_metrics[item.node_id][1],
+                    }
+                    for item in ordered
+                    if obstacle_metrics[item.node_id][0]
+                ]
+                refdes_by_node = {
+                    item.node_id: item.refdes for item in ordered
+                }
+                best_component_conflicts = [
+                    {
+                        "first_refdes": refdes_by_node[first_id],
+                        "second_refdes": refdes_by_node[second_id],
+                        "area": area,
+                    }
+                    for (first_id, second_id), area in sorted(
+                        pair_areas.items()
+                    )
+                    if area
+                ]
             if not conflicted:
                 return placements, {
                     "restart": restart,
                     "steps": step,
                     "seed": seed,
+                    "random_walk_probability": random_walk_probability,
+                    "random_walk_steps": random_walk_steps,
+                    "breakout_probability": breakout_probability,
+                    "breakout_steps": breakout_steps,
+                    "obstacle_eligible_candidate_counts": (
+                        eligible_candidate_counts
+                    ),
+                    "restart_summaries": restart_summaries,
                 }
             conflicted.sort(
                 key=lambda item: (
@@ -709,8 +886,16 @@ def _min_conflicts_pack(
                     item.refdes,
                 )
             )
-            top_count = min(4, len(conflicted))
-            constraint = conflicted[int(rng.integers(top_count))]
+            breakout = bool(
+                breakout_probability
+                and rng.random() < breakout_probability
+            )
+            if breakout:
+                constraint = ordered[int(rng.integers(len(ordered)))]
+                breakout_steps += 1
+            else:
+                top_count = min(4, len(conflicted))
+                constraint = conflicted[int(rng.integers(top_count))]
             node_id = constraint.node_id
             other_footprints = list(obstacles) + [
                 footprints[item.node_id]
@@ -734,13 +919,20 @@ def _min_conflicts_pack(
                 preferred_centers.get(node_id, constraint.target_center)
             )
             distances = np.square(candidates - preferred).sum(axis=1)
-            bbox_free = np.flatnonzero(bbox_counts == 0)
+            eligible = eligible_indices[node_id]
+            bbox_free = eligible[bbox_counts[eligible] == 0]
+            bbox_free = bbox_free[
+                bbox_free != placement_indices[node_id]
+            ]
             if len(bbox_free):
                 candidate_index = int(
-                    bbox_free[np.argmin(distances[bbox_free])]
+                    bbox_free[int(rng.integers(len(bbox_free)))]
+                    if breakout
+                    else bbox_free[np.argmin(distances[bbox_free])]
                 )
                 center = candidates[candidate_index]
                 placements[node_id] = center
+                placement_indices[node_id] = candidate_index
                 footprints[node_id] = constraint.domain.footprint(center)
                 _update_conflicts(
                     constraint,
@@ -754,17 +946,34 @@ def _min_conflicts_pack(
                 continue
 
             if rectangle_fast_path:
-                best_count = int(np.min(bbox_counts))
-                best_area = float(np.min(bbox_scores[bbox_counts == best_count]))
-                ties = np.flatnonzero(
-                    (bbox_counts == best_count)
-                    & np.isclose(bbox_scores, best_area, atol=1e-12, rtol=0.0)
+                best_count = int(np.min(bbox_counts[eligible]))
+                best_area = float(
+                    np.min(
+                        bbox_scores[eligible][
+                            bbox_counts[eligible] == best_count
+                        ]
+                    )
                 )
+                ties = eligible[
+                    (bbox_counts[eligible] == best_count)
+                    & np.isclose(
+                        bbox_scores[eligible],
+                        best_area,
+                        atol=1e-12,
+                        rtol=0.0,
+                    )
+                ]
                 tie_order = np.lexsort((ties, distances[ties]))
                 ties = ties[tie_order[:8]]
+                alternatives = ties[
+                    ties != placement_indices[node_id]
+                ]
+                if len(alternatives):
+                    ties = alternatives
                 candidate_index = int(ties[int(rng.integers(len(ties)))])
                 center = candidates[candidate_index]
                 placements[node_id] = center
+                placement_indices[node_id] = candidate_index
                 footprints[node_id] = constraint.domain.footprint(center)
                 _update_conflicts(
                     constraint,
@@ -777,44 +986,69 @@ def _min_conflicts_pack(
                 )
                 continue
 
-            candidate_order = np.lexsort((distances, bbox_scores))
+            candidate_order = eligible[
+                np.lexsort((distances[eligible], bbox_scores[eligible]))
+            ]
             pool = list(candidate_order[:exact_candidate_limit])
-            if len(candidates) > exact_candidate_limit:
+            if len(eligible) > exact_candidate_limit:
                 pool.extend(
                     int(index)
                     for index in rng.choice(
-                        len(candidates),
-                        size=min(16, len(candidates)),
+                        eligible,
+                        size=min(16, len(eligible)),
                         replace=False,
                     )
                 )
+            pool = [
+                candidate_index
+                for candidate_index in dict.fromkeys(pool)
+                if candidate_index != placement_indices[node_id]
+            ]
+            if not pool:
+                continue
+            pool_footprints = [
+                constraint.domain.footprint(candidates[candidate_index])
+                for candidate_index in pool
+            ]
+            exact_counts, exact_areas = _batch_overlap_metrics(
+                pool_footprints, other_footprints
+            )
             scored = []
-            for candidate_index in dict.fromkeys(pool):
+            for pool_index, (candidate_index, footprint) in enumerate(
+                zip(pool, pool_footprints)
+            ):
                 center = candidates[candidate_index]
-                footprint = constraint.domain.footprint(center)
-                count, area = _overlap_metrics(footprint, other_footprints)
                 scored.append(
                     (
-                        count,
-                        area,
+                        int(exact_counts[pool_index]),
+                        float(exact_areas[pool_index]),
                         bbox_scores[candidate_index],
                         distances[candidate_index],
                         candidate_index,
                         footprint,
                     )
-                )
+            )
             scored.sort(key=lambda row: row[:5])
-            best_count = scored[0][0]
-            best_area = scored[0][1]
-            ties = [
-                row
-                for row in scored[:8]
-                if row[0] == best_count
-                and math.isclose(row[1], best_area, abs_tol=1e-12)
-            ]
-            selected = ties[int(rng.integers(len(ties)))]
+            random_walk = bool(
+                random_walk_probability
+                and rng.random() < random_walk_probability
+            )
+            if breakout or random_walk:
+                selected = scored[int(rng.integers(len(scored)))]
+                random_walk_steps += int(random_walk)
+            else:
+                best_count = scored[0][0]
+                best_area = scored[0][1]
+                ties = [
+                    row
+                    for row in scored[:8]
+                    if row[0] == best_count
+                    and math.isclose(row[1], best_area, abs_tol=1e-12)
+                ]
+                selected = ties[int(rng.integers(len(ties)))]
             candidate_index = selected[4]
             placements[node_id] = candidates[candidate_index]
+            placement_indices[node_id] = candidate_index
             footprints[node_id] = selected[5]
             _update_conflicts(
                 constraint,
@@ -826,6 +1060,21 @@ def _min_conflicts_pack(
                 pair_areas,
             )
         remaining = sum(row[0] > 0 for row in conflicts.values())
+        restart_summaries.append(
+            {
+                "restart": restart,
+                "best_step": best_step,
+                "best_conflicted_node_count": best_key[0],
+                "best_conflict_incident_count": best_key[1],
+                "best_conflict_incident_area": best_key[2],
+                "best_candidate_indices": best_candidate_indices,
+                "best_obstacle_conflicts": best_obstacle_conflicts,
+                "best_component_conflicts": best_component_conflicts,
+                "final_conflicted_node_count": remaining,
+                "random_walk_steps": random_walk_steps,
+                "breakout_steps": breakout_steps,
+            }
+        )
         logging.info(
             "anchor/keep-in min-conflicts restart %d/%d ended with %d "
             "conflicted nodes",
@@ -837,6 +1086,10 @@ def _min_conflicts_pack(
         "restart_count": restart_count,
         "max_steps": max_steps,
         "seed": seed,
+        "random_walk_probability": random_walk_probability,
+        "breakout_probability": breakout_probability,
+        "obstacle_eligible_candidate_counts": eligible_candidate_counts,
+        "restart_summaries": restart_summaries,
     }
 
 

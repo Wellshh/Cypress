@@ -33,7 +33,12 @@ from dreamplace.constraints.region_validation import (
     validate_placement,
 )
 from dreamplace.constraints.anchor_keepin import (
+    _batch_overlap_metrics,
     _forward_check_rectangle_pack,
+    _min_conflicts_pack,
+    _obstacle_free_candidate_indices,
+    _ordered_candidate_indices,
+    _overlap_metrics,
     _pack_region,
 )
 from dreamplace.ops.anchor_keepin.anchor_keepin import AnchorKeepInLoss
@@ -189,6 +194,46 @@ class AnchorKeepInTest(unittest.TestCase):
         )
         self.assertIsNone(limited)
         self.assertFalse(limited_stats["proven_infeasible"])
+
+        preferred = np.asarray((1.5, 0.5))
+        expected = np.argsort(
+            np.square(domain.valid_centers - preferred).sum(axis=1),
+            kind="stable",
+        )
+        np.testing.assert_array_equal(
+            _ordered_candidate_indices(
+                constraints[0], "preferred", preferred
+            ),
+            expected,
+        )
+        obstacle_free = _obstacle_free_candidate_indices(
+            constraints[0], [box(0, 0, 1, 1)]
+        )
+        np.testing.assert_allclose(
+            domain.valid_centers[obstacle_free], [[1.5, 0.5]]
+        )
+
+    def test_batch_overlap_metrics_match_scalar_exact_geometry(self):
+        candidates = [
+            box(0, 0, 2, 2),
+            Polygon(((0, 0), (2, 0), (1, 2))),
+            box(3, 0, 4, 1),
+        ]
+        others = [box(1, 1, 3, 3), box(2, 0, 3, 1)]
+        expected = [_overlap_metrics(row, others) for row in candidates]
+        counts, areas = _batch_overlap_metrics(candidates, others)
+        np.testing.assert_array_equal(counts, [row[0] for row in expected])
+        np.testing.assert_allclose(areas, [row[1] for row in expected])
+
+    def test_min_conflicts_rejects_invalid_escape_probabilities(self):
+        with self.assertRaises(ValueError):
+            _min_conflicts_pack(
+                [], [], {}, random_walk_probability=1.01
+            )
+        with self.assertRaises(ValueError):
+            _min_conflicts_pack(
+                [], [], {}, breakout_probability=-0.01
+            )
 
     def test_exact_validator_detects_violation(self):
         component = ComponentPlacement(
