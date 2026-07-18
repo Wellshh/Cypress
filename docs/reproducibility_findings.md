@@ -1,13 +1,14 @@
 # Reproducibility Remediation Findings
 
 This document tracks findings discovered while making CUDA placement and tuning
-results reproducible. Status reflects source-level remediation in this branch;
-GPU validation remains required on a CUDA-capable host.
+results reproducible. Status reflects source-level remediation and validation on
+the current `experiment` branch. Open follow-up work is tracked in
+[`docs/issues/`](issues/README.md).
 
 ## F-01: Trial RNG State Leaked Across Jobs
 
-**Severity:** Critical  
-**Status:** Remediated, pending GPU validation
+**Severity:** Critical
+**Status:** Remediated; focused CPU/GPU tests pass
 
 `PlacementEngine` was seeded only when a worker was created. Subsequent jobs
 therefore inherited NumPy and PyTorch RNG state from earlier jobs. Placement now
@@ -18,7 +19,7 @@ Rotation logits no longer consume random values when rotation is disabled.
 
 ## F-02: Single Noisy Evaluation Selected Lucky Configurations
 
-**Severity:** Critical  
+**Severity:** Critical
 **Status:** Remediated in BOHB worker and launchers
 
 BOHB budget now represents the number of repeated evaluations. Scalar results
@@ -46,7 +47,7 @@ states, and single-objective candidates are ranked by the recorded robust cost.
 
 ## F-03: Net-Crossing CUDA Races
 
-**Severity:** Critical  
+**Severity:** Critical
 **Status:** Remediated, pending GPU validation
 
 Multiple pair threads updated the same forward accumulator, while gradients used
@@ -61,7 +62,7 @@ segments instead of perturbing only selected denominators with epsilon.
 
 ## F-04: Nesterov Step Can Commit Non-Finite State
 
-**Severity:** High  
+**Severity:** High
 **Status:** Remediated, pending placement validation
 
 Barzilai-Borwein norm ratios had no denominator floor or finite-value checks.
@@ -72,7 +73,7 @@ committed. Initial learning-rate Armijo search now has a finite retry bound.
 
 ## F-05: Result Delivery and Launcher Failures Are Hidden
 
-**Severity:** High  
+**Severity:** High
 **Status:** Remediated, pending distributed integration test
 
 Pyro result registration was one-way, so workers could not confirm acceptance.
@@ -80,6 +81,29 @@ Registration now returns an acknowledgement, tolerates duplicate completed job
 IDs, and retries three times. Jobs are entered into `running_jobs` before remote
 dispatch to close a fast-completion race. The shell launcher now checks the
 saved child exit code and terminates remaining jobs when one fails.
+
+## F-06: Optimizer-State Reset Mutated the Placement Tensor
+
+**Severity:** Critical
+**Status:** Remediated; regression test passes
+
+The recursive optimizer-state reset traversed each parameter group's `params`
+entry and zeroed the actual placement parameter, not only momentum/history
+buffers. This silently destroyed the projected initialization and made outcomes
+depend on when a reset occurred. The reset now skips `params` and tensor objects
+identical to optimizer parameters. A focused test asserts that state buffers are
+cleared while node coordinates remain unchanged.
+
+## F-07: Native Net-Crossing Trusted Inconsistent Pin Metadata
+
+**Severity:** Critical
+**Status:** Mitigated; full sanitizer coverage remains open
+
+The wrapper could pass a node-coordinate vector to native code that indexed it
+as a pin-coordinate vector. Python and C++/CUDA now validate shapes, dtypes,
+devices, CSR structure, pin coverage, and pin IDs before execution; the wrapper
+always applies PinPos first. Detailed evidence and remaining criteria are in
+[`CUDA-001`](issues/CUDA-001-net-crossing-input-contract.md).
 
 ## Validation Plan
 
@@ -92,14 +116,15 @@ saved child exit code and terminates remaining jobs when one fails.
 
 ## Validation Evidence
 
-As of 2026-07-17, both `net_crossing_cpp` and `net_crossing_cuda` compile with
-CUDA 12.4 and GCC 12. The CPU net-crossing golden-value/gradient test passes.
-Six CPU reproducibility tests cover RNG reset, schedule-independent seed panels,
+As of 2026-07-18, the environment can access an NVIDIA H100 with driver
+550.54.14, CUDA 12.4, and PyTorch 2.5.1+cu124. Native build and installation
+pass. The focused net-crossing suite passes 3/3 on GPU, including the CPU golden
+result and 20 bitwise-equal deterministic GPU forward/backward repetitions. Six
+reproducibility tests pass for RNG reset, schedule-independent seed panels,
 same-seed ConfigSpace sampling, bounded BB steps, finite Nesterov progress, and
-non-finite rollback. Python compilation and shell syntax checks pass.
+non-finite rollback. The feature-off small placement smoke also completes.
 
-GPU execution, multi-worker Pyro integration, and end-to-end repeated placement
-remain unverified because this environment cannot initialize the NVIDIA driver.
-Deterministic net crossing currently transfers work to a serial CPU reference;
-measure this cost before large searches and replace it with a fixed-order GPU
-reduction if it is prohibitive.
+Multi-worker Pyro integration, a 50-repeat net-crossing run, sanitizer coverage,
+and end-to-end repeated tuning remain pending. Deterministic net crossing still
+transfers work to a serial CPU reference; measure this cost before large searches
+and replace it with a fixed-order GPU reduction if it is prohibitive.
