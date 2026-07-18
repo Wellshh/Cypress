@@ -913,6 +913,21 @@ def _add_part_nonoverlap(model, first, second):
     return count
 
 
+def _swept_bboxes_may_overlap(first, second):
+    first_min_x, first_min_y, first_max_x, first_max_y = first[
+        "swept_bbox"
+    ]
+    second_min_x, second_min_y, second_max_x, second_max_y = second[
+        "swept_bbox"
+    ]
+    return not (
+        first_max_x <= second_min_x
+        or second_max_x <= first_min_x
+        or first_max_y <= second_min_y
+        or second_max_y <= first_min_y
+    )
+
+
 def _add_assignment_variables(model, assignment_space, capacity_scale):
     group_vars = {}
     option_literals = {}
@@ -1135,6 +1150,12 @@ def _build_model(
                 "width": width,
                 "height": height,
                 "is_rectangle": is_rectangle,
+                "swept_bbox": (
+                    int(x_values.min()) + x_offset,
+                    int(y_values.min()) + y_offset,
+                    int(x_values.max()) + x_offset + width,
+                    int(y_values.max()) + y_offset + height,
+                ),
                 "parts": _model_convex_parts(
                     constraint.refdes,
                     footprint_local,
@@ -1184,6 +1205,8 @@ def _build_model(
 
     constrained_ids = set(constraint_by_node)
     collision_pair_constraint_count = 0
+    collision_component_pair_count = 0
+    collision_skipped_component_pair_count = 0
     fixed_shapes = {"TOP": [], "BOTTOM": []}
     if collision_mode in ("convex", "decomposed"):
         for node_id in range(placedb.num_physical_nodes):
@@ -1222,6 +1245,12 @@ def _build_model(
                 "width": fixed_width,
                 "height": fixed_height,
                 "is_rectangle": _is_rectangle(footprint_local),
+                "swept_bbox": (
+                    fixed_bbox_x,
+                    fixed_bbox_y,
+                    fixed_bbox_x + fixed_width,
+                    fixed_bbox_y + fixed_height,
+                ),
                 "parts": _model_convex_parts(
                     name,
                     footprint_local,
@@ -1235,6 +1264,10 @@ def _build_model(
             }
             fixed_shapes[side].append(fixed_shape)
             for controlled in controlled_shapes[side]:
+                if not _swept_bboxes_may_overlap(controlled, fixed_shape):
+                    collision_skipped_component_pair_count += 1
+                    continue
+                collision_component_pair_count += 1
                 if (
                     controlled["is_rectangle"]
                     and fixed_shape["is_rectangle"]
@@ -1253,6 +1286,10 @@ def _build_model(
                 for second in shapes[first_index + 1 :]:
                     if first["is_rectangle"] and second["is_rectangle"]:
                         continue
+                    if not _swept_bboxes_may_overlap(first, second):
+                        collision_skipped_component_pair_count += 1
+                        continue
+                    collision_component_pair_count += 1
                     collision_pair_constraint_count += _add_part_nonoverlap(
                         model, first, second
                     )
@@ -1341,6 +1378,10 @@ def _build_model(
             for shape in shapes
         ),
         "collision_pair_constraint_count": collision_pair_constraint_count,
+        "collision_component_pair_count": collision_component_pair_count,
+        "collision_skipped_component_pair_count": (
+            collision_skipped_component_pair_count
+        ),
         "fixed_hint_site_count": len(fixed_hint_refdes),
         "movable_refdes": sorted(set(movable_refdes or ())),
         "site_hint": site_hint_report,
@@ -1380,6 +1421,12 @@ def _model_report(args, state, assignment_space):
         "fixed_convex_piece_count": state["fixed_convex_piece_count"],
         "collision_pair_constraint_count": state[
             "collision_pair_constraint_count"
+        ],
+        "collision_component_pair_count": state[
+            "collision_component_pair_count"
+        ],
+        "collision_skipped_component_pair_count": state[
+            "collision_skipped_component_pair_count"
         ],
         "fixed_hint_site_count": state["fixed_hint_site_count"],
         "movable_refdes": state["movable_refdes"],

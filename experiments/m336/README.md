@@ -84,3 +84,7 @@ repeat `--movable-refdes <REFDES>`. Every controlled component not listed is
 fixed to its hinted site by an explicit model equality. This mode is diagnostic
 and requires a fixed assignment; the result records both the movable list and
 fixed-site count. See `M336-018` for the anchor-relocation mobility proofs.
+
+Collision reports also expose encoded and safely skipped component-pair counts.
+The skip test uses swept bounds over every candidate site, never a heuristic
+distance cutoff; see `M336-019` for the semantic A/B validation.

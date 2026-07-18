@@ -45,6 +45,7 @@ from solve_discrete_placement import (  # noqa: E402
     _partial_fix_refdes,
     _selected_assignment_data,
     _score_hpwl_limit,
+    _swept_bboxes_may_overlap,
 )
 from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
 from dreamplace.constraints.region_projection import (  # noqa: E402
@@ -107,6 +108,24 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_collision_pair_pruning_only_skips_disjoint_swept_boxes(self):
+        first = {"swept_bbox": (0, 0, 10, 10)}
+        self.assertFalse(
+            _swept_bboxes_may_overlap(
+                first, {"swept_bbox": (10, 2, 20, 8)}
+            )
+        )
+        self.assertFalse(
+            _swept_bboxes_may_overlap(
+                first, {"swept_bbox": (-20, -20, -1, -1)}
+            )
+        )
+        self.assertTrue(
+            _swept_bboxes_may_overlap(
+                first, {"swept_bbox": (9, 9, 20, 20)}
+            )
+        )
+
     def test_partial_site_fix_releases_only_named_components(self):
         constraints = [
             SimpleNamespace(refdes="A"),
