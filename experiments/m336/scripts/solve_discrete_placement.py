@@ -1173,9 +1173,14 @@ def _build_model(
     enforce_hpwl=True,
     packing_side=None,
     site_model="element",
+    packing_objective="none",
 ):
     if site_model not in ("element", "coordinate-table"):
         raise ValueError("unknown site model: %s" % site_model)
+    if packing_objective not in ("none", "hint-l1"):
+        raise ValueError("unknown packing objective: %s" % packing_objective)
+    if packing_objective != "none" and enforce_hpwl:
+        raise ValueError("packing objectives require HPWL to be disabled")
     site_hints = dict(site_hints or {})
     candidate_guides = dict(candidate_guides or {})
     model = cp_model.CpModel()
@@ -1207,6 +1212,7 @@ def _build_model(
     x_intervals = {"TOP": [], "BOTTOM": []}
     y_intervals = {"TOP": [], "BOTTOM": []}
     controlled_shapes = {"TOP": [], "BOTTOM": []}
+    packing_distance_terms = []
 
     for constraint in sorted(modeled_constraints, key=lambda item: item.refdes):
         node_id = constraint.node_id
@@ -1436,6 +1442,26 @@ def _build_model(
                 else:
                     model.add(x_var == int(x_values[match_index]))
                     model.add(y_var == int(y_values[match_index]))
+            if packing_objective == "hint-l1":
+                hinted_x = int(x_values[match_index])
+                hinted_y = int(y_values[match_index])
+                maximum_dx = max(
+                    abs(int(x_values.min()) - hinted_x),
+                    abs(int(x_values.max()) - hinted_x),
+                )
+                maximum_dy = max(
+                    abs(int(y_values.min()) - hinted_y),
+                    abs(int(y_values.max()) - hinted_y),
+                )
+                dx = model.new_int_var(
+                    0, maximum_dx, "hint_dx_%s" % constraint.refdes
+                )
+                dy = model.new_int_var(
+                    0, maximum_dy, "hint_dy_%s" % constraint.refdes
+                )
+                model.add_abs_equality(dx, x_var - hinted_x)
+                model.add_abs_equality(dy, y_var - hinted_y)
+                packing_distance_terms.extend((dx, dy))
         else:
             target = np.asarray(
                 [
@@ -1632,6 +1658,10 @@ def _build_model(
         model.add(hpwl_objective <= hpwl_limit_integer)
         if optimize_hpwl:
             model.minimize(hpwl_objective)
+    if packing_objective == "hint-l1":
+        if not packing_distance_terms:
+            raise ValueError("hint-l1 packing objective requires site hints")
+        model.minimize(sum(packing_distance_terms))
     return model, {
         "site_vars": site_vars,
         "site_choices": site_choices,
@@ -1682,6 +1712,8 @@ def _build_model(
         "optimize_hpwl": bool(optimize_hpwl and enforce_hpwl),
         "packing_side": packing_side,
         "site_model": site_model,
+        "packing_objective": packing_objective,
+        "optimize_packing": packing_objective != "none",
     }
 
 
@@ -1692,7 +1724,11 @@ def _model_report(args, state, assignment_space):
         "constraint_grid_mm": args.grid_mm,
         "minimum_score": args.minimum_score,
         "objective_mode": (
-            "packing_only"
+            (
+                "packing_hint_l1"
+                if state["optimize_packing"]
+                else "packing_only"
+            )
             if not state["hpwl_gate_enabled"]
             else (
                 "minimize_hpwl"
@@ -1706,6 +1742,7 @@ def _model_report(args, state, assignment_space):
         "hpwl_rounding_allowance": state["hpwl_rounding_allowance"],
         "candidate_count": state["candidate_count"],
         "site_model": state["site_model"],
+        "packing_objective": state["packing_objective"],
         "candidate_limit_per_region": state[
             "candidate_limit_per_region"
         ],
@@ -1885,6 +1922,11 @@ def solve(args):
             )
     if args.candidate_limit_per_region and hint_count != 1:
         raise ValueError("candidate limiting requires one site hint source")
+    if args.packing_objective != "none":
+        if not args.packing_only:
+            raise ValueError("packing objectives require packing-only mode")
+        if hint_count != 1:
+            raise ValueError("packing objectives require one site hint source")
     if args.candidate_guide_placement is not None:
         if not args.candidate_limit_per_region:
             raise ValueError("candidate guides require candidate limiting")
@@ -1960,6 +2002,7 @@ def solve(args):
         not args.packing_only,
         args.packing_side,
         args.site_model,
+        args.packing_objective,
     )
 
     solver = cp_model.CpSolver()
@@ -1992,6 +2035,17 @@ def solve(args):
         "best_objective_bound_hpwl": (
             solver.best_objective_bound / args.integer_scale
             if state["optimize_hpwl"]
+            else None
+        ),
+        "objective_packing_l1": (
+            solver.objective_value / args.integer_scale
+            if state["optimize_packing"]
+            and status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+            else None
+        ),
+        "best_objective_bound_packing_l1": (
+            solver.best_objective_bound / args.integer_scale
+            if state["optimize_packing"]
             else None
         ),
         "wall_time_seconds": solver.wall_time,
@@ -2205,6 +2259,12 @@ def main():
         choices=("element", "coordinate-table"),
         default="element",
         help="encode candidate sites by index elements or an (x, y, region) table",
+    )
+    parser.add_argument(
+        "--packing-objective",
+        choices=("none", "hint-l1"),
+        default="none",
+        help="optionally minimize total coordinate displacement from the hint",
     )
     parser.add_argument(
         "--fixed-endpoint-mode",
