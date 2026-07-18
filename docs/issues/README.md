@@ -34,6 +34,8 @@ append evidence rather than replacing prior observations.
 | [M336-024](M336-024-isolate-packing-from-hpwl.md) | High | Resolved | Diagnostic packing can omit HPWL, confirming collision search is the remaining bottleneck |
 | [M336-025](M336-025-decompose-packing-by-side.md) | High | Resolved | Side decomposition produces a deterministic zero-overlap BOTTOM packing |
 | [M336-026](M336-026-packing-hint-fixed-footprint-mismatch.md) | Critical | Resolved | Packing hints now use exact fixed footprints and the shared deterministic strategy chain |
+| [M336-027](M336-027-partial-fix-domain-inflation.md) | High | Resolved | Partially fixed components now retain one hinted site instead of broad candidate domains |
+| [M336-028](M336-028-coarse-top-lattice-infeasible.md) | High | Open | Restored-anchor TOP packing is infeasible on the tested 0.2 mm lattice |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

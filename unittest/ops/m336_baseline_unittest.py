@@ -39,6 +39,7 @@ from solve_discrete_placement import (  # noqa: E402
     _capacity_integer_bounds,
     _convex_parts,
     _exact_site_index,
+    _fixed_hint_candidate_indices,
     _guide_site_indices,
     _hpwl_rounding_allowance_units,
     _hinted_group_regions,
@@ -203,6 +204,16 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(_partial_fix_refdes(constraints, []), frozenset())
         with self.assertRaises(ValueError):
             _partial_fix_refdes(constraints, ["UNKNOWN"])
+
+    def test_partial_site_fix_enumerates_only_the_fixed_hint(self):
+        selected = _fixed_hint_candidate_indices(
+            ("left", "right"), "right", 17
+        )
+        np.testing.assert_array_equal(selected[0], [])
+        np.testing.assert_array_equal(selected[1], [17])
+        self.assertEqual(sum(len(indices) for indices in selected), 1)
+        with self.assertRaises(ValueError):
+            _fixed_hint_candidate_indices(("left",), "right", 17)
 
     def test_side_legality_report_filters_other_side(self):
         legality = {

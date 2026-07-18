@@ -140,6 +140,19 @@ def _limited_candidate_indices(
     return np.sort(order)
 
 
+def _fixed_hint_candidate_indices(
+    region_ids, hint_region_id, hint_local_index
+):
+    if hint_region_id not in region_ids:
+        raise ValueError("fixed hint region is absent from assignment options")
+    return tuple(
+        np.asarray([hint_local_index], dtype=np.int64)
+        if region_id == hint_region_id
+        else np.empty(0, dtype=np.int64)
+        for region_id in region_ids
+    )
+
+
 def _partial_fix_refdes(constraints, movable_refdes):
     movable_refdes = set(movable_refdes or ())
     if not movable_refdes:
@@ -1166,32 +1179,39 @@ def _build_model(
                     % constraint.refdes
                 )
             hint_center = hint_domain.valid_centers[hint_local_index]
-        selected_indices = []
-        guide_indices = (
-            _guide_site_indices(domain_options, candidate_guides[node_id])
-            if node_id in candidate_guides
-            else (None,) * len(domain_options)
-        )
-        for region_id, domain, guide_index in zip(
-            options, domain_options, guide_indices
-        ):
-            preferred_index = None
-            if hint_center is not None:
-                preferred_index = (
-                    hint_local_index
-                    if region_id == hint_region_id
-                    else _nearest_site_index(
-                        domain.valid_centers, hint_center
-                    )[0]
-                )
-            selected_indices.append(
-                _limited_candidate_indices(
-                    domain.valid_centers,
-                    candidate_limit_per_region,
-                    preferred_index,
-                    (() if guide_index is None else (guide_index,)),
-                )
+        if constraint.refdes in fixed_hint_refdes:
+            selected_indices = _fixed_hint_candidate_indices(
+                options, hint_region_id, hint_local_index
             )
+        else:
+            selected_indices = []
+            guide_indices = (
+                _guide_site_indices(
+                    domain_options, candidate_guides[node_id]
+                )
+                if node_id in candidate_guides
+                else (None,) * len(domain_options)
+            )
+            for region_id, domain, guide_index in zip(
+                options, domain_options, guide_indices
+            ):
+                preferred_index = None
+                if hint_center is not None:
+                    preferred_index = (
+                        hint_local_index
+                        if region_id == hint_region_id
+                        else _nearest_site_index(
+                            domain.valid_centers, hint_center
+                        )[0]
+                    )
+                selected_indices.append(
+                    _limited_candidate_indices(
+                        domain.valid_centers,
+                        candidate_limit_per_region,
+                        preferred_index,
+                        (() if guide_index is None else (guide_index,)),
+                    )
+                )
         centers = np.concatenate(
             [
                 domain.valid_centers[indices]
