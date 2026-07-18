@@ -41,6 +41,13 @@ On the difficult 94.375% transition, the L1 run still remained `UNKNOWN` after
 only a displacement lower bound of `9.081992`; no feasible objective was found.
 The option is therefore validated but not an acceptance improvement.
 
+Opening 2,048 sites per component from the replayed 93.75% state and moving
+`Q601` directly to its exact manual endpoint retained 49,682 TOP candidates
+and 620 exact part constraints. Seed 1000 remained `UNKNOWN` after
+`300.158448 s`, 4,357,459 branches, and 1,372,410 conflicts, with 1,126,016 KiB
+peak RSS. This broad-domain result is also inconclusive and must not be cited
+as endpoint infeasibility.
+
 ## Required Improvement
 
 - Reach the exact manual endpoint with a replayable globally legal placement.
