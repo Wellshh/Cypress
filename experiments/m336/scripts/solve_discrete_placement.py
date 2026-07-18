@@ -25,10 +25,9 @@ from analyze_quality_bound import (
     _select_fixed_endpoints,
 )
 from dreamplace.constraints.anchor_keepin import (
-    _forward_check_rectangle_pack,
-    _greedy_pack,
-    _ordered_constraints,
+    _pack_region,
 )
+from dreamplace.constraints.region_projection import InfeasibleDomainError
 from optimize_assignment import _candidate_domains, _template_data
 from run_matrix import (
     REPO_ROOT,
@@ -231,13 +230,17 @@ def _build_packing_hint(
         if node_id in constrained_ids:
             continue
         side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
+        node_width = float(placedb.node_size_x[node_id])
+        node_height = float(placedb.node_size_y[node_id])
+        footprint_local = _fixed_footprint_local(
+            context, placedb, node_id, "decomposed"
+        )
         occupied[side].append(
-            box(
-                position[node_id],
-                position[placedb.num_nodes + node_id],
-                position[node_id] + placedb.node_size_x[node_id],
-                position[placedb.num_nodes + node_id]
-                + placedb.node_size_y[node_id],
+            affinity.translate(
+                footprint_local,
+                xoff=float(position[node_id]) + node_width / 2,
+                yoff=float(position[placedb.num_nodes + node_id])
+                + node_height / 2,
             )
         )
 
@@ -248,18 +251,6 @@ def _build_packing_hint(
         )
     packing_stats = []
     placements = {}
-    ordering_modes = ("fewest_sites", "largest_area", "largest_span")
-    candidate_modes = (
-        "preferred",
-        "bottom_left",
-        "bottom_right",
-        "top_left",
-        "top_right",
-        "left_bottom",
-        "right_bottom",
-        "left_top",
-        "right_top",
-    )
     for (side, region_id), region_constraints in sorted(
         constraints_by_region.items()
     ):
@@ -274,49 +265,17 @@ def _build_packing_hint(
             preferred_centers[constraint.node_id], _ = (
                 constraint.domain.project(current_center)
             )
-        region_placements = None
-        region_stats = None
-        for ordering_mode in ordering_modes:
-            ordered = _ordered_constraints(region_constraints, ordering_mode)
-            for candidate_mode in candidate_modes:
-                candidate, _, _, _ = _greedy_pack(
-                    ordered,
-                    occupied[side],
-                    candidate_mode,
-                    preferred_centers,
-                )
-                if candidate is not None:
-                    region_placements = candidate
-                    region_stats = {
-                        "ordering": ordering_mode,
-                        "candidate_order": candidate_mode,
-                    }
-                    break
-            if region_placements is not None:
-                break
-        if region_placements is None:
-            for candidate_limit in (32, 64):
-                candidate, stats = _forward_check_rectangle_pack(
-                    region_constraints,
-                    occupied[side],
-                    preferred_centers,
-                    candidate_limit=candidate_limit,
-                    max_states=25000,
-                    time_limit=1e9,
-                )
-                if candidate is not None:
-                    region_placements = candidate
-                    region_stats = dict(
-                        stats,
-                        ordering="forward_check",
-                        candidate_order="mrv_least_constraining",
-                    )
-                    break
-        if region_placements is None:
-            raise RuntimeError(
-                "bounded packing hint exhausted for %s/%s"
-                % (side, region_id)
+        try:
+            region_placements, region_stats = _pack_region(
+                region_constraints,
+                occupied[side],
+                preferred_centers=preferred_centers,
             )
+        except InfeasibleDomainError as error:
+            raise RuntimeError(
+                "packing hint exhausted for %s/%s: %s"
+                % (side, region_id, error)
+            ) from error
         placements.update(region_placements)
         for constraint in region_constraints:
             occupied[side].append(
