@@ -53,3 +53,21 @@ current-guide candidate neighborhood while retaining the quality and manual
 sites. If progress stalls, expand TOP collision closure or add bottom-1/2
 network endpoints; do not revert to direct global threshold feasibility while
 M336-053 remains unresolved.
+
+## Exact Local Closure
+
+Full-domain one/two-opt descent accepted one strict `FV302` move of
+`-1.247336`; the following complete pair scan evaluated 2,896 relevant pairs
+and 2,363,505 site combinations without another improvement. HPWL is
+`15836.404447`, normalized score upper bound is `0.963625905`, and the remaining
+score-1 gap is `576.034875`.
+
+The all-fixed replay is `OPTIMAL` at `1e-8` deterministic-time. All integer
+objectives equal `15836404459`, floating delta is `0.000012412711`, and exact
+legality remains 100/100 with zero violations and overlaps. The local result,
+placement, certification result, and certified placement SHA-256 values are:
+
+- `d22ed304f3f777679f062b81678000d8a87cd4d27d0c949151ece66995a37cc7`;
+- `e22d5f697dd4779af0c41a6acf63988055cdb99a326e08d02d05aac6e5ed8849`;
+- `6d435c4f3c2dc920e1c9034b91a94297efa3d063b0ff0d5363633e4589d997df`;
+- `e22d5f697dd4779af0c41a6acf63988055cdb99a326e08d02d05aac6e5ed8849`.
