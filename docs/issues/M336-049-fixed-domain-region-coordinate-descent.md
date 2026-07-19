@@ -121,6 +121,16 @@ are:
 - canonical selected sites:
   `b69a9025b5cf41345712cf5f71a493b1ab8275f9ae89574c5d7109d3fe2c5ec4`.
 
+Expanding the page-3/4/6 block to K1024 reached `OPTIMAL` in 6.963012
+deterministic-time and reduced HPWL by `68.272715` to `16126.252908`. The
+cumulative improvement is `1944.439853`, the optimistic score upper bound is
+`0.946306`, and exact legality remains unchanged. Evidence hashes are:
+
+- result: `02a486fec5d0848d62b71e9888c4a69b2d2c0b4bd4eae4c6e4ab512f48d284ec`;
+- placement: `da8f69d0f3bec490c24d76d5a49c35ce9af78784aaf8ff62f056690f51717260`;
+- canonical selected sites:
+  `a9a7f68916ba777ff474e5ac32edf4688654e5d355f4d453d68f4405a86e3cfa`.
+
 ## Acceptance Impact
 
 The result remains above the necessary HPWL threshold `15260.369572`, and
