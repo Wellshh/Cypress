@@ -51,3 +51,6 @@ cross-page groups together if the wider pair domains also close.
 
 The certified legal incumbent remains HPWL `15811.06557381333`; native scoring
 is still correctly blocked by the necessary HPWL gate.
+
+Follow-up M336-090 widened the same models to K512. All four exhausted 300
+deterministic seconds as `UNKNOWN`, so the K256 proofs do not extend to K512.
