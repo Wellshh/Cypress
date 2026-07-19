@@ -91,6 +91,7 @@ append evidence rather than replacing prior observations.
 | [M336-081](M336-081-exact-site-result-region-contract.md) | High | Resolved | Exact-site results now retain fail-closed region identity for scoped continuation |
 | [M336-082](M336-082-zero-score-gate-semantics.md) | High | Resolved | Zero score thresholds disable only the score gate, not requested HPWL optimization |
 | [M336-083](M336-083-rectangle-collision-quantization.md) | Critical | Resolved | Direct edge quantization removes a known-legal rectangle collision false positive |
+| [M336-084](M336-084-full-site-cross-group-closure.md) | Critical | Open | Five full-site group pairs are exact optima; the sixth has a valid non-scoring domain bound |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
