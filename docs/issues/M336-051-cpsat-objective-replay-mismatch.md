@@ -1,7 +1,7 @@
 # M336-051: CP-SAT Objective Does Not Match Selected-Site Replay
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Mitigated
 **Found:** 2026-07-19
 **Affected commit:** `70d7802`
 
@@ -66,9 +66,10 @@ Status is `FEASIBLE`, not `UNKNOWN`; no infeasibility claim is made.
 
 ## Impact And Required Fix
 
-Quarantine the apparent `8.499141` HPWL improvement and the reported
-`14983.968188` lower bound. They must not drive acceptance or subsequent guide
-selection until the mismatch is explained.
+The apparent `8.499141` HPWL improvement and reported `14983.968188` lower
+bound were initially quarantined. The placement may drive subsequent guide
+selection only after fixed certification; the original search bound remains
+quarantined because it belongs to the inconsistent response path.
 
 The probe must record and compare three quantities for every incumbent:
 
@@ -98,6 +99,42 @@ violations, and zero overlaps. Its result and placement SHA-256 values are
 `ad75c39ff98b3f24fc6fa0bc9f367b486846c37624157b6ce583f35dba8f11e3`
 and `3145a9dbde07d38e19d275d987067de358b58fc99d8d79d73371dd2163e2c3c8`.
 
-This mitigation prevents silent promotion but does not explain the original
-expanded-domain discrepancy. The issue remains open pending an audited rerun
-of the exact heterogeneous model.
+This mitigation prevents silent promotion. The exact heterogeneous rerun and
+fixed certification below determine whether an emitted placement can be
+promoted without trusting inconsistent response metadata.
+
+## Reproduction And Root Cause
+
+The exact heterogeneous model was rerun at the original 500.000870
+deterministic-time budget. It reproduced the same `FEASIBLE` response,
+conflicts, branches, selected sites, placement hash, objective, lower bound,
+and PlaceDB HPWL. The new audit isolated the discrepancy:
+
+- candidate-coordinate mismatches: 0;
+- per-net solved-variable versus selected-site mismatches: 0;
+- solved-variable and selected-site objective: `15997273166`;
+- response `objective_value`: `15998363492`;
+- response metadata delta: `1090326`.
+
+OR-Tools v9.15 computes the response objective from its stored internal best
+objective before running solution postprocessors. Presolve postsolve then
+reconstructs the original-model solution vector, while the final response
+checker verifies feasibility but does not recompute the objective. In this
+case the postsolved original-model assignment has a lower objective than the
+stored metadata. The audited rerun correctly exited with status 3; its result
+SHA-256 is
+`0251b0d69b00408eb14f161fbcb4d8c9b8b87e014e447c5e2ae4d60e84d0192b`.
+
+An all-fixed replay certified the returned selected sites independently. It
+was `OPTIMAL` at `1e-8` deterministic-time, all three integer objectives equal
+`15997273166`, PlaceDB HPWL is `15997.273153806742`, and exact legality is
+100/100 with zero violations and overlaps. Its result and placement SHA-256
+values are
+`8a613741184bed0a2da5bad31fa5a1bc1e680ded47dfcc64203bc9a6bae2189c`
+and `ca40507fe1192f2d8bf1b79a189db6239d9af61d911621a5b1ac91df1a107f00`.
+
+The selected placement is therefore certified and may be used as a guide. The
+heterogeneous search's response objective and lower bound remain quarantined.
+The issue stays mitigated rather than resolved until OR-Tools returns metadata
+consistent with its postsolved solution or the search is run without the
+affected presolve path.

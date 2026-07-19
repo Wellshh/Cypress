@@ -190,20 +190,27 @@ The expansion run remained `FEASIBLE` at 500.000870 deterministic-time with
 reported objective `15998.363492` and lower bound `14983.968188`. Its selected
 sites instead replay to integer HPWL `15997.273166`, a `1.090326` discrepancy
 that exceeds the `0.000304` rounding allowance. The run is therefore
-quarantined under [M336-051](M336-051-cpsat-objective-replay-mismatch.md), and
-neither its apparent improvement nor its bound is accepted. Exact legality did
-remain 100/100 with zero violations and overlaps. Result, placement, and
-canonical-site SHA-256 values are
+quarantined under [M336-051](M336-051-cpsat-objective-replay-mismatch.md).
+
+A subsequent all-fixed replay of exactly those selected sites returned
+`OPTIMAL`; its response objective, solved max/min variables, and selected-site
+integer objective all equal `15997.273166`. PlaceDB HPWL is
+`15997.273153806742`, exact legality is 100/100 with zero violations and
+overlaps, and the placement hash is byte-identical. This certifies the
+`8.499141` HPWL improvement, but not the original global search bound. The
+search result, placement, and canonical-site SHA-256 values are
 `80f3fcd6f9662d19264dd1d59607e9178b452bff38cc354e9722f58dabfccbcd`,
 `ca40507fe1192f2d8bf1b79a189db6239d9af61d911621a5b1ac91df1a107f00`,
 and `cc521280fd14f36be53247b7bf689925885b70537108355fcf3caa496433e9c0`.
+The certification result SHA-256 is
+`8a613741184bed0a2da5bad31fa5a1bc1e680ded47dfcc64203bc9a6bae2189c`.
 
 ## Next Action
 
-Resolve M336-051 and add objective-replay validation before using the expanded
-incumbent as a new guide. Until then, preserve the objective-consistent global
-K64 result as the trusted legal incumbent. Acceptance still requires native
-HPWL/RSMT score at least 1.0.
+Use the certified expanded incumbent as the next guide. Any subsequent global
+search whose response metadata fails replay must be followed by an all-fixed
+certification before promotion, and its original search bound must remain
+quarantined. Acceptance still requires native HPWL/RSMT score at least 1.0.
 
 This issue is resolved only when either a legal cross-block model reaches the
 native score gate or a valid lower bound for a model containing every relevant
