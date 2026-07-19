@@ -126,15 +126,24 @@ overlaps. Result, placement, and canonical-site SHA-256 values are
 `484d2aeef5da13f1ed29e0001f3d11c00918f08949ea59eaa1ee10b69ea520f0`,
 and `aec99eb687c1f1165aff72de452c84eabc4975463675c92a182fb842bd95a8d4`.
 
+Reopening BOTTOM page-7 from that state reduced HPWL by another `23.997423`
+to `16045.831364`. It remained `FEASIBLE` at 300.000177 deterministic-time;
+the valid lower bound `15419.513138` is still above the score threshold while
+all other sites are fixed. Exact legality stayed unchanged. Result, placement,
+and canonical-site SHA-256 values are
+`ed0e44868cd8d843a65ddd182454ab67d7dca808e6d709ec0af2d8f8ea8b2374`,
+`3145a9dbde07d38e19d275d987067de358b58fc99d8d79d73371dd2163e2c3c8`,
+and `2a73503bd2b96fda27ac04e4e85cdc42f6e389e31e9d7ac81092fb968dfb9cfe`.
+
 ## Next Action
 
-Reopen BOTTOM page-7 once from the improved page-3/4/6 state, then jointly
-release only blocks appearing in the remaining high-delta nets. Preserve the
-current legal incumbent at every stage. If the repeated side-specific sweep
-stalls, extend the exact model to separate TOP and BOTTOM collision sets so a
-small mixed-side component set can move in one solve. A full global solve is
-justified only after these cross-block candidates are assembled; acceptance
-still requires native HPWL/RSMT score at least 1.0.
+Reoptimize page-3/4/6 once from the new page-7 state, then stop repeating
+side-specific blocks and extend the exact model to separate TOP and BOTTOM
+collision sets. This allows a small mixed-side component set drawn from the
+remaining high-delta nets to move in one solve. Preserve the current legal
+incumbent at every stage. A full global solve is justified only after these
+cross-block candidates are assembled; acceptance still requires native
+HPWL/RSMT score at least 1.0.
 
 This issue is resolved only when either a legal cross-block model reaches the
 native score gate or a valid lower bound for a model containing every relevant
