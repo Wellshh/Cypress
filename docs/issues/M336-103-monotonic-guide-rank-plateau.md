@@ -65,3 +65,20 @@ HPWL improvement exists at rank 12 or below; an improving candidate must have
 rank at least 13. This is a restricted-domain proof, not a whole-board bound.
 The next recovery removes the rank cap while retaining the current HPWL ceiling
 and plateau hint. Promote only a strict independently certified improvement.
+
+## Unrestricted HPWL Recovery
+
+The final eight-run recovery removed the rank cap and retained every other
+model input, with automatic and partial-fixed branching over seeds 1000--1003
+for 300 deterministic seconds each. All runs were `FEASIBLE`, retained rank 12
+and HPWL `15811.06557381333`, reproduced placement SHA-256
+`9956865cba18a73080729695d5b412172be8d93b1cb477c002ae8e793dba6ed6`,
+and passed both replay audits and exact legality.
+
+Automatic best bounds ranged from `14675.326677` to `14697.608727`; all four
+partial-fixed bounds were `14667.827965`. These bounds are below the incumbent,
+so finite-budget completion does not prove the unrestricted domain optimal or
+infeasible. It does show that replacing the current hint with the certified
+rank-12 topology changes the retained incumbent but does not improve HPWL.
+Stop this same-domain seed ladder and test a materially different candidate
+domain or lattice resolution.
