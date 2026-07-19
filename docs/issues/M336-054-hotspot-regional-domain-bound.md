@@ -48,14 +48,35 @@ SHA-256 values are:
 - `f2ee1d79175fc8dfa421a475bab78cce5d05a997756f55284a34a50e18e8d4d7`;
 - `106b00ac88217dae53cd00082b268f68e54c584710836673d557adbfbad931ac`.
 
+## Boundary-Release Follow-up
+
+Full-domain exact one/two-opt descent from the certified regional result found
+one additional blocker-release swap. `B401`, which was fixed outside the
+regional model, and movable `R705` exchanged their occupied sites. They share
+no net; the move is only available when each component releases the other's
+blocked site. The swap reduced HPWL by `40.495489` to `15914.120051`, after
+which a second complete pair search found no improving pair.
+
+An all-fixed replay again returned `OPTIMAL` at `1e-8` deterministic-time.
+Response, solved-variable, and selected-site objectives all equal
+`15914120059`; floating replay differs by `0.000007575833`. Exact legality
+remains 100/100 with zero violations and overlaps. The local result, placement,
+certification result, and certified placement SHA-256 values are:
+
+- `49372b1e585b1e633ce125ba9d64883d2a17b186d7771ab8291cd8a0322728a0`;
+- `c4b0d173cf57d190f569fca7cb194b52c544d91bb6d130a62777cd30a366dc8e`;
+- `88e437b6dff091e588e1b981403172d40a8a6268bbc60698ebdf2419ecada776`;
+- `c4b0d173cf57d190f569fca7cb194b52c544d91bb6d130a62777cd30a366dc8e`.
+
 ## Finding And Next Action
 
-The new incumbent remains `694.245969` above the necessary score-1 HPWL
-threshold. More importantly, this restricted model's valid lower bound is
+The certified post-swap incumbent remains `653.750480` above the necessary
+score-1 HPWL threshold. The restricted regional model's valid lower bound is
 `345.441336` above that threshold. Therefore no placement with these 80 fixed
 sites and the tested K512 domains can reach score 1.0, even though the solve
-successfully crossed the two-optimum. This conclusion applies only to the
-restricted regional model, not the full placement problem.
+successfully crossed the prior two-optimum. The later `B401`/`R705` swap is
+outside that model and demonstrates why the conclusion applies only to the
+restricted domain, not the full placement problem.
 
 Recompute residual per-net penalties from the certified incumbent. Expand the
 movable set by connected boundary components and selectively widen high-impact
