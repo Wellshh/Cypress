@@ -47,3 +47,7 @@ improvement while preserving exact legality and monotonic continuation. If it
 produces an incumbent, certify all selected sites before promotion and tighten
 from the new value. If it returns `UNKNOWN`, preserve that status and change
 search structure rather than claiming the K512 domain is closed.
+
+M336-091 repeated these domains with the nearest strict-improvement ceiling.
+All four again exhausted 300 deterministic seconds as `UNKNOWN`, so merely
+relaxing the threshold does not resolve the K512 search stall.
