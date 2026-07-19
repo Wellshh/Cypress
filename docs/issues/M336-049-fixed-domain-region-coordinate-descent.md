@@ -62,6 +62,19 @@ violations and zero overlaps; the optimistic score upper bound rose to
 - canonical selected sites:
   `8b56268b4e2b007ac1dfcc773268f0841ad0b9fefc662d7559496e88216d43a8`.
 
+The third stage jointly released the 18 page-7 components in `bottom_0` so
+the two adjacent logical groups could repack together. It remained `FEASIBLE`
+at 150.000156 deterministic-time and reduced exact HPWL to `16966.809973`.
+This is a stage improvement of `326.403613` and a cumulative improvement of
+`1103.882788`; the optimistic upper bound is `0.899425`. The objective bound
+was `16178.841353`, so no optimality claim is made. Exact legality remained
+100/100 with zero violations and overlaps. Evidence hashes are:
+
+- result: `4a54c8cfe3fa24c2b093f21bd56eb22231af8ca9d4389e15fea04428ed13fd6b`;
+- placement: `79d92b7e2e5fa72d2fed504be23a537e65e48dd37a524e0b6fc04d2dc9267d04`;
+- canonical selected sites:
+  `89e9edccb1ea9b0f1f5e6c2016923688b2f213e95f13f97e39c314da74d80b0b`.
+
 ## Acceptance Impact
 
 The result remains above the necessary HPWL threshold `15260.369572`, and
