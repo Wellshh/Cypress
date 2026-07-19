@@ -52,3 +52,28 @@ smaller than an immediate all-region K256 expansion. Audit every returned
 objective and certify any strict improvement before local closure. Preserve
 `FEASIBLE` and `UNKNOWN` status distinctions; the lower bound does not prove a
 threshold-passing placement exists.
+
+## Global K64 Follow-up
+
+The all-100 model built 6,380 candidates and returned `FEASIBLE` after
+248.446742 wall seconds and 300.000792 deterministic-time. It explored
+330,493 conflicts and 3,191,366 branches. Its integer objective improved by
+two units to `15836404457`, but floating HPWL remained `15836.404447`; this is
+not a strict reported improvement. The valid lower bound is `15113.310818`.
+All objective replays agree, and exact legality remains unchanged.
+
+The solve moved six components on the zero-HPWL plateau: `C607`, `C610`,
+`FV603`, `MHC8601`, `R601`, and `R606`. Full-domain local closure from that
+alternate blocker topology found no strict move. It scanned 2,896 relevant
+pairs and 2,129,407 site combinations before stopping at a two-optimum. The
+global result, global placement, local result, and local placement SHA-256
+values are:
+
+- `7edef65bc75570843b2e11d1c1474e7781c9d481b6616c9db3b787cb752709bd`;
+- `2e7d5be0b9817b864e1e92e98cd2d2a5b1274937a991baf853bd601a5ee1aa4b`;
+- `09a72af41c6c24e988776608eb6e94a2c3a0cb4584daf48c51497967f0a806bc`;
+- `2e7d5be0b9817b864e1e92e98cd2d2a5b1274937a991baf853bd601a5ee1aa4b`.
+
+Refreshing all components at K64 therefore changes plateau topology but does
+not close the score gap. Test all-100 K128 next; do not spend more budget on
+the proven repeatable K64 neighborhood unless the guides change.
