@@ -102,6 +102,174 @@ def _rows_by_side(rows) -> dict[str, list]:
     return grouped
 
 
+def _decode(value) -> str:
+    return value.decode("utf-8") if isinstance(value, bytes) else str(value)
+
+
+def _integral_net_weight(value) -> int:
+    weight = float(value)
+    if (
+        not math.isfinite(weight)
+        or weight < 0
+        or not math.isclose(weight, round(weight), abs_tol=1e-12)
+    ):
+        raise ValueError("CP-SAT requires integral net weights")
+    return int(round(weight))
+
+
+def _integer_hpwl_by_net(placedb, node_x, node_y, integer_scale):
+    rows = []
+    total = 0
+    for net_id, pins in enumerate(placedb.net2pin_map):
+        if not len(pins):
+            continue
+        pin_x = []
+        pin_y = []
+        for pin_id in pins:
+            node_id = int(placedb.pin2node_map[pin_id])
+            pin_x.append(
+                _scaled(node_x[node_id], integer_scale)
+                + _scaled(placedb.pin_offset_x[pin_id], integer_scale)
+            )
+            pin_y.append(
+                _scaled(node_y[node_id], integer_scale)
+                + _scaled(placedb.pin_offset_y[pin_id], integer_scale)
+            )
+        weight = _integral_net_weight(placedb.net_weights[net_id])
+        hpwl = weight * (
+            max(pin_x) - min(pin_x) + max(pin_y) - min(pin_y)
+        )
+        total += hpwl
+        rows.append(
+            {
+                "net_id": net_id,
+                "net_name": _decode(placedb.net_names[net_id]),
+                "integer_hpwl": hpwl,
+            }
+        )
+    return total, rows
+
+
+def _candidate_coordinate_mismatches(rows, solver):
+    mismatches = []
+    for row in rows:
+        if row["integer_node_lowers"] is None:
+            continue
+        selected = int(solver.value(row["site_var"]))
+        expected = row["integer_node_lowers"][selected]
+        actual = np.asarray(
+            (
+                solver.value(row["node_x_var"]),
+                solver.value(row["node_y_var"]),
+            ),
+            dtype=np.int64,
+        )
+        if not np.array_equal(actual, expected):
+            mismatches.append(
+                {
+                    "refdes": row["constraint"].refdes,
+                    "candidate_count": len(row["centers"]),
+                    "selected_candidate_index": selected,
+                    "expected_integer_node_lower": expected.tolist(),
+                    "solver_integer_node_lower": actual.tolist(),
+                }
+            )
+    return mismatches
+
+
+def _solver_integer_hpwl_by_net(solver, objective_rows):
+    rows = []
+    total = 0
+    for row in objective_rows:
+        hpwl = row["weight"] * (
+            solver.value(row["max_x_var"])
+            - solver.value(row["min_x_var"])
+            + solver.value(row["max_y_var"])
+            - solver.value(row["min_y_var"])
+        )
+        total += hpwl
+        rows.append(
+            {
+                "net_id": row["net_id"],
+                "net_name": row["net_name"],
+                "integer_hpwl": hpwl,
+            }
+        )
+    return total, rows
+
+
+def _objective_replay_audit(
+    solver,
+    objective_value,
+    rows,
+    objective_rows,
+    placedb,
+    node_x,
+    node_y,
+    integer_scale,
+    floating_hpwl,
+    rounding_allowance,
+):
+    coordinate_mismatches = _candidate_coordinate_mismatches(rows, solver)
+    solver_total, solver_nets = _solver_integer_hpwl_by_net(
+        solver, objective_rows
+    )
+    replay_total, replay_nets = _integer_hpwl_by_net(
+        placedb, node_x, node_y, integer_scale
+    )
+    if [row["net_id"] for row in solver_nets] != [
+        row["net_id"] for row in replay_nets
+    ]:
+        raise ValueError("solver and replay net identities differ")
+    net_mismatches = []
+    for solver_net, replay_net in zip(solver_nets, replay_nets):
+        delta = solver_net["integer_hpwl"] - replay_net["integer_hpwl"]
+        if delta:
+            net_mismatches.append(
+                {
+                    "net_id": solver_net["net_id"],
+                    "net_name": solver_net["net_name"],
+                    "solver_integer_hpwl": solver_net["integer_hpwl"],
+                    "selected_site_integer_hpwl": replay_net[
+                        "integer_hpwl"
+                    ],
+                    "delta_integer": delta,
+                }
+            )
+    rounded_objective = int(round(objective_value))
+    objective_is_integral = math.isclose(
+        objective_value, rounded_objective, abs_tol=1e-6
+    )
+    float_delta = replay_total / integer_scale - floating_hpwl
+    float_within_allowance = (
+        abs(float_delta) <= rounding_allowance / integer_scale + 1e-12
+    )
+    passed = (
+        objective_is_integral
+        and rounded_objective == solver_total
+        and solver_total == replay_total
+        and not coordinate_mismatches
+        and float_within_allowance
+    )
+    return {
+        "passed": passed,
+        "solver_objective_is_integral": objective_is_integral,
+        "solver_objective_integer": rounded_objective,
+        "solver_variable_objective_integer": solver_total,
+        "selected_site_objective_integer": replay_total,
+        "solver_minus_variable_integer": rounded_objective - solver_total,
+        "solver_minus_selected_site_integer": rounded_objective
+        - replay_total,
+        "selected_site_minus_floating_hpwl": float_delta,
+        "rounding_allowance_integer": rounding_allowance,
+        "floating_hpwl_within_rounding_allowance": float_within_allowance,
+        "candidate_coordinate_mismatch_count": len(coordinate_mismatches),
+        "candidate_coordinate_mismatches": coordinate_mismatches,
+        "net_objective_mismatch_count": len(net_mismatches),
+        "net_objective_mismatches": net_mismatches,
+    }
+
+
 def _load_cp_model():
     try:
         from ortools.sat.python import cp_model
@@ -565,6 +733,9 @@ def main() -> int:
                 "footprint": local,
                 "is_rectangle": is_rectangle,
                 "integer_starts": integer_starts,
+                "integer_node_lowers": integer_node_lowers,
+                "node_x_var": node_x_var,
+                "node_y_var": node_y_var,
                 "width": width,
                 "height": height,
                 "x_interval": x_interval,
@@ -711,6 +882,7 @@ def main() -> int:
         and nonrect_mode == "exact"
     )
     hpwl_objective = None
+    hpwl_objective_rows = []
     necessary_hpwl_limit = None
     integer_hpwl_limit = None
     hpwl_rounding_allowance = 0
@@ -760,14 +932,9 @@ def main() -> int:
                     )
             if not pin_x:
                 continue
-            weight = float(placedb.net_weights[net_id])
-            if (
-                not math.isfinite(weight)
-                or weight < 0
-                or not math.isclose(weight, round(weight), abs_tol=1e-12)
-            ):
-                raise ValueError("CP-SAT requires integral net weights")
-            integral_weight = int(round(weight))
+            integral_weight = _integral_net_weight(
+                placedb.net_weights[net_id]
+            )
             net_weights.append(integral_weight)
             max_x_var = model.new_int_var(
                 -coordinate_limit, coordinate_limit, f"net_{net_id}_max_x"
@@ -788,6 +955,17 @@ def main() -> int:
             net_spans.append(
                 integral_weight
                 * (max_x_var - min_x_var + max_y_var - min_y_var)
+            )
+            hpwl_objective_rows.append(
+                {
+                    "net_id": net_id,
+                    "net_name": _decode(placedb.net_names[net_id]),
+                    "weight": integral_weight,
+                    "max_x_var": max_x_var,
+                    "min_x_var": min_x_var,
+                    "max_y_var": max_y_var,
+                    "min_y_var": min_y_var,
+                }
             )
         hpwl_objective = sum(net_spans)
         hpwl_rounding_allowance = _hpwl_rounding_allowance_units(net_weights)
@@ -947,6 +1125,7 @@ def main() -> int:
     hpwl = None
     score = None
     placement_output = None
+    objective_replay_audit = None
     if status_code in (cp_model.FEASIBLE, cp_model.OPTIMAL):
         node_x = np.asarray(placedb.node_x, dtype=np.float64).copy()
         node_y = np.asarray(placedb.node_y, dtype=np.float64).copy()
@@ -977,6 +1156,19 @@ def main() -> int:
         position = torch.from_numpy(np.concatenate((node_x, node_y)))
         legality = context.exact_report(position, placedb)
         hpwl = float(placedb.hpwl(node_x, node_y))
+        if objective_mode == "hpwl":
+            objective_replay_audit = _objective_replay_audit(
+                solver,
+                objective_value,
+                rows,
+                hpwl_objective_rows,
+                placedb,
+                node_x,
+                node_y,
+                integer_scale,
+                hpwl,
+                hpwl_rounding_allowance,
+            )
         score = 2.0 / (hpwl / baseline_hpwl + hpwl / baseline_rsmt)
         write_placement_atomic(
             placedb, PLACEMENT_OUTPUT, node_x, node_y
@@ -1082,6 +1274,7 @@ def main() -> int:
             "repair_hint": repair_hint,
         },
         "solver_response_stats": solver.response_stats(),
+        "objective_replay_audit": objective_replay_audit,
         "legality": legality,
         "hpwl": hpwl,
         "normalized_score_upper_bound": score,
@@ -1102,12 +1295,19 @@ def main() -> int:
                     "legality",
                     "hpwl",
                     "normalized_score_upper_bound",
+                    "objective_replay_audit",
                 )
             },
             indent=2,
         )
     )
-    return 0 if status_code in (cp_model.FEASIBLE, cp_model.OPTIMAL) else 2
+    if status_code not in (cp_model.FEASIBLE, cp_model.OPTIMAL):
+        return 2
+    if objective_replay_audit is not None and not objective_replay_audit[
+        "passed"
+    ]:
+        return 3
+    return 0
 
 
 if __name__ == "__main__":

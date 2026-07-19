@@ -80,3 +80,24 @@ It must also verify that each solved candidate index maps to the solved integer
 node coordinates. Any mismatch must be explicit in JSON and fail closed before
 the result can be promoted. Add a regression that exercises heterogeneous K64
 and K1536 candidate domains, then rerun this exact model deterministically.
+
+## Safeguard Implemented
+
+The probe now writes `objective_replay_audit` for every feasible HPWL solve.
+It compares the response objective, the sum of solved per-net max/min
+variables, the selected-site integer replay, candidate-index coordinate
+mapping, and PlaceDB HPWL within the declared rounding allowance. A failed
+audit still writes diagnostic JSON but exits with status 3. The native scorer
+also rejects HPWL-optimized results whose audit is missing or failed.
+
+Two regressions cover heterogeneous K64/K1536 candidate maps and integer
+per-net replay. The M336 suite passes 37/37. A BOTH-side all-fixed integration
+replay passed all checks with integer objective `16045831380`, selected-site
+delta zero, float delta `0.000015724472`, 100/100 containment, zero keep-in
+violations, and zero overlaps. Its result and placement SHA-256 values are
+`ad75c39ff98b3f24fc6fa0bc9f367b486846c37624157b6ce583f35dba8f11e3`
+and `3145a9dbde07d38e19d275d987067de358b58fc99d8d79d73371dd2163e2c3c8`.
+
+This mitigation prevents silent promotion but does not explain the original
+expanded-domain discrepancy. The issue remains open pending an audited rerun
+of the exact heterogeneous model.

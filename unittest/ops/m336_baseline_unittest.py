@@ -63,8 +63,11 @@ from solve_discrete_placement import (  # noqa: E402
 )
 from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
 from probe_exact_site_cpsat import (  # noqa: E402
+    _candidate_coordinate_mismatches,
+    _integer_hpwl_by_net,
     _packing_sides,
     _rows_by_side,
+    _solver_integer_hpwl_by_net,
 )
 from dreamplace.constraints.region_projection import (  # noqa: E402
     FeasibleDomain,
@@ -126,6 +129,90 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_objective_replay_handles_heterogeneous_candidate_domains(self):
+        class FakeSolver:
+            def __init__(self, values):
+                self.values = values
+
+            def value(self, variable):
+                return self.values[variable]
+
+        small_lowers = np.arange(128, dtype=np.int64).reshape(64, 2)
+        expanded_lowers = np.arange(3072, dtype=np.int64).reshape(1536, 2)
+        rows = [
+            {
+                "constraint": SimpleNamespace(refdes="K64"),
+                "centers": np.zeros((64, 2)),
+                "site_var": "small_site",
+                "node_x_var": "small_x",
+                "node_y_var": "small_y",
+                "integer_node_lowers": small_lowers,
+            },
+            {
+                "constraint": SimpleNamespace(refdes="K1536"),
+                "centers": np.zeros((1536, 2)),
+                "site_var": "expanded_site",
+                "node_x_var": "expanded_x",
+                "node_y_var": "expanded_y",
+                "integer_node_lowers": expanded_lowers,
+            },
+        ]
+        values = {
+            "small_site": 63,
+            "small_x": int(small_lowers[63, 0]),
+            "small_y": int(small_lowers[63, 1]),
+            "expanded_site": 1535,
+            "expanded_x": int(expanded_lowers[1535, 0]),
+            "expanded_y": int(expanded_lowers[1535, 1]),
+        }
+        solver = FakeSolver(values)
+        self.assertEqual(_candidate_coordinate_mismatches(rows, solver), [])
+        values["expanded_x"] += 1
+        mismatches = _candidate_coordinate_mismatches(rows, solver)
+        self.assertEqual([row["refdes"] for row in mismatches], ["K1536"])
+
+    def test_integer_hpwl_replay_matches_solved_net_spans(self):
+        class FakeSolver:
+            def value(self, variable):
+                return {
+                    "max_x": 2250,
+                    "min_x": 500,
+                    "max_y": 2500,
+                    "min_y": 1000,
+                }[variable]
+
+        placedb = SimpleNamespace(
+            net2pin_map=[np.asarray([0, 1])],
+            pin2node_map=np.asarray([0, 1]),
+            pin_offset_x=np.asarray([0.25, -0.5]),
+            pin_offset_y=np.asarray([0.0, 0.5]),
+            net_weights=np.asarray([2.0]),
+            net_names=np.asarray([b"N1"]),
+        )
+        replay_total, replay_nets = _integer_hpwl_by_net(
+            placedb,
+            np.asarray([0.25, 2.75]),
+            np.asarray([1.0, 2.0]),
+            1000,
+        )
+        objective_rows = [
+            {
+                "net_id": 0,
+                "net_name": "N1",
+                "weight": 2,
+                "max_x_var": "max_x",
+                "min_x_var": "min_x",
+                "max_y_var": "max_y",
+                "min_y_var": "min_y",
+            }
+        ]
+        solver_total, solver_nets = _solver_integer_hpwl_by_net(
+            FakeSolver(), objective_rows
+        )
+        self.assertEqual(replay_total, 6500)
+        self.assertEqual(solver_total, replay_total)
+        self.assertEqual(solver_nets, replay_nets)
+
     def test_exact_site_rows_are_partitioned_by_physical_side(self):
         self.assertEqual(_packing_sides("TOP"), frozenset(("TOP",)))
         self.assertEqual(_packing_sides("BOTTOM"), frozenset(("BOTTOM",)))
