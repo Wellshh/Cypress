@@ -123,6 +123,7 @@ append evidence rather than replacing prior observations.
 | [M336-113](M336-113-grid005-seventh-pair-improvement.md) | Critical | Mitigated | Seventh 0.05 mm pair scan improves certified HPWL by 0.999893 |
 | [M336-114](M336-114-grid005-eighth-pair-chain-improvement.md) | Critical | Mitigated | Eighth pair scan plus one-opt follow-up improves certified HPWL by 1.999785 |
 | [M336-115](M336-115-grid005-high-order-group-portfolio.md) | Critical | Mitigated | Coupled page-7 K4096 search improves certified HPWL by 12.443778 |
+| [M336-116](M336-116-grid005-page86-after-page7.md) | Critical | Mitigated | Sequential page-86 U8601 closure improves certified HPWL by 9.177450 |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
