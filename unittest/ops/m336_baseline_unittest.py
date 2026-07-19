@@ -78,6 +78,7 @@ from greedy_exact_site_descent import (  # noqa: E402
 )
 from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
+    _candidate_guide_support_audit,
     _candidate_guide_weights,
     _context_output_dir,
     _effective_integer_hpwl_limit,
@@ -87,6 +88,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _optional_nonnegative_integer,
     _packing_sides,
     _rows_by_side,
+    _required_guide_support_indices,
     _selected_site_in_region,
     _solver_integer_hpwl_by_net,
     _weighted_candidate_order,
@@ -293,6 +295,64 @@ class M336BaselineTest(unittest.TestCase):
             _candidate_guide_weights("1,x", 2)
         with self.assertRaisesRegex(ValueError, "positive integers"):
             _candidate_guide_weights("1,0", 2)
+
+    def test_candidate_guide_support_is_audited_and_gated(self):
+        source = {"A": [0.0, 0.0], "B": [1.0, 0.0], "C": [2.0, 0.0]}
+        guides = [
+            {"A": [1.0, 0.0], "B": [1.0, 0.0], "C": [2.0, 0.0]},
+            {"A": [0.0, 0.0], "B": [1.0, 1.0], "C": [2.0, 1.0]},
+        ]
+        audit = _candidate_guide_support_audit(
+            source,
+            "source.json",
+            guides,
+            ["first.json", "second.json"],
+            ["A", "B", "C"],
+            ["A", "B"],
+            True,
+            (0,),
+        )
+        self.assertTrue(audit["all_required_guides_supported"])
+        self.assertTrue(audit["guides"][0]["support_complete"])
+        self.assertEqual(
+            audit["guides"][1]["outside_movable_refdes"], ["C"]
+        )
+        self.assertFalse(audit["guides"][1]["support_complete"])
+        self.assertFalse(
+            _candidate_guide_support_audit(
+                source,
+                "source.json",
+                guides,
+                ["first.json", "second.json"],
+                ["A", "B", "C"],
+                ["A", "B"],
+                True,
+                (1,),
+            )["all_required_guides_supported"]
+        )
+        self.assertEqual(audit["fixed_reference_json"], "source.json")
+        self.assertTrue(
+            _candidate_guide_support_audit(
+                guides[0],
+                "first.json",
+                guides,
+                ["first.json", "second.json"],
+                ["A", "B", "C"],
+                [],
+                True,
+                (0,),
+            )["all_required_guides_supported"]
+        )
+
+    def test_required_guide_support_indices_are_strict(self):
+        self.assertEqual(_required_guide_support_indices("", 2), ())
+        self.assertEqual(_required_guide_support_indices("1,0", 2), (0, 1))
+        with self.assertRaisesRegex(ValueError, "must be integers"):
+            _required_guide_support_indices("x", 2)
+        with self.assertRaisesRegex(ValueError, "outside the guide range"):
+            _required_guide_support_indices("2", 2)
+        with self.assertRaisesRegex(ValueError, "must be unique"):
+            _required_guide_support_indices("1,1", 2)
 
     def test_exact_site_context_directory_is_isolated_by_output(self):
         first = _context_output_dir(Path("/tmp/first.json"), "")

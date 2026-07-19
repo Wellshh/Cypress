@@ -124,6 +124,116 @@ def _candidate_guide_weights(value: str, guide_count: int) -> tuple[int, ...]:
     return tuple(weights)
 
 
+def _required_guide_support_indices(
+    value: str, guide_count: int
+) -> tuple[int, ...]:
+    if guide_count <= 0:
+        raise ValueError("guide support requires at least one guide")
+    if not value:
+        return ()
+    indices = []
+    for part in value.split(","):
+        try:
+            index = int(part)
+        except ValueError as error:
+            raise ValueError(
+                "required guide support indices must be integers"
+            ) from error
+        if str(index) != part.strip() or not 0 <= index < guide_count:
+            raise ValueError(
+                "required guide support index is outside the guide range"
+            )
+        indices.append(index)
+    if len(set(indices)) != len(indices):
+        raise ValueError("required guide support indices must be unique")
+    return tuple(sorted(indices))
+
+
+def _candidate_guide_support_audit(
+    fixed_reference_guide,
+    fixed_reference_json,
+    guides,
+    guide_paths,
+    modeled_refdes,
+    movable_refdes,
+    fix_guide,
+    required_indices=(),
+    center_tolerance=1e-8,
+):
+    if len(guides) != len(guide_paths) or not guides:
+        raise ValueError("candidate guides and paths must align")
+    if not math.isfinite(center_tolerance) or center_tolerance < 0:
+        raise ValueError("guide support tolerance must be non-negative")
+    modeled = tuple(sorted(set(modeled_refdes)))
+    movable = frozenset(movable_refdes)
+    required = frozenset(required_indices)
+    if any(index < 0 or index >= len(guides) for index in required):
+        raise ValueError("required guide support index is outside the guide range")
+    missing_reference = sorted(set(modeled) - set(fixed_reference_guide))
+    if missing_reference:
+        raise ValueError(
+            "fixed reference guide is missing modeled refdes: "
+            + ", ".join(missing_reference)
+        )
+
+    guide_audits = []
+    for guide_index, (guide, guide_path) in enumerate(
+        zip(guides, guide_paths)
+    ):
+        missing = sorted(set(modeled) - set(guide))
+        if missing:
+            raise ValueError(
+                f"candidate guide {guide_index} is missing modeled refdes: "
+                + ", ".join(missing)
+            )
+        changed = []
+        maximum_center_distance = 0.0
+        for refdes in modeled:
+            reference_center = np.asarray(
+                fixed_reference_guide[refdes], dtype=np.float64
+            )
+            guide_center = np.asarray(guide[refdes], dtype=np.float64)
+            if (
+                reference_center.shape != (2,)
+                or guide_center.shape != (2,)
+                or not np.all(np.isfinite(reference_center))
+                or not np.all(np.isfinite(guide_center))
+            ):
+                raise ValueError("guide centers must be finite 2D coordinates")
+            distance = float(np.linalg.norm(guide_center - reference_center))
+            maximum_center_distance = max(maximum_center_distance, distance)
+            if distance > center_tolerance:
+                changed.append(refdes)
+        outside_movable = (
+            sorted(set(changed) - movable) if fix_guide else []
+        )
+        guide_audits.append(
+            {
+                "guide_index": guide_index,
+                "guide_json": str(guide_path),
+                "required": guide_index in required,
+                "changed_refdes_count": len(changed),
+                "changed_refdes": changed,
+                "outside_movable_refdes_count": len(outside_movable),
+                "outside_movable_refdes": outside_movable,
+                "maximum_center_distance": maximum_center_distance,
+                "support_complete": not outside_movable,
+            }
+        )
+    return {
+        "center_tolerance": center_tolerance,
+        "fixed_reference_json": str(fixed_reference_json),
+        "modeled_refdes_count": len(modeled),
+        "movable_refdes_count": len(movable),
+        "restricted_by_fixed_equalities": bool(fix_guide),
+        "required_guide_indices": sorted(required),
+        "all_required_guides_supported": all(
+            guide_audits[index]["support_complete"] for index in required
+        ),
+        "guides": guide_audits,
+    }
+
+
 def _optional_nonnegative_integer(value: str, label: str) -> int | None:
     if not value:
         return None
@@ -756,6 +866,34 @@ def main() -> int:
         raise ValueError("movable refdes require M336_FIX_GUIDE=1")
     if core_chain and not fix_guide:
         raise ValueError("core-chain mode requires M336_FIX_GUIDE=1")
+    required_guide_support_indices = _required_guide_support_indices(
+        os.environ.get("M336_REQUIRED_GUIDE_SUPPORT_INDICES", ""),
+        len(guides),
+    )
+    candidate_guide_support_audit = _candidate_guide_support_audit(
+        hint_guide,
+        hint_json,
+        guides,
+        guide_paths,
+        known_refdes,
+        movable_refdes,
+        fix_guide,
+        required_guide_support_indices,
+    )
+    if not candidate_guide_support_audit["all_required_guides_supported"]:
+        incomplete = [
+            row
+            for row in candidate_guide_support_audit["guides"]
+            if row["required"] and not row["support_complete"]
+        ]
+        details = "; ".join(
+            f'{row["guide_index"]}: '
+            + ", ".join(row["outside_movable_refdes"])
+            for row in incomplete
+        )
+        raise ValueError(
+            "required candidate guide support is incomplete: " + details
+        )
     fixed_assumption_refdes = {}
     fixed_assumptions = {}
     guide_site_distances = {}
@@ -1263,6 +1401,9 @@ def main() -> int:
             "candidate_domain_overlap_model_exact": (
                 candidate_domain_overlap_model_exact
             ),
+            "candidate_guide_support_audit": (
+                candidate_guide_support_audit
+            ),
             "complete": complete,
             "core_chain_steps": core_chain_steps,
             "guide_jsons": guide_paths,
@@ -1430,6 +1571,7 @@ def main() -> int:
         "guide_json": guide_paths[0],
         "guide_jsons": guide_paths,
         "candidate_guide_weights": list(candidate_guide_weights),
+        "candidate_guide_support_audit": candidate_guide_support_audit,
         "hint_json": hint_json,
         "hint_source": hint_source,
         "manual_baseline_endpoints": sorted(manual_baseline_endpoints),

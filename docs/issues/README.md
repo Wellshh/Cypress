@@ -106,7 +106,8 @@ append evidence rather than replacing prior observations.
 | [M336-096](M336-096-seeded-exact-escape-order.md) | High | Mitigated | Exact guided escape can replay seeded component-order portfolios without changing default behavior |
 | [M336-097](M336-097-cpsat-incumbent-escape-hint-conflict.md) | Critical | Open | A single CP-SAT hint cannot preserve the current incumbent while encoding an escape topology |
 | [M336-098](M336-098-per-move-escape-rise.md) | High | Mitigated | Guided escape can bound one HPWL rise independently from its total path envelope |
-| [M336-099](M336-099-alternate-basin-support-closure.md) | High | Open | A restricted movable set fixes nine components needed to reproduce a certified alternate basin |
+| [M336-099](M336-099-alternate-basin-support-closure.md) | High | Mitigated | A restricted movable set fixes nine components needed to reproduce a certified alternate basin |
+| [M336-100](M336-100-guide-support-closure-audit.md) | High | Resolved | Exact probes now audit and optionally require candidate-guide support closure |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

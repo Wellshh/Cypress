@@ -1,7 +1,7 @@
 # M336-099: Restricted Movable Support Masks an Alternate Basin
 
 **Severity:** High
-**Status:** Open
+**Status:** Mitigated
 **Found:** 2026-07-19
 **Affected commit:** `3a4e218`
 
@@ -54,11 +54,31 @@ differences, totaling 89 components. The corrected four-seed K256 portfolio:
 - uses exact BOTH-side collision and keep-in validation;
 - writes isolated context, progress, result, and placement artifacts per seed.
 
+## Corrected Support Result
+
+The four 89-component K256 runs also completed at deterministic time 300:
+
+| Seed | Status | HPWL | Best HPWL bound |
+| ---: | --- | ---: | ---: |
+| 1000 | `FEASIBLE` | 15811.06557381333 | 14703.824099 |
+| 1001 | `FEASIBLE` | 15811.06557381333 | 14676.007241 |
+| 1002 | `FEASIBLE` | 15811.06557381333 | 14703.824099 |
+| 1003 | `FEASIBLE` | 15811.06557381333 | 14703.323669 |
+
+Each model contained 21,781 candidates. Every objective replay passed with
+100/100 containment, zero violations, and zero overlaps, and every placement
+matched the incumbent SHA-256. The corrected support therefore removes the
+experimental confounder but does not improve HPWL within this budget. Its
+score-permitting bounds prevent either an optimality or infeasibility claim.
+
+M336-100 adds a machine-readable support audit and an optional fail-fast gate
+so this omission cannot silently recur.
+
 ## Acceptance Criteria
 
 - Record all four statuses and bounds without relabeling `UNKNOWN`.
 - Independently all-fixed certify any strict improvement.
-- Before future restricted guided searches, compute the guide/source center
+- Before future restricted guided searches, compute the guide/fixed-hint center
   difference and verify it is a subset of the movable support.
 - Promote no result unless objective replay passes with 100/100 containment,
   zero keep-in violations, and zero overlaps.
