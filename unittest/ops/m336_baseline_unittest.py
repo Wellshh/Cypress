@@ -69,6 +69,7 @@ from greedy_exact_site_descent import (  # noqa: E402
 )
 from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
+    _effective_integer_hpwl_limit,
     _integer_hpwl_by_net,
     _packing_sides,
     _rows_by_side,
@@ -134,6 +135,22 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_effective_integer_hpwl_limit_uses_strictest_bound(self):
+        self.assertEqual(
+            _effective_integer_hpwl_limit(12.25, 100, 3, None), 1228
+        )
+        self.assertEqual(
+            _effective_integer_hpwl_limit(None, 100, 3, 1200), 1200
+        )
+        self.assertEqual(
+            _effective_integer_hpwl_limit(12.25, 100, 3, 1200), 1200
+        )
+        self.assertIsNone(
+            _effective_integer_hpwl_limit(None, 100, 3, None)
+        )
+        with self.assertRaisesRegex(ValueError, "ceiling must be positive"):
+            _effective_integer_hpwl_limit(None, 100, 3, 0)
+
     def test_greedy_pair_hpwl_recomputes_joint_net_extrema(self):
         placedb = SimpleNamespace(
             net2pin_map=[np.asarray([0, 1, 2])],

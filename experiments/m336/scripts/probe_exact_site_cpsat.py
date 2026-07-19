@@ -117,6 +117,33 @@ def _integral_net_weight(value) -> int:
     return int(round(weight))
 
 
+def _effective_integer_hpwl_limit(
+    necessary_hpwl_limit,
+    integer_scale,
+    rounding_allowance,
+    integer_hpwl_ceiling,
+):
+    if integer_scale <= 0:
+        raise ValueError("integer scale must be positive")
+    if rounding_allowance < 0:
+        raise ValueError("rounding allowance must be non-negative")
+    limits = []
+    if necessary_hpwl_limit is not None:
+        if not math.isfinite(necessary_hpwl_limit) or necessary_hpwl_limit < 0:
+            raise ValueError(
+                "necessary HPWL limit must be finite and non-negative"
+            )
+        limits.append(
+            math.floor(necessary_hpwl_limit * integer_scale)
+            + rounding_allowance
+        )
+    if integer_hpwl_ceiling is not None:
+        if isinstance(integer_hpwl_ceiling, bool) or integer_hpwl_ceiling <= 0:
+            raise ValueError("integer HPWL ceiling must be positive")
+        limits.append(int(integer_hpwl_ceiling))
+    return min(limits) if limits else None
+
+
 def _integer_hpwl_by_net(placedb, node_x, node_y, integer_scale):
     rows = []
     total = 0
@@ -476,6 +503,16 @@ def main() -> int:
         if value
     )
     integer_scale = int(os.environ.get("M336_INTEGER_SCALE", "1000000"))
+    integer_hpwl_ceiling_text = os.environ.get(
+        "M336_INTEGER_HPWL_CEILING", ""
+    )
+    integer_hpwl_ceiling = (
+        int(integer_hpwl_ceiling_text)
+        if integer_hpwl_ceiling_text
+        else None
+    )
+    if integer_hpwl_ceiling is not None and integer_hpwl_ceiling <= 0:
+        raise ValueError("integer HPWL ceiling must be positive")
     interval_inset = int(os.environ.get("M336_INTERVAL_INSET", "1"))
     if interval_inset < 0:
         raise ValueError("interval inset must be non-negative")
@@ -486,7 +523,11 @@ def main() -> int:
     minimize_guide_rank = os.environ.get("M336_MINIMIZE_GUIDE_RANK", "0") == "1"
     if optimize_hpwl and minimize_guide_rank:
         raise ValueError("HPWL and guide-rank objectives are mutually exclusive")
-    enforce_hpwl = optimize_hpwl or minimum_score > 0
+    enforce_hpwl = (
+        optimize_hpwl
+        or minimum_score > 0
+        or integer_hpwl_ceiling is not None
+    )
     objective_mode = (
         "hpwl"
         if optimize_hpwl
@@ -973,10 +1014,13 @@ def main() -> int:
             necessary_hpwl_limit = _score_hpwl_limit(
                 baseline_hpwl, baseline_rsmt, minimum_score
             )
-            integer_hpwl_limit = (
-                math.floor(necessary_hpwl_limit * integer_scale)
-                + hpwl_rounding_allowance
-            )
+        integer_hpwl_limit = _effective_integer_hpwl_limit(
+            necessary_hpwl_limit,
+            integer_scale,
+            hpwl_rounding_allowance,
+            integer_hpwl_ceiling,
+        )
+        if integer_hpwl_limit is not None:
             model.add(hpwl_objective <= integer_hpwl_limit)
         if optimize_hpwl:
             model.minimize(hpwl_objective)
@@ -994,6 +1038,9 @@ def main() -> int:
         os.environ.get("M336_HINT_CONFLICT_LIMIT", "10")
     )
     log_search_progress = os.environ.get("M336_LOG_SEARCH", "0") == "1"
+    stop_after_first_solution = (
+        os.environ.get("M336_STOP_AFTER_FIRST_SOLUTION", "0") == "1"
+    )
 
     def new_solver():
         current_solver = cp_model.CpSolver()
@@ -1007,6 +1054,9 @@ def main() -> int:
         current_solver.parameters.repair_hint = repair_hint
         current_solver.parameters.hint_conflict_limit = hint_conflict_limit
         current_solver.parameters.log_search_progress = log_search_progress
+        current_solver.parameters.stop_after_first_solution = (
+            stop_after_first_solution
+        )
         return current_solver
 
     def extract_fixed_core(current_solver, current_status_code):
@@ -1231,6 +1281,7 @@ def main() -> int:
         "objective_mode": objective_mode,
         "minimum_score": minimum_score,
         "necessary_hpwl_limit": necessary_hpwl_limit,
+        "integer_hpwl_ceiling": integer_hpwl_ceiling,
         "integer_hpwl_limit": integer_hpwl_limit,
         "hpwl_rounding_allowance_integer": hpwl_rounding_allowance,
         "hpwl_rounding_allowance": (
@@ -1272,6 +1323,7 @@ def main() -> int:
             "preprocess_threads": PREPROCESS_THREADS,
             "random_seed": random_seed,
             "repair_hint": repair_hint,
+            "stop_after_first_solution": stop_after_first_solution,
         },
         "solver_response_stats": solver.response_stats(),
         "objective_replay_audit": objective_replay_audit,
