@@ -96,6 +96,7 @@ append evidence rather than replacing prior observations.
 | [M336-086](M336-086-incumbent-hpwl-ceiling.md) | High | Resolved | Explicit integer HPWL ceilings make finite continuation searches monotonic |
 | [M336-087](M336-087-single-subgroup-k128-assignment-screen.md) | Critical | Open | Every single-subgroup K128 assignment domain has a valid bound above score 1.0 |
 | [M336-088](M336-088-coupled-k256-assignment-search.md) | Critical | Open | Coupled K256 assignment domains admit score-level bounds but do not improve within budget |
+| [M336-089](M336-089-coupled-k256-score-threshold-proof.md) | Critical | Open | Direct score gating proves four coupled K256 assignment domains infeasible |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

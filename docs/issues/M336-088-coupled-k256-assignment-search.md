@@ -60,3 +60,7 @@ feasibility mode on the same four domains. This removes the already-known
 source incumbent and spends the deterministic budget only on finding a
 threshold-satisfying exact placement. Any `UNKNOWN` result must remain unknown;
 only `INFEASIBLE` with a completed proof can close a restricted domain.
+
+Follow-up M336-089 completed that experiment: all four K256 threshold models
+are `INFEASIBLE`. This closes only those candidate-limited domains; K512 and
+broader coupled domains remain untested.
