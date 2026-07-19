@@ -82,3 +82,37 @@ Recompute residual per-net penalties from the certified incumbent. Expand the
 movable set by connected boundary components and selectively widen high-impact
 domains to K1536. Require objective replay and all-fixed certification after
 every improvement; preserve `UNKNOWN` for budget-limited global searches.
+
+## Domain-Breadth Ablation
+
+Residual penalties were recomputed after the boundary swap. Two deterministic
+models with similar total candidate counts were run in parallel from that
+certified source:
+
+| Model | Candidates | Status | DT | HPWL |
+| --- | ---: | --- | ---: | ---: |
+| top-10 nets, 20 components, K512 | 9,650 | `OPTIMAL` | 290.065877 | 15914.120051 |
+| top-15 nets, 31 components, K256 | 7,847 | `OPTIMAL` | 67.902321 | 15909.178850 |
+
+The wider K512 site domains cannot improve the source at all, while expanding
+the movable boundary at K256 improves HPWL by `4.941201`. This isolates movable
+component breadth, rather than per-component candidate width, as the useful
+dimension at this stage. Both response audits pass; neither result is a
+budget-limited `UNKNOWN`.
+
+The top-15 result changes 14 components and has normalized score upper bound
+`0.959217928`. Its all-fixed replay is `OPTIMAL` at `1e-8`
+deterministic-time, with all integer objectives equal `15909178856`, floating
+delta `0.000005503485`, and exact zero-violation legality. The top-10 result,
+top-15 result, top-15 placement, certification result, and certified placement
+SHA-256 values are:
+
+- `a10d4867ca94ecdb1f41b88958efb410b8ba98cab8109797f56c648b50f161cf`;
+- `1bff15bd3427113391a4aca0d7541ddd378e2495f2cb60da850cf3ec91ba7594`;
+- `cd88332b347b89ca1a318f89f9548d883d4cc829feeccc5973df8ff8b3dab653`;
+- `f9ae5a7f695d74bd1eff6360550f26299314e03a427f61157253f06a41d8738e`;
+- `cd88332b347b89ca1a318f89f9548d883d4cc829feeccc5973df8ff8b3dab653`.
+
+The new certified incumbent is `648.809279` above the score-1 threshold. The
+next solve should expand the connected movable boundary again; simply raising
+K512 for the old 20-component neighborhood is now exactly proven ineffective.
