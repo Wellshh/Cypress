@@ -179,13 +179,31 @@ placement, and canonical-site SHA-256 values are
 `6c7eb4d50b4e8f48bd2ed59ae3377065f6a0c2b45c5542cec6ccfb9a0c5b1cc3`,
 and `c17f28669ae6a450dabefbfd16a67c2a7f1f3b56c804706effb2b1314cc2f2a1`.
 
+Increasing the identical model budget from 300 to 900 deterministic-time did
+not improve the incumbent. It tightened the valid lower bound to
+`15029.625400`, so additional time alone was not an effective next step. In the
+K64 incumbent, only `FV302` and `R708` selected one of their final four domain
+indices. Expanding only those domains to K1536 produced 9,324 candidates and
+emitted a selected-site placement at HPWL `15997.273154`.
+
+The expansion run remained `FEASIBLE` at 500.000870 deterministic-time with
+reported objective `15998.363492` and lower bound `14983.968188`. Its selected
+sites instead replay to integer HPWL `15997.273166`, a `1.090326` discrepancy
+that exceeds the `0.000304` rounding allowance. The run is therefore
+quarantined under [M336-051](M336-051-cpsat-objective-replay-mismatch.md), and
+neither its apparent improvement nor its bound is accepted. Exact legality did
+remain 100/100 with zero violations and overlaps. Result, placement, and
+canonical-site SHA-256 values are
+`80f3fcd6f9662d19264dd1d59607e9178b452bff38cc354e9722f58dabfccbcd`,
+`ca40507fe1192f2d8bf1b79a189db6239d9af61d911621a5b1ac91df1a107f00`,
+and `cc521280fd14f36be53247b7bf689925885b70537108355fcf3caa496433e9c0`.
+
 ## Next Action
 
-Continue from the global K64 incumbent with the same candidate model and a
-larger deterministic budget, then expand only the components that selected a
-domain boundary or still dominate per-net deltas. Preserve the current legal
-incumbent at every stage. Acceptance still requires native HPWL/RSMT score at
-least 1.0.
+Resolve M336-051 and add objective-replay validation before using the expanded
+incumbent as a new guide. Until then, preserve the objective-consistent global
+K64 result as the trusted legal incumbent. Acceptance still requires native
+HPWL/RSMT score at least 1.0.
 
 This issue is resolved only when either a legal cross-block model reaches the
 native score gate or a valid lower bound for a model containing every relevant

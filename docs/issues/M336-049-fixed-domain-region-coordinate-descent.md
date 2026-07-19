@@ -196,13 +196,35 @@ optimistic score upper bound is `0.953429`. Evidence hashes are:
 - canonical selected sites:
   `c17f28669ae6a450dabefbfd16a67c2a7f1f3b56c804706effb2b1314cc2f2a1`.
 
+Repeating the identical K64 model with a 900 instead of 300 deterministic-time
+budget reproduced the same incumbent and tightened the lower bound from
+`15017.626687` to `15029.625400`. Additional search time alone did not improve
+the result. Only `FV302` and `R708` had selected sites in the final four K64
+indices, so the next model expanded those two domains to K1536 while retaining
+K64 for every other component.
+
+The boundary-driven model emitted a selected-site placement at HPWL
+`15997.273154` after 500.000870 deterministic-time. However, its independently
+replayed integer HPWL is `15997.273166`, while the same solver response reports
+objective `15998.363492`. The `1.090326` mismatch is far larger than the
+`0.000304` rounding allowance. This run is quarantined by
+[M336-051](M336-051-cpsat-objective-replay-mismatch.md): its legal placement is
+a candidate, but its apparent `8.499141` improvement and lower bound are not
+accepted as optimization evidence. Evidence hashes are retained for diagnosis:
+
+- result: `80f3fcd6f9662d19264dd1d59607e9178b452bff38cc354e9722f58dabfccbcd`;
+- placement: `ca40507fe1192f2d8bf1b79a189db6239d9af61d911621a5b1ac91df1a107f00`;
+- canonical selected sites:
+  `cc521280fd14f36be53247b7bf689925885b70537108355fcf3caa496433e9c0`.
+
 ## Acceptance Impact
 
-The result remains `745.402723` above the necessary HPWL threshold
-`15260.369572`, and `0.953429` is only an optimistic HPWL/RSMT upper bound,
-not a native acceptance score. The global K64 lower bound `15017.626687`
-leaves the score gate open within that candidate model, unlike the fixed-block
-page-7 bound. Continue global mixed-side descent as tracked in
+The last objective-consistent result remains `745.402723` above the necessary
+HPWL threshold `15260.369572`, and `0.953429` is only an optimistic HPWL/RSMT
+upper bound, not a native acceptance score. The global K64 lower bound
+`15017.626687` leaves the score gate open within that candidate model, unlike
+the fixed-block page-7 bound. Do not use the expanded-model objective or bound
+until M336-051 is resolved. Continue global mixed-side descent as tracked in
 [M336-050](M336-050-page7-net-span-bottleneck.md), then invoke the native
 scorer. Acceptance still requires native normalized score at least 1.0 and
 promotion of the EMI601 endpoint policy from diagnostic mode.
