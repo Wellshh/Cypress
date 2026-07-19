@@ -111,10 +111,25 @@ remained above the source, so restoration correctly retained HPWL
 `731a9dc6b66769d7d787ae163afc02dc2c8560f57c87a2d369e7e862c5f5ea43`;
 the placement is again byte-identical to the certified source.
 
+## Held Cascade Closure
+
+Hold now terminates early after a complete layer without an adaptation move.
+With a limit of 10 layers, the budget-100 run completed three. The first held
+pair move was followed by two plateau site moves. A second held pair scan
+evaluated the same 2,240 relevant pairs across 986,013 changed combinations
+and found no further descent, so hold stopped as `no_adaptation_move` rather
+than repeating the unchanged state.
+
+Release and full closure again remained above the source and restored it. The
+result SHA-256 is
+`4c21a33b297822a9ca00093b5878b22e5b7e815f69a2d297412b10c76e3debb3`;
+exact legality is unchanged. This closes the tested guide-monotone one/two-opt
+path, not the global placement problem.
+
 ## Next Action
 
-Keep the uphill components held for additional adaptation layers so the new
-pair can expose another one- or two-component move before release. Terminate
-the hold early when a complete layer has neither a single nor pair move, rather
-than rescanning an unchanged state. Any strict improvement still requires
-all-fixed CP-SAT replay certification before promotion.
+Export the exact-legal budget-100 perturbation before closure as an explicitly
+non-incumbent search seed. Use it as a materially different current guide and
+hint for one all-100 K64 CP-SAT optimization. Reject any result that does not
+beat the certified source, and certify any strict improvement with all-fixed
+objective replay before promotion.

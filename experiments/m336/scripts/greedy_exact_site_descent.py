@@ -749,6 +749,14 @@ def descend(args) -> dict:
     pair_searches = []
     completed_sweeps = 0
     completed_escape_hold_sweeps = 0
+    escape_hold_terminated = False
+    escape_hold_stop_reason = (
+        "max_hold_sweeps"
+        if args.escape_hold_sweeps and escape_held_refdes
+        else "no_held_refdes"
+        if args.escape_hold_sweeps
+        else "disabled"
+    )
     stop_reason = "max_sweeps"
     while completed_sweeps < args.max_sweeps:
         sweep = completed_sweeps
@@ -757,6 +765,7 @@ def descend(args) -> dict:
             escape_enabled
             and sweep < args.escape_hold_sweeps
             and bool(escape_held_refdes)
+            and not escape_hold_terminated
         )
         for constraint in constraints:
             if hold_active and constraint.refdes in escape_held_refdes:
@@ -935,6 +944,8 @@ def descend(args) -> dict:
                 pair_moves.append(pair_move)
                 continue
         if hold_active:
+            escape_hold_terminated = True
+            escape_hold_stop_reason = "no_adaptation_move"
             continue
         if args.max_pair_moves and len(pair_moves) >= args.max_pair_moves:
             stop_reason = "max_pair_moves"
@@ -1034,6 +1045,7 @@ def descend(args) -> dict:
         "max_escape_sweeps": args.max_escape_sweeps,
         "escape_hold_sweeps": args.escape_hold_sweeps,
         "completed_escape_hold_sweeps": completed_escape_hold_sweeps,
+        "escape_hold_stop_reason": escape_hold_stop_reason,
         "escape_held_refdes": sorted(escape_held_refdes),
         "escape_hpwl_budget": args.escape_hpwl_budget,
         "escape_hpwl_ceiling": escape_hpwl_ceiling,
