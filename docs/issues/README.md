@@ -114,6 +114,7 @@ append evidence rather than replacing prior observations.
 | [M336-104](M336-104-page7-monotonic-rank-barrier.md) | Critical | Open | Page-7 monotonic rank optimization proves the current topology boundary |
 | [M336-105](M336-105-current-endpoint-grid005-revalidation.md) | Critical | Mitigated | Current EMI601 endpoint replays exactly on the 0.05 mm lattice |
 | [M336-106](M336-106-grid005-exact-one-opt-improvement.md) | Critical | Mitigated | Full-domain 0.05 mm one-opt improves certified HPWL by 137.442317 |
+| [M336-107](M336-107-grid005-first-pair-improvement.md) | Critical | Mitigated | First full 0.05 mm pair scan improves certified HPWL by 3.999570 |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
