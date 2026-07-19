@@ -39,8 +39,24 @@ This is a CP-SAT search-trajectory effect caused by model shape and propagation,
 not evidence that the extra components are required by the final placement.
 Consequently, FEASIBLE incumbent comparisons cannot be used to rank domain
 quality or infer physical causality. The runs remain individually specified
-and deterministic; an identical 80/K256 replay is in progress to audit
-selected-site reproducibility.
+and deterministic.
+
+## Reproducibility Replay
+
+The 80/K256 run was repeated with identical source, guides, movable set,
+candidate limit, worker count, seed, and deterministic-time limit. Both runs
+produced identical selected sites and placement SHA-256
+`a4747d8a5f4dbebe989d739fb20412ac65afe11e621bda5d1bda7ebf1ee82e4f`.
+Status, objective `15812627230`, bound `14754685451`, 634,827 conflicts,
+2,467,403 branches, and deterministic time `300.00001172295015` also match
+exactly.
+
+Solver wall time changed from `448.706940` to `455.838603` seconds under
+concurrent load. The repeat JSON SHA-256 is
+`d5dc7d3776e820a091d18d26f7661db92c9ec8123db5c4b06e648d5619ace846`,
+which differs from the first result because JSON records wall/build timing.
+Raw result-file hash is therefore not a valid determinism criterion; compare
+semantic solver fields, selected sites, and placement hash.
 
 ## Certified Improvement
 
