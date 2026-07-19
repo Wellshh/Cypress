@@ -102,6 +102,7 @@ append evidence rather than replacing prior observations.
 | [M336-092](M336-092-current-topology-seed-portfolio.md) | Critical | Open | Eight current-topology seeds converge to one incumbent while residual HPWL concentrates on page 7 |
 | [M336-093](M336-093-exact-site-context-isolation.md) | High | Resolved | Exact-site probes now isolate generated context files by result output |
 | [M336-094](M336-094-multi-plateau-candidate-guides.md) | Critical | Open | Balanced and quality-biased multi-plateau guides retain the same K256 incumbent |
+| [M336-095](M336-095-page7-directed-escape-boundary.md) | Critical | Open | Page-7 K1024 search and an exact legal escape retain the current incumbent |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
