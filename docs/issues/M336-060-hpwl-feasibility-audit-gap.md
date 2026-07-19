@@ -57,3 +57,18 @@ Run the K256 physical closure as pure feasibility with the previously tested
 -5 HPWL ceiling, repair disabled, one worker, and seed 1000. Any returned
 placement must pass the new audit and all-fixed certification. Keep a
 budget-limited no-incumbent result as `UNKNOWN`.
+
+## K256 Feasibility Result
+
+The 10,810-candidate K256 physical model was run at ceiling `15830344206`
+without an optimization objective. It returned `UNKNOWN` without an incumbent
+after 327.415580 wall seconds and 300.000092 deterministic-time, with 729,297
+conflicts and 1,288,806 branches. Response objective and best bound are
+correctly absent in `hpwl_feasibility` mode. Result SHA-256 is
+`9e1ebc124db230104b840382345b4f703c614a1c62152768e64d4a4a06702f1b`.
+
+The matched optimization run also returned `UNKNOWN`, using 362.096764 wall
+seconds, 812,171 conflicts, and 2,573,303 branches. Pure feasibility removes
+34.681184 wall seconds and roughly half the branches but does not find the -5
+step. This remains a budget-limited search result, not a restricted-domain
+proof. Change guide ordering or search strategy before repeating the model.
