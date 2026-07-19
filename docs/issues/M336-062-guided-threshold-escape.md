@@ -69,10 +69,25 @@ components could adapt. Its largest exact reversals were `C8606` (-23.349699),
 `C8611` (-7.999141), and `C8603` (-7.928230). Increasing the envelope further
 therefore does not address the observed mechanism.
 
+## Held Adaptation Sweep
+
+The search now accepts `--escape-hold-sweeps`. It holds only components that
+made an uphill move and still differ from their source site after escape. A
+budget-20 rerun held `B401`, `C501`, `C607`, `C8611`, and `L8603` for one
+adaptation sweep. The other 95 components produced no strict or plateau move.
+After release, ordinary closure did not improve the source and restoration
+again emitted the certified placement.
+
+The result is exactly legal and has SHA-256
+`39b262ef9b08d52fe9b0bcc63699712ea6d778ac8f0899b7264b6cba61fee7c9`;
+the restored placement remains `a44942bee4ba8c1bf275ef08177ed359de588b8045907e2b3853d3f5a0a179c6`.
+The M336 suite passes 46/46, including exclusion of reverted uphill and pure
+plateau moves from the held set.
+
 ## Next Action
 
-Hold only the uphill-moved components for one deterministic adaptation sweep,
-allowing all other components to descend while the changed blocker topology is
-present. Then release the hold and run normal closure. Do not enlarge the HPWL
-budget unless this controlled hold exposes a new reason. Any strict improvement
-still requires all-fixed CP-SAT replay certification before promotion.
+Run blocker-aware exact pair search during the hold window, excluding the five
+held components while retaining them as collision obstacles. This tests the
+smallest remaining higher-order neighborhood without increasing the HPWL
+budget. Any strict improvement still requires all-fixed CP-SAT replay
+certification before promotion.

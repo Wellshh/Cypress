@@ -64,6 +64,7 @@ from solve_discrete_placement import (  # noqa: E402
 from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
 from greedy_exact_site_descent import (  # noqa: E402
     _candidate_total_hpwl,
+    _escape_hold_refdes,
     _pair_total_hpwl,
     _select_candidate,
     _select_guided_threshold_candidate,
@@ -275,6 +276,29 @@ class M336BaselineTest(unittest.TestCase):
             **arguments,
         )
         self.assertEqual((selected, move_type), (1, "strict"))
+
+    def test_escape_hold_only_keeps_unreverted_uphill_moves(self):
+        escape_moves = [
+            {"refdes": "U1", "move_type": "uphill"},
+            {"refdes": "U2", "move_type": "uphill"},
+            {"refdes": "P1", "move_type": "plateau"},
+        ]
+        initial = {
+            "U1": np.asarray([0.0, 0.0]),
+            "U2": np.asarray([1.0, 1.0]),
+            "P1": np.asarray([2.0, 2.0]),
+        }
+        current = {
+            "U1": np.asarray([0.0, 1.0]),
+            "U2": np.asarray([1.0, 1.0 + 1e-10]),
+            "P1": np.asarray([3.0, 2.0]),
+        }
+        self.assertEqual(
+            _escape_hold_refdes(
+                escape_moves, current, initial, site_tolerance=1e-8
+            ),
+            frozenset({"U1"}),
+        )
 
     def test_greedy_candidate_hpwl_only_replaces_incident_nets(self):
         placedb = SimpleNamespace(

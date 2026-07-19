@@ -240,6 +240,26 @@ def _select_guided_threshold_candidate(
     return selected, move_type
 
 
+def _escape_hold_refdes(
+    escape_moves, current_centers, initial_centers, site_tolerance
+):
+    uphill_refdes = {
+        move["refdes"]
+        for move in escape_moves
+        if move["move_type"] == "uphill"
+    }
+    return frozenset(
+        refdes
+        for refdes in uphill_refdes
+        if float(
+            np.linalg.norm(
+                current_centers[refdes] - initial_centers[refdes]
+            )
+        )
+        > site_tolerance
+    )
+
+
 def _pair_total_hpwl(
     placedb,
     first,
@@ -713,15 +733,29 @@ def descend(args) -> dict:
                 escape_stop_reason = "no_guided_candidate"
                 break
     escape_final_hpwl = current_hpwl
+    escape_held_refdes = _escape_hold_refdes(
+        escape_moves,
+        current_centers,
+        initial_centers,
+        args.site_tolerance,
+    )
     moves = []
     pair_moves = []
     pair_searches = []
     completed_sweeps = 0
+    completed_escape_hold_sweeps = 0
     stop_reason = "max_sweeps"
     while completed_sweeps < args.max_sweeps:
         sweep = completed_sweeps
         sweep_moves = 0
+        hold_active = (
+            escape_enabled
+            and sweep < args.escape_hold_sweeps
+            and bool(escape_held_refdes)
+        )
         for constraint in constraints:
+            if hold_active and constraint.refdes in escape_held_refdes:
+                continue
             row = candidate_rows[constraint.refdes]
             centers = row["centers"]
             legal = _legal_candidate_mask(
@@ -816,7 +850,9 @@ def descend(args) -> dict:
             )
             sweep_moves += 1
         completed_sweeps += 1
-        if sweep_moves:
+        if hold_active:
+            completed_escape_hold_sweeps += 1
+        if sweep_moves or hold_active:
             continue
         if len(pair_moves) < args.max_pair_moves:
             pair_started = time.perf_counter()
@@ -981,6 +1017,9 @@ def descend(args) -> dict:
         "max_sweeps": args.max_sweeps,
         "max_pair_moves": args.max_pair_moves,
         "max_escape_sweeps": args.max_escape_sweeps,
+        "escape_hold_sweeps": args.escape_hold_sweeps,
+        "completed_escape_hold_sweeps": completed_escape_hold_sweeps,
+        "escape_held_refdes": sorted(escape_held_refdes),
         "escape_hpwl_budget": args.escape_hpwl_budget,
         "escape_hpwl_ceiling": escape_hpwl_ceiling,
         "completed_escape_sweeps": completed_escape_sweeps,
@@ -1044,6 +1083,7 @@ def parse_args():
     parser.add_argument("--max-pair-moves", type=int, default=0)
     parser.add_argument("--max-escape-sweeps", type=int, default=0)
     parser.add_argument("--escape-hpwl-budget", type=float, default=0.0)
+    parser.add_argument("--escape-hold-sweeps", type=int, default=0)
     parser.add_argument("--plateau-guide", type=Path)
     parser.add_argument("--site-tolerance", type=float, default=1e-8)
     parser.add_argument("--improvement-tolerance", type=float, default=1e-9)
@@ -1063,8 +1103,12 @@ def parse_args():
         parser.error("--max-escape-sweeps must be non-negative")
     if args.escape_hpwl_budget < 0:
         parser.error("--escape-hpwl-budget must be non-negative")
+    if args.escape_hold_sweeps < 0:
+        parser.error("--escape-hold-sweeps must be non-negative")
     if args.max_escape_sweeps and args.plateau_guide is None:
         parser.error("--max-escape-sweeps requires --plateau-guide")
+    if args.escape_hold_sweeps and not args.max_escape_sweeps:
+        parser.error("--escape-hold-sweeps requires --max-escape-sweeps")
     if any(
         tolerance < 0
         for tolerance in (
