@@ -1,0 +1,22 @@
+{
+  "entrypoint": "certificate.json",
+  "files": {
+    "assignment.json": {
+      "sha256": "e6a08bf40a1f0ceeedda762ab48dcfcc404c9764b0f37a930184036fb2f72c87"
+    },
+    "certificate.json": {
+      "sha256": "d09c60f111d3987ea7bb2c60e6a05edf23dc699213a4717bf4d4dba339de99bb"
+    },
+    "certificate.original.json": {
+      "sha256": "4c1dd7ca647877873133c6aa9d2da99d4b0b51d9b5cf07eb03b6bd805fdc39fb"
+    },
+    "placement.pl": {
+      "sha256": "32f814e4b4f49a1450f4d02cc4d197f668ca0ddadc45b6cf523f049ae968cbf7"
+    },
+    "quality-guide.json": {
+      "sha256": "64634cd629a516a2efc7c47e8beb5cd9443f83caed4eb3b3671269f71b506081"
+    }
+  },
+  "schema": "m336_exact_site_checkpoint_v1",
+  "selected_sites_sha256": "35ec1f0c8117a826e0763b90edbd00fb55d57f76f32f965abb505fe87884187b"
+}

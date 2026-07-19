@@ -126,6 +126,7 @@ append evidence rather than replacing prior observations.
 | [M336-116](M336-116-grid005-page86-after-page7.md) | Critical | Mitigated | Sequential page-86 U8601 closure improves certified HPWL by 9.177450 |
 | [M336-117](M336-117-grid005-page4-sequential-composition.md) | Critical | Mitigated | Sequential page-4 closure improves certified HPWL by 1.553270 |
 | [M336-118](M336-118-grid005-post-group-pair-improvement.md) | Critical | Mitigated | Post-group full pair closure improves certified HPWL by 0.999893 |
+| [M336-119](M336-119-ephemeral-checkpoint-dependencies.md) | Critical | Resolved | Certified exact-site incumbents now export as versioned portable checkpoints |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

@@ -24,6 +24,7 @@ import torch
 from shapely import affinity
 
 from analyze_quality_bound import _load_context
+from exact_site_checkpoint import resolve_result_path
 from dreamplace.constraints.anchor_keepin import (
     _obstacle_free_candidate_indices,
 )
@@ -567,7 +568,9 @@ def descend(args) -> dict:
     source = json.loads(args.source.read_text())
     context_args = Namespace(
         output_dir=args.output.parent / f".{args.output.stem}-context",
-        assignment=Path(source["assignment_json"]),
+        assignment=resolve_result_path(
+            args.source, source["assignment_json"]
+        ),
         grid_mm=float(source["grid_mm"]),
         clearance_mm=0.0,
         bookshelf_dir=args.bookshelf_dir,
@@ -802,7 +805,7 @@ def descend(args) -> dict:
                 "status": "FEASIBLE",
                 "method": "deterministic_exact_guided_escape_seed",
                 "source_json": str(args.source),
-                "assignment_json": source["assignment_json"],
+                "assignment_json": str(context_args.assignment),
                 "grid_mm": float(source["grid_mm"]),
                 "manual_baseline_endpoints": source.get(
                     "manual_baseline_endpoints", []
@@ -1124,7 +1127,7 @@ def descend(args) -> dict:
             else "deterministic_exact_one_opt_descent"
         ),
         "source_json": str(args.source),
-        "assignment_json": source["assignment_json"],
+        "assignment_json": str(context_args.assignment),
         "grid_mm": float(source["grid_mm"]),
         "manual_baseline_endpoints": source.get(
             "manual_baseline_endpoints", []

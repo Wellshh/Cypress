@@ -100,6 +100,10 @@ from score_exact_site_result import (  # noqa: E402
     _manual_baseline_endpoints,
     _require_objective_replay_audit,
 )
+from exact_site_checkpoint import (  # noqa: E402
+    export_checkpoint,
+    resolve_result_path,
+)
 from dreamplace.constraints.region_projection import (  # noqa: E402
     FeasibleDomain,
     NodeConstraint,
@@ -160,6 +164,74 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_checkpoint_paths_resolve_from_declaring_result(self):
+        result = Path("/work/checkpoint/certificate.json")
+        self.assertEqual(
+            resolve_result_path(result, "assignment.json"),
+            Path("/work/checkpoint/assignment.json"),
+        )
+        self.assertEqual(
+            resolve_result_path(result, "/data/assignment.json"),
+            Path("/data/assignment.json"),
+        )
+
+    def test_checkpoint_export_is_self_contained(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            assignment = root / "source-assignment.json"
+            placement = root / "source.pl"
+            guide = root / "source-guide.json"
+            result = root / "source-result.json"
+            assignment.write_text('{"assignment": true}\n')
+            placement.write_text("UCLA pl 1.0\n")
+            guide.write_text('{"selected_sites": {}}\n')
+            result.write_text(
+                json.dumps(
+                    {
+                        "status": "OPTIMAL",
+                        "candidate_domain_overlap_model_exact": True,
+                        "certification_required": False,
+                        "objective_mode": "hpwl",
+                        "objective_replay_audit": {"passed": True},
+                        "legality": {
+                            "keepin_violation_count": 0,
+                            "overlap_pair_count": 0,
+                        },
+                        "assignment_json": str(assignment),
+                        "placement": str(placement),
+                        "selected_sites": {"C1": {"center": [1.0, 2.0]}},
+                    }
+                )
+            )
+            output = root / "checkpoint"
+            manifest = export_checkpoint(
+                result, output, quality_guide_path=guide
+            )
+            portable = json.loads((output / "certificate.json").read_text())
+            original = (output / "certificate.original.json").read_bytes()
+
+            self.assertEqual(portable["assignment_json"], "assignment.json")
+            self.assertEqual(portable["placement"], "placement.pl")
+            self.assertEqual(
+                resolve_result_path(
+                    output / "certificate.json",
+                    portable["assignment_json"],
+                ),
+                (output / "assignment.json").resolve(),
+            )
+            self.assertEqual(original, result.read_bytes())
+            self.assertEqual(manifest["entrypoint"], "certificate.json")
+            self.assertEqual(
+                set(manifest["files"]),
+                {
+                    "assignment.json",
+                    "certificate.json",
+                    "certificate.original.json",
+                    "placement.pl",
+                    "quality-guide.json",
+                },
+            )
+
     def test_manual_endpoint_metadata_supports_legacy_model_field(self):
         self.assertEqual(
             _manual_baseline_endpoints(

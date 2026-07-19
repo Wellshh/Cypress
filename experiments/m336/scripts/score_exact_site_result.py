@@ -23,6 +23,7 @@ from analyze_quality_bound import (
     _select_fixed_endpoints,
 )
 from run_matrix import parse_final_ppa, parse_placement
+from exact_site_checkpoint import resolve_result_path
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -211,7 +212,7 @@ def score(args) -> dict:
         raise ValueError(
             f"exact-site result is missing fields: {missing_fields}"
         )
-    assignment = Path(source["assignment_json"]).resolve()
+    assignment = resolve_result_path(args.result, source["assignment_json"])
     context_args = Namespace(
         output_dir=args.output_dir / "context",
         assignment=assignment,
