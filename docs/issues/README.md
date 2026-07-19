@@ -87,6 +87,7 @@ append evidence rather than replacing prior observations.
 | [M336-077](M336-077-two-blocker-ejection-triplets.md) | Critical | Open | Leading two-blocker ejection triplets are full-site exact optima at the current placement |
 | [M336-078](M336-078-complete-bottom0-k1024-search.md) | Critical | Open | Complete bottom-0 K1024 models are score-permitting but fail to improve within deterministic budgets |
 | [M336-079](M336-079-full-site-four-component-closure.md) | Critical | Open | Directed four-component ejection closures are full-site exact optima at the current placement |
+| [M336-080](M336-080-full-site-physical-group-closure.md) | Critical | Open | Major bottom-0 physical groups are exact optima over every available site |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
