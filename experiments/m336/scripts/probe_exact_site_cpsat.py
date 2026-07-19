@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Probe exact M336 TOP-site packing with a deterministic CP-SAT model."""
+"""Probe exact M336 side-specific packing with deterministic CP-SAT."""
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from argparse import Namespace
@@ -35,7 +36,13 @@ from dreamplace.constraints.anchor_keepin import (
     _is_axis_aligned_rectangle,
     _obstacle_free_candidate_indices,
 )
-from solve_discrete_placement import _convex_parts, _fixed_footprint_local
+from solve_discrete_placement import (
+    _convex_parts,
+    _fixed_footprint_local,
+    _hpwl_rounding_allowance_units,
+    _scaled,
+    _score_hpwl_limit,
+)
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -59,8 +66,19 @@ ADDITIONAL_GUIDES = [
 OUTPUT = Path(
     os.environ.get("M336_OUTPUT_JSON", "/tmp/m336_exact_site_cpsat.json")
 )
+PLACEMENT_OUTPUT = Path(
+    os.environ.get("M336_PLACEMENT_OUTPUT", f"{OUTPUT}.pl")
+)
 PROGRESS = Path(
     os.environ.get("M336_PROGRESS_JSON", f"{OUTPUT}.progress")
+)
+ASSIGNMENT = Path(
+    os.environ.get(
+        "M336_ASSIGNMENT_JSON",
+        ROOT
+        / "results/m336/quality_assignment/"
+        "m336_region_assignment.grid01.corrected.quality.json",
+    )
 )
 GEOMETRY_EPSILON = 1e-10
 
@@ -90,6 +108,16 @@ def write_json_atomic(path: Path, data) -> None:
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
     os.replace(temporary, path)
+
+
+def write_placement_atomic(placedb, path: Path, node_x, node_y) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        placedb.write_pl(None, str(temporary), node_x, node_y)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def strict_convex_overlap_mask(first, second, displacement):
@@ -154,9 +182,7 @@ def main() -> int:
     cp_model = _load_cp_model()
     args = Namespace(
         output_dir=Path("/tmp/m336_exact_site_cpsat_context"),
-        assignment=ROOT
-        / "results/m336/quality_assignment/"
-        "m336_region_assignment.grid01.corrected.quality.json",
+        assignment=ASSIGNMENT,
         grid_mm=float(os.environ.get("M336_GRID_MM", "0.1")),
         clearance_mm=0.0,
         bookshelf_dir=ROOT / "results/m336/bookshelf",
@@ -174,6 +200,7 @@ def main() -> int:
     )
     baseline_hpwl = float(baseline_result["metrics"]["hpwl"])
     baseline_rsmt = float(baseline_result["metrics"]["rsmt"])
+    source_data = json.loads(SOURCE.read_text())
     baseline_x, baseline_y = _baseline_positions(
         placedb, args.bookshelf_dir / "m336.baseline.pl"
     )
@@ -197,10 +224,17 @@ def main() -> int:
         manual_baseline_endpoints,
     )
 
+    packing_side = os.environ.get("M336_PACKING_SIDE", "TOP")
+    if packing_side not in {"TOP", "BOTTOM"}:
+        raise ValueError(f"unknown packing side: {packing_side}")
+    packing_side_flag = packing_side == "TOP"
     controlled_ids = {constraint.node_id for constraint in context.constraints}
     obstacles = []
     for node_id in range(placedb.num_physical_nodes):
-        if node_id in controlled_ids or not placedb.node_side_flag[node_id]:
+        if (
+            node_id in controlled_ids
+            or bool(placedb.node_side_flag[node_id]) != packing_side_flag
+        ):
             continue
         width = float(placedb.node_size_x[node_id])
         height = float(placedb.node_size_y[node_id])
@@ -216,7 +250,7 @@ def main() -> int:
         )
 
     constraints = sorted(
-        (row for row in context.constraints if row.side == "TOP"),
+        (row for row in context.constraints if row.side == packing_side),
         key=lambda row: row.refdes,
     )
     use_baseline_guide = os.environ.get("M336_USE_BASELINE_GUIDE", "0") == "1"
@@ -238,6 +272,12 @@ def main() -> int:
         guides = [load_guide(GUIDE)]
     guide_paths.extend(str(path) for path in ADDITIONAL_GUIDES)
     guides.extend(load_guide(path) for path in ADDITIONAL_GUIDES)
+    hint_guide_index = int(os.environ.get("M336_HINT_GUIDE_INDEX", "0"))
+    if hint_guide_index < 0 or hint_guide_index >= len(guides):
+        raise ValueError(
+            f"hint guide index {hint_guide_index} is outside "
+            f"[0, {len(guides)})"
+        )
 
     candidate_limit = int(os.environ.get("M336_CANDIDATE_LIMIT", "512"))
     expanded_limit = int(os.environ.get("M336_EXPANDED_CANDIDATE_LIMIT", "0"))
@@ -250,8 +290,22 @@ def main() -> int:
     interval_inset = int(os.environ.get("M336_INTERVAL_INSET", "1"))
     if interval_inset < 0:
         raise ValueError("interval inset must be non-negative")
+    optimize_hpwl = os.environ.get("M336_OPTIMIZE_HPWL", "0") == "1"
+    minimum_score = float(os.environ.get("M336_MINIMUM_SCORE", "0"))
+    if minimum_score < 0:
+        raise ValueError("minimum score must be non-negative")
+    minimize_guide_rank = os.environ.get("M336_MINIMIZE_GUIDE_RANK", "0") == "1"
+    if optimize_hpwl and minimize_guide_rank:
+        raise ValueError("HPWL and guide-rank objectives are mutually exclusive")
+    enforce_hpwl = optimize_hpwl or minimum_score > 0
+    objective_mode = (
+        "hpwl"
+        if optimize_hpwl
+        else "guide_rank" if minimize_guide_rank else "none"
+    )
     model = cp_model.CpModel()
     rows = []
+    packed_node_vars = {}
     candidate_count = 0
     candidate_counts = {}
     conservative_bbox_refdes = []
@@ -286,6 +340,8 @@ def main() -> int:
     fixed_assumption_refdes = {}
     fixed_assumptions = {}
     guide_site_distances = {}
+    hint_site_indices = {}
+    hint_site_distances = {}
     build_started = time.perf_counter()
 
     for constraint in constraints:
@@ -349,11 +405,42 @@ def main() -> int:
         integer_starts = integer_starts[unique_indices]
         centers = centers[unique_indices]
         eligible = eligible[unique_indices]
+        integer_node_lowers = None
+        if enforce_hpwl:
+            node_lowers = np.column_stack(
+                (
+                    centers[:, 0] - constraint.node_width / 2,
+                    centers[:, 1] - constraint.node_height / 2,
+                )
+            )
+            integer_node_lowers = np.rint(
+                node_lowers * integer_scale
+            ).astype(np.int64)
+            node_quantization_error = np.max(
+                np.abs(
+                    integer_node_lowers / integer_scale - node_lowers
+                ),
+                initial=0.0,
+            )
+            max_quantization_error = max(
+                max_quantization_error, node_quantization_error
+            )
         guide_site_distances[constraint.refdes] = float(
             np.linalg.norm(
                 centers[0]
                 - np.asarray(guides[0][constraint.refdes], dtype=np.float64)
             )
+        )
+        hint_preferred = np.asarray(
+            guides[hint_guide_index][constraint.refdes], dtype=np.float64
+        )
+        hint_distances = np.square(centers - hint_preferred).sum(axis=1)
+        hint_site_index = int(
+            np.lexsort((eligible, hint_distances))[0]
+        )
+        hint_site_indices[constraint.refdes] = hint_site_index
+        hint_site_distances[constraint.refdes] = float(
+            np.sqrt(hint_distances[hint_site_index])
         )
 
         width = int(round((max_x - min_x) * integer_scale)) - 2 * interval_inset
@@ -373,26 +460,62 @@ def main() -> int:
         site_var = model.new_int_var(
             0, len(integer_starts) - 1, f"{constraint.refdes}_site"
         )
-        allowed = [
-            (int(x), int(y), index)
-            for index, (x, y) in enumerate(integer_starts)
-        ]
-        model.add_allowed_assignments([x_var, y_var, site_var], allowed)
+        node_x_var = None
+        node_y_var = None
+        if enforce_hpwl:
+            node_x_var = model.new_int_var(
+                int(integer_node_lowers[:, 0].min()),
+                int(integer_node_lowers[:, 0].max()),
+                f"{constraint.refdes}_node_x",
+            )
+            node_y_var = model.new_int_var(
+                int(integer_node_lowers[:, 1].min()),
+                int(integer_node_lowers[:, 1].max()),
+                f"{constraint.refdes}_node_y",
+            )
+            allowed = [
+                (int(x), int(y), int(node_x), int(node_y), index)
+                for index, ((x, y), (node_x, node_y)) in enumerate(
+                    zip(integer_starts, integer_node_lowers)
+                )
+            ]
+            model.add_allowed_assignments(
+                [x_var, y_var, node_x_var, node_y_var, site_var],
+                allowed,
+            )
+            model.add_hint(
+                node_x_var,
+                int(integer_node_lowers[hint_site_index, 0]),
+            )
+            model.add_hint(
+                node_y_var,
+                int(integer_node_lowers[hint_site_index, 1]),
+            )
+            packed_node_vars[constraint.node_id] = (
+                node_x_var,
+                node_y_var,
+            )
+        else:
+            allowed = [
+                (int(x), int(y), index)
+                for index, (x, y) in enumerate(integer_starts)
+            ]
+            model.add_allowed_assignments([x_var, y_var, site_var], allowed)
         x_interval = model.new_fixed_size_interval_var(
             x_var, width, f"{constraint.refdes}_xi"
         )
         y_interval = model.new_fixed_size_interval_var(
             y_var, height, f"{constraint.refdes}_yi"
         )
-        model.add_hint(x_var, int(integer_starts[0, 0]))
-        model.add_hint(y_var, int(integer_starts[0, 1]))
-        model.add_hint(site_var, 0)
+        model.add_hint(x_var, int(integer_starts[hint_site_index, 0]))
+        model.add_hint(y_var, int(integer_starts[hint_site_index, 1]))
+        model.add_hint(site_var, hint_site_index)
         if fix_guide and constraint.refdes not in movable_refdes:
             assumption = model.new_bool_var(
                 f"assume_fixed_{constraint.refdes}"
             )
             model.add_assumption(assumption)
-            model.add(site_var == 0).only_enforce_if(assumption)
+            model.add(site_var == hint_site_index).only_enforce_if(assumption)
             fixed_assumption_refdes[assumption.index] = constraint.refdes
             fixed_assumptions[constraint.refdes] = assumption
         rows.append(
@@ -542,8 +665,99 @@ def main() -> int:
         and rectangle_audit["cp_false_negative_count"] == 0
         and nonrect_mode == "exact"
     )
-    minimize_guide_rank = os.environ.get("M336_MINIMIZE_GUIDE_RANK", "0") == "1"
-    if minimize_guide_rank:
+    hpwl_objective = None
+    necessary_hpwl_limit = None
+    integer_hpwl_limit = None
+    hpwl_rounding_allowance = 0
+    if enforce_hpwl:
+        constraint_by_node = {
+            constraint.node_id: constraint for constraint in context.constraints
+        }
+        source_node_lowers = {}
+        for constraint in context.constraints:
+            if constraint.node_id in packed_node_vars:
+                continue
+            source_site = source_data["selected_sites"][constraint.refdes]
+            center = np.asarray(source_site["center"], dtype=np.float64)
+            source_node_lowers[constraint.node_id] = (
+                float(center[0] - constraint.node_width / 2),
+                float(center[1] - constraint.node_height / 2),
+            )
+
+        coordinate_limit = 2**50
+        net_spans = []
+        net_weights = []
+        for net_id, pins in enumerate(placedb.net2pin_map):
+            pin_x = []
+            pin_y = []
+            for pin_id in pins:
+                node_id = int(placedb.pin2node_map[pin_id])
+                x_offset = _scaled(
+                    placedb.pin_offset_x[pin_id], integer_scale
+                )
+                y_offset = _scaled(
+                    placedb.pin_offset_y[pin_id], integer_scale
+                )
+                if node_id in packed_node_vars:
+                    node_x_var, node_y_var = packed_node_vars[node_id]
+                    pin_x.append(node_x_var + x_offset)
+                    pin_y.append(node_y_var + y_offset)
+                elif node_id in constraint_by_node:
+                    lower_x, lower_y = source_node_lowers[node_id]
+                    pin_x.append(_scaled(lower_x, integer_scale) + x_offset)
+                    pin_y.append(_scaled(lower_y, integer_scale) + y_offset)
+                else:
+                    pin_x.append(
+                        _scaled(fixed_x[node_id], integer_scale) + x_offset
+                    )
+                    pin_y.append(
+                        _scaled(fixed_y[node_id], integer_scale) + y_offset
+                    )
+            if not pin_x:
+                continue
+            weight = float(placedb.net_weights[net_id])
+            if (
+                not math.isfinite(weight)
+                or weight < 0
+                or not math.isclose(weight, round(weight), abs_tol=1e-12)
+            ):
+                raise ValueError("CP-SAT requires integral net weights")
+            integral_weight = int(round(weight))
+            net_weights.append(integral_weight)
+            max_x_var = model.new_int_var(
+                -coordinate_limit, coordinate_limit, f"net_{net_id}_max_x"
+            )
+            min_x_var = model.new_int_var(
+                -coordinate_limit, coordinate_limit, f"net_{net_id}_min_x"
+            )
+            max_y_var = model.new_int_var(
+                -coordinate_limit, coordinate_limit, f"net_{net_id}_max_y"
+            )
+            min_y_var = model.new_int_var(
+                -coordinate_limit, coordinate_limit, f"net_{net_id}_min_y"
+            )
+            model.add_max_equality(max_x_var, pin_x)
+            model.add_min_equality(min_x_var, pin_x)
+            model.add_max_equality(max_y_var, pin_y)
+            model.add_min_equality(min_y_var, pin_y)
+            net_spans.append(
+                integral_weight
+                * (max_x_var - min_x_var + max_y_var - min_y_var)
+            )
+        hpwl_objective = sum(net_spans)
+        hpwl_rounding_allowance = _hpwl_rounding_allowance_units(net_weights)
+        if minimum_score > 0:
+            necessary_hpwl_limit = _score_hpwl_limit(
+                baseline_hpwl, baseline_rsmt, minimum_score
+            )
+            integer_hpwl_limit = (
+                math.floor(necessary_hpwl_limit * integer_scale)
+                + hpwl_rounding_allowance
+            )
+            model.add(hpwl_objective <= integer_hpwl_limit)
+        if optimize_hpwl:
+            model.minimize(hpwl_objective)
+    elif minimize_guide_rank:
         model.minimize(sum(row["site_var"] for row in rows))
     build_seconds = time.perf_counter() - build_started
 
@@ -624,6 +838,17 @@ def main() -> int:
         total_solve_seconds += solve_seconds
         status = solver.status_name(status_code)
         fixed_core = extract_fixed_core(solver, status_code)
+        has_incumbent = status_code in (cp_model.FEASIBLE, cp_model.OPTIMAL)
+        objective_value = (
+            float(solver.objective_value)
+            if objective_mode != "none" and has_incumbent
+            else None
+        )
+        best_objective_bound = (
+            float(solver.best_objective_bound)
+            if objective_mode != "none"
+            else None
+        )
         step_result = {
             "step": len(core_chain_steps),
             "status": status,
@@ -637,6 +862,8 @@ def main() -> int:
             ),
             "solver_conflicts": solver.num_conflicts,
             "solver_branches": solver.num_branches,
+            "solver_objective_value": objective_value,
+            "solver_best_objective_bound": best_objective_bound,
         }
         core_chain_steps.append(step_result)
         write_progress(complete=False)
@@ -674,8 +901,8 @@ def main() -> int:
     legality = None
     hpwl = None
     score = None
+    placement_output = None
     if status_code in (cp_model.FEASIBLE, cp_model.OPTIMAL):
-        source = json.loads(SOURCE.read_text())
         node_x = np.asarray(placedb.node_x, dtype=np.float64).copy()
         node_y = np.asarray(placedb.node_y, dtype=np.float64).copy()
         node_x[: placedb.num_physical_nodes] = baseline_x
@@ -684,36 +911,47 @@ def main() -> int:
             if node_id not in controlled_ids:
                 node_x[node_id] = fixed_x[node_id]
                 node_y[node_id] = fixed_y[node_id]
-        top_rows = {row["constraint"].refdes: row for row in rows}
+        packed_rows = {row["constraint"].refdes: row for row in rows}
         selected_sites = {}
         for constraint in context.constraints:
-            center = np.asarray(
-                source["selected_sites"][constraint.refdes]["center"],
-                dtype=np.float64,
-            )
-            if constraint.side == "TOP":
-                row = top_rows[constraint.refdes]
+            source_site = source_data["selected_sites"][constraint.refdes]
+            center = np.asarray(source_site["center"], dtype=np.float64)
+            selected_site = dict(source_site)
+            if constraint.side == packing_side:
+                row = packed_rows[constraint.refdes]
                 selected = int(solver.value(row["site_var"]))
                 center = row["centers"][selected]
-                selected_sites[constraint.refdes] = {
+                selected_site = {
                     "candidate_index": selected,
                     "region_candidate_index": int(row["eligible"][selected]),
                     "center": center.tolist(),
                 }
+            selected_sites[constraint.refdes] = selected_site
             node_x[constraint.node_id] = center[0] - constraint.node_width / 2
             node_y[constraint.node_id] = center[1] - constraint.node_height / 2
         position = torch.from_numpy(np.concatenate((node_x, node_y)))
         legality = context.exact_report(position, placedb)
         hpwl = float(placedb.hpwl(node_x, node_y))
         score = 2.0 / (hpwl / baseline_hpwl + hpwl / baseline_rsmt)
+        write_placement_atomic(
+            placedb, PLACEMENT_OUTPUT, node_x, node_y
+        )
+        placement_output = str(PLACEMENT_OUTPUT)
+    else:
+        PLACEMENT_OUTPUT.unlink(missing_ok=True)
 
     result = {
         "status": status,
+        "assignment_json": str(ASSIGNMENT),
+        "packing_side": packing_side,
         "source_json": str(SOURCE),
         "guide_json": guide_paths[0],
         "guide_jsons": guide_paths,
         "manual_baseline_endpoints": sorted(manual_baseline_endpoints),
         "guide_site_distances": guide_site_distances,
+        "hint_guide_index": hint_guide_index,
+        "hint_site_indices": hint_site_indices,
+        "hint_site_distances": hint_site_distances,
         "fix_guide": fix_guide,
         "movable_refdes": sorted(movable_refdes),
         "effective_movable_refdes": sorted(movable_refdes | released_refdes),
@@ -746,6 +984,14 @@ def main() -> int:
         "candidate_domain_overlap_model_exact": (
             candidate_domain_overlap_model_exact
         ),
+        "objective_mode": objective_mode,
+        "minimum_score": minimum_score,
+        "necessary_hpwl_limit": necessary_hpwl_limit,
+        "integer_hpwl_limit": integer_hpwl_limit,
+        "hpwl_rounding_allowance_integer": hpwl_rounding_allowance,
+        "hpwl_rounding_allowance": (
+            hpwl_rounding_allowance / integer_scale
+        ),
         "ortools_version": metadata.version("ortools"),
         "integer_scale": integer_scale,
         "interval_inset": interval_inset,
@@ -757,11 +1003,27 @@ def main() -> int:
         "solver_deterministic_time": solver.response_proto.deterministic_time,
         "solver_conflicts": solver.num_conflicts,
         "solver_branches": solver.num_branches,
+        "solver_objective_value": objective_value,
+        "solver_best_objective_bound": best_objective_bound,
+        "solver_objective_hpwl": (
+            objective_value / integer_scale
+            if objective_mode == "hpwl" and objective_value is not None
+            else None
+        ),
+        "solver_best_objective_bound_hpwl": (
+            best_objective_bound / integer_scale
+            if objective_mode == "hpwl"
+            and best_objective_bound is not None
+            else None
+        ),
         "solver_parameters": {
             "hint_conflict_limit": hint_conflict_limit,
+            "hint_guide_index": hint_guide_index,
             "max_deterministic_time": max_deterministic_time,
             "max_time_in_seconds": max_time_in_seconds,
+            "minimum_score": minimum_score,
             "minimize_guide_rank": minimize_guide_rank,
+            "optimize_hpwl": optimize_hpwl,
             "num_search_workers": 1,
             "preprocess_threads": PREPROCESS_THREADS,
             "random_seed": random_seed,
@@ -771,6 +1033,7 @@ def main() -> int:
         "legality": legality,
         "hpwl": hpwl,
         "normalized_score_upper_bound": score,
+        "placement": placement_output,
         "selected_sites": selected_sites,
     }
     write_json_atomic(OUTPUT, result)

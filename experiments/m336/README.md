@@ -26,6 +26,22 @@ three gates: interval assignment, shared-coordinate discrete placement, then
 exact collision validation plus native HPWL/RSMT. A value above `1.0` at the
 first gate is not an accepted result.
 
+Replay a feasible exact-site result through the same native HPWL/FLUTE RSMT
+operators used for the manual baseline:
+
+```bash
+PYTHONPATH="$PWD/install:$PWD/experiments/m336/scripts:$PWD" python3.11 \
+  experiments/m336/scripts/score_exact_site_result.py \
+  --result /tmp/m336_exact_site_cpsat.json \
+  --output-dir /tmp/m336_native_score
+```
+
+The scorer independently rebuilds and validates all 100 controlled sites,
+checks the serialized `.pl`, and proves that native evaluation did not move
+any component. It exits `0` only for exact-zero-overlap results whose native
+normalized HPWL/RSMT score is at least `1.0`; a score miss exits `2` after
+writing `result.json`.
+
 Before increasing grid resolution, run the continuous shared-coordinate box
 relaxation. It searches every bounding-box-feasible same-side region while
 ignoring exact polygons, overlap, and capacity, so a score bound below `1.0`
