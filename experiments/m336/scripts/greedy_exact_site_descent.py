@@ -616,6 +616,9 @@ def descend(args) -> dict:
 
     initial_hpwl = float(placedb.hpwl(node_x, node_y))
     current_hpwl = initial_hpwl
+    baseline = json.loads(BASELINE_RESULT.read_text())
+    baseline_hpwl = float(baseline["metrics"]["hpwl"])
+    baseline_rsmt = float(baseline["metrics"]["rsmt"])
     started = time.perf_counter()
     initial_node_x = node_x.copy()
     initial_node_y = node_y.copy()
@@ -744,6 +747,65 @@ def descend(args) -> dict:
         initial_centers,
         args.site_tolerance,
     )
+    if args.escape_state_output is not None:
+        escape_position = torch.from_numpy(
+            np.concatenate((node_x.copy(), node_y.copy()))
+        )
+        escape_legality = context.exact_report(escape_position, placedb)
+        if (
+            escape_legality["keepin_violation_count"]
+            or escape_legality["overlap_pair_count"]
+        ):
+            raise ValueError("guided escape state is illegal")
+        escape_score = 2.0 / (
+            current_hpwl / baseline_hpwl
+            + current_hpwl / baseline_rsmt
+        )
+        write_placement_atomic(
+            placedb,
+            args.escape_state_placement,
+            node_x,
+            node_y,
+        )
+        write_json_atomic(
+            args.escape_state_output,
+            {
+                "status": "FEASIBLE",
+                "method": "deterministic_exact_guided_escape_seed",
+                "source_json": str(args.source),
+                "assignment_json": source["assignment_json"],
+                "grid_mm": float(source["grid_mm"]),
+                "manual_baseline_endpoints": source.get(
+                    "manual_baseline_endpoints", []
+                ),
+                "candidate_domain_overlap_model_exact": True,
+                "objective_mode": "guided_escape_hpwl",
+                "certification_required": True,
+                "search_seed_only": True,
+                "plateau_guide_json": str(args.plateau_guide),
+                "area_epsilon": area_epsilon,
+                "candidate_count": total_candidate_count,
+                "candidate_counts": {
+                    refdes: len(row["centers"])
+                    for refdes, row in candidate_rows.items()
+                },
+                "max_escape_sweeps": args.max_escape_sweeps,
+                "escape_hpwl_budget": args.escape_hpwl_budget,
+                "escape_hpwl_ceiling": escape_hpwl_ceiling,
+                "completed_escape_sweeps": completed_escape_sweeps,
+                "escape_stop_reason": escape_stop_reason,
+                "escape_move_count": len(escape_moves),
+                "escape_moves": copy.deepcopy(escape_moves),
+                "escape_held_refdes": sorted(escape_held_refdes),
+                "source_hpwl": initial_hpwl,
+                "hpwl": current_hpwl,
+                "hpwl_rise": current_hpwl - initial_hpwl,
+                "normalized_score_upper_bound": escape_score,
+                "legality": escape_legality,
+                "placement": str(args.escape_state_placement),
+                "selected_sites": copy.deepcopy(selected_sites),
+            },
+        )
     moves = []
     pair_moves = []
     pair_searches = []
@@ -986,9 +1048,6 @@ def descend(args) -> dict:
     legality = context.exact_report(position, placedb)
     if legality["keepin_violation_count"] or legality["overlap_pair_count"]:
         raise ValueError("greedy descent produced an illegal placement")
-    baseline = json.loads(BASELINE_RESULT.read_text())
-    baseline_hpwl = float(baseline["metrics"]["hpwl"])
-    baseline_rsmt = float(baseline["metrics"]["rsmt"])
     score = 2.0 / (
         current_hpwl / baseline_hpwl + current_hpwl / baseline_rsmt
     )
@@ -1111,6 +1170,8 @@ def parse_args():
     parser.add_argument("--max-escape-sweeps", type=int, default=0)
     parser.add_argument("--escape-hpwl-budget", type=float, default=0.0)
     parser.add_argument("--escape-hold-sweeps", type=int, default=0)
+    parser.add_argument("--escape-state-output", type=Path)
+    parser.add_argument("--escape-state-placement", type=Path)
     parser.add_argument("--plateau-guide", type=Path)
     parser.add_argument("--site-tolerance", type=float, default=1e-8)
     parser.add_argument("--improvement-tolerance", type=float, default=1e-9)
@@ -1136,6 +1197,14 @@ def parse_args():
         parser.error("--max-escape-sweeps requires --plateau-guide")
     if args.escape_hold_sweeps and not args.max_escape_sweeps:
         parser.error("--escape-hold-sweeps requires --max-escape-sweeps")
+    if (args.escape_state_output is None) != (
+        args.escape_state_placement is None
+    ):
+        parser.error(
+            "--escape-state-output and --escape-state-placement are paired"
+        )
+    if args.escape_state_output is not None and not args.max_escape_sweeps:
+        parser.error("escape-state output requires --max-escape-sweeps")
     if any(
         tolerance < 0
         for tolerance in (
