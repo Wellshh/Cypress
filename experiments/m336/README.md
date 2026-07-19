@@ -132,6 +132,16 @@ a comma-separated set of guide indices) to fail before candidate-domain
 construction unless each required guide's changed components are all movable.
 Omit it to retain audit-only behavior for intentionally partial quality guides.
 
+`M336_SEARCH_BRANCHING=partial_fixed_guide_delta` adds a deterministic site
+decision strategy while retaining CP-SAT's default fallback policy and
+restarts. `fixed_guide_delta` uses only the fixed-search chain and SAT fallback;
+`automatic` is the unchanged default. Guided modes order multi-site components
+by decreasing distance between candidate guide 0 and the fixed hint, then use
+`CHOOSE_FIRST`/`SELECT_MIN_VALUE`, so the primary guide's earliest candidates
+are visited first. The complete hint is still attempted independently before
+regular search. Results record the mode, exact refdes order, guide deltas, and
+candidate counts; use one worker for deterministic comparisons.
+
 Use `--packing-only --feasibility-only` only to isolate keep-in, capacity, and
 collision feasibility. This diagnostic mode omits all HPWL variables and the
 score gate; it still reports actual HPWL after finding a candidate, but its

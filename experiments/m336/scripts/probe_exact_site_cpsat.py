@@ -234,6 +234,48 @@ def _candidate_guide_support_audit(
     }
 
 
+def _search_branching_mode(value: str) -> str:
+    modes = {
+        "automatic",
+        "fixed_guide_delta",
+        "partial_fixed_guide_delta",
+    }
+    if value not in modes:
+        raise ValueError(
+            "search branching must be automatic, fixed_guide_delta, or "
+            "partial_fixed_guide_delta"
+        )
+    return value
+
+
+def _guide_delta_refdes_order(refdes_values, candidate_guide, fixed_hint):
+    refdes_values = tuple(sorted(set(refdes_values)))
+    missing_candidate = sorted(set(refdes_values) - set(candidate_guide))
+    missing_hint = sorted(set(refdes_values) - set(fixed_hint))
+    if missing_candidate or missing_hint:
+        raise ValueError("guide-delta order is missing component coordinates")
+    distances = {}
+    for refdes in refdes_values:
+        candidate_center = np.asarray(
+            candidate_guide[refdes], dtype=np.float64
+        )
+        hint_center = np.asarray(fixed_hint[refdes], dtype=np.float64)
+        if (
+            candidate_center.shape != (2,)
+            or hint_center.shape != (2,)
+            or not np.all(np.isfinite(candidate_center))
+            or not np.all(np.isfinite(hint_center))
+        ):
+            raise ValueError("guide centers must be finite 2D coordinates")
+        distances[refdes] = float(
+            np.linalg.norm(candidate_center - hint_center)
+        )
+    ordered = tuple(
+        sorted(refdes_values, key=lambda refdes: (-distances[refdes], refdes))
+    )
+    return ordered, distances
+
+
 def _optional_nonnegative_integer(value: str, label: str) -> int | None:
     if not value:
         return None
@@ -832,6 +874,9 @@ def main() -> int:
     )
     if objective_mode == "none" and enforce_hpwl:
         objective_mode = "hpwl_feasibility"
+    search_branching = _search_branching_mode(
+        os.environ.get("M336_SEARCH_BRANCHING", "automatic")
+    )
     model = cp_model.CpModel()
     rows = []
     packed_node_vars = {}
@@ -1095,6 +1140,55 @@ def main() -> int:
         )
         candidate_count += len(centers)
         candidate_counts[constraint.refdes] = len(centers)
+
+    decision_strategy = {
+        "enabled": search_branching != "automatic",
+        "search_branching": search_branching,
+        "primary_candidate_guide_index": 0,
+        "refdes_order": [],
+        "guide_delta_by_refdes": {},
+        "candidate_count_by_refdes": {},
+        "variable_count": 0,
+        "variable_strategy": None,
+        "domain_strategy": None,
+        "order": None,
+    }
+    if search_branching != "automatic":
+        strategy_rows = {
+            row["constraint"].refdes: row
+            for row in rows
+            if len(row["centers"]) > 1
+        }
+        if not strategy_rows:
+            raise ValueError(
+                "guided fixed search requires a multi-site component"
+            )
+        strategy_order, strategy_distances = _guide_delta_refdes_order(
+            strategy_rows, guides[0], hint_guide
+        )
+        model.add_decision_strategy(
+            [strategy_rows[refdes]["site_var"] for refdes in strategy_order],
+            cp_model.CHOOSE_FIRST,
+            cp_model.SELECT_MIN_VALUE,
+        )
+        decision_strategy = {
+            "enabled": True,
+            "search_branching": search_branching,
+            "primary_candidate_guide_index": 0,
+            "refdes_order": list(strategy_order),
+            "guide_delta_by_refdes": {
+                refdes: strategy_distances[refdes]
+                for refdes in strategy_order
+            },
+            "candidate_count_by_refdes": {
+                refdes: len(strategy_rows[refdes]["centers"])
+                for refdes in strategy_order
+            },
+            "variable_count": len(strategy_order),
+            "variable_strategy": "CHOOSE_FIRST",
+            "domain_strategy": "SELECT_MIN_VALUE",
+            "order": "primary_guide_delta_descending_then_refdes",
+        }
 
     rows_by_side = _rows_by_side(rows)
     for side_rows in rows_by_side.values():
@@ -1370,6 +1464,11 @@ def main() -> int:
         current_solver.parameters.stop_after_first_solution = (
             stop_after_first_solution
         )
+        current_solver.parameters.search_branching = {
+            "automatic": cp_model.AUTOMATIC_SEARCH,
+            "fixed_guide_delta": cp_model.FIXED_SEARCH,
+            "partial_fixed_guide_delta": cp_model.PARTIAL_FIXED_SEARCH,
+        }[search_branching]
         return current_solver
 
     def extract_fixed_core(current_solver, current_status_code):
@@ -1404,6 +1503,7 @@ def main() -> int:
             "candidate_guide_support_audit": (
                 candidate_guide_support_audit
             ),
+            "decision_strategy": decision_strategy,
             "complete": complete,
             "core_chain_steps": core_chain_steps,
             "guide_jsons": guide_paths,
@@ -1572,6 +1672,7 @@ def main() -> int:
         "guide_jsons": guide_paths,
         "candidate_guide_weights": list(candidate_guide_weights),
         "candidate_guide_support_audit": candidate_guide_support_audit,
+        "decision_strategy": decision_strategy,
         "hint_json": hint_json,
         "hint_source": hint_source,
         "manual_baseline_endpoints": sorted(manual_baseline_endpoints),
@@ -1662,6 +1763,7 @@ def main() -> int:
             "preprocess_threads": PREPROCESS_THREADS,
             "random_seed": random_seed,
             "repair_hint": repair_hint,
+            "search_branching": search_branching,
             "stop_after_first_solution": stop_after_first_solution,
         },
         "solver_response_stats": solver.response_stats(),

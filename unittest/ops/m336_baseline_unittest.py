@@ -83,12 +83,14 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _context_output_dir,
     _effective_integer_hpwl_limit,
     _guide_rank_replay_audit,
+    _guide_delta_refdes_order,
     _integer_hpwl_by_net,
     _objective_replay_audit,
     _optional_nonnegative_integer,
     _packing_sides,
     _rows_by_side,
     _required_guide_support_indices,
+    _search_branching_mode,
     _selected_site_in_region,
     _solver_integer_hpwl_by_net,
     _weighted_candidate_order,
@@ -353,6 +355,29 @@ class M336BaselineTest(unittest.TestCase):
             _required_guide_support_indices("2", 2)
         with self.assertRaisesRegex(ValueError, "must be unique"):
             _required_guide_support_indices("1,1", 2)
+
+    def test_guide_delta_order_is_descending_and_stable(self):
+        order, distances = _guide_delta_refdes_order(
+            ["C", "A", "B"],
+            {"A": [0.0, 1.0], "B": [2.0, 0.0], "C": [0.0, -1.0]},
+            {"A": [0.0, 0.0], "B": [0.0, 0.0], "C": [0.0, 0.0]},
+        )
+        self.assertEqual(order, ("B", "A", "C"))
+        self.assertEqual(distances, {"A": 1.0, "B": 2.0, "C": 1.0})
+        with self.assertRaisesRegex(ValueError, "missing component"):
+            _guide_delta_refdes_order(
+                ["A", "B"], {"A": [0.0, 0.0]}, {"A": [0.0, 0.0]}
+            )
+
+    def test_search_branching_mode_is_explicit(self):
+        for mode in (
+            "automatic",
+            "fixed_guide_delta",
+            "partial_fixed_guide_delta",
+        ):
+            self.assertEqual(_search_branching_mode(mode), mode)
+        with self.assertRaisesRegex(ValueError, "search branching"):
+            _search_branching_mode("fixed")
 
     def test_exact_site_context_directory_is_isolated_by_output(self):
         first = _context_output_dir(Path("/tmp/first.json"), "")
