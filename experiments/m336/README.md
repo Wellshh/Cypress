@@ -132,3 +132,8 @@ placement cannot be accepted until a later score-gated solve passes.
 assignment solve to one side. It requires a complete structured result hint;
 the other side is copied unchanged, and `packing_side_legality` controls only
 that stage. Chain both sides and require final global legality before reuse.
+
+`probe_exact_site_cpsat.py` derives its generated context directory from
+`M336_OUTPUT_JSON`, so distinct parallel outputs are isolated. Set
+`M336_CONTEXT_DIR` only for an intentional override; never share one override
+between concurrent probes with different assignments or geometry settings.

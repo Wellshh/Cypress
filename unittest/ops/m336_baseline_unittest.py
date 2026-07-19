@@ -78,6 +78,7 @@ from greedy_exact_site_descent import (  # noqa: E402
 from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
     _candidate_guide_weights,
+    _context_output_dir,
     _effective_integer_hpwl_limit,
     _guide_rank_replay_audit,
     _integer_hpwl_by_net,
@@ -291,6 +292,17 @@ class M336BaselineTest(unittest.TestCase):
             _candidate_guide_weights("1,x", 2)
         with self.assertRaisesRegex(ValueError, "positive integers"):
             _candidate_guide_weights("1,0", 2)
+
+    def test_exact_site_context_directory_is_isolated_by_output(self):
+        first = _context_output_dir(Path("/tmp/first.json"), "")
+        second = _context_output_dir(Path("/tmp/second.json"), "")
+        self.assertEqual(first, Path("/tmp/first.json.context"))
+        self.assertEqual(second, Path("/tmp/second.json.context"))
+        self.assertNotEqual(first, second)
+        self.assertEqual(
+            _context_output_dir(Path("/tmp/result.json"), "custom/context"),
+            Path("custom/context"),
+        )
 
     def test_optional_nonnegative_integer_is_strict(self):
         self.assertIsNone(_optional_nonnegative_integer("", "limit"))

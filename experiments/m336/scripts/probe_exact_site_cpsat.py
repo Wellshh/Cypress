@@ -84,6 +84,12 @@ GEOMETRY_EPSILON = 1e-10
 PLACEMENT_SIDES = ("TOP", "BOTTOM")
 
 
+def _context_output_dir(output: Path, override: str) -> Path:
+    if override:
+        return Path(override)
+    return output.parent / f"{output.name}.context"
+
+
 def _packing_sides(value: str) -> frozenset[str]:
     if value == "BOTH":
         return frozenset(PLACEMENT_SIDES)
@@ -553,7 +559,9 @@ def acceptance_overlap_mask(first, second, dx_values, dy_values, area_epsilon):
 def main() -> int:
     cp_model = _load_cp_model()
     args = Namespace(
-        output_dir=Path("/tmp/m336_exact_site_cpsat_context"),
+        output_dir=_context_output_dir(
+            OUTPUT, os.environ.get("M336_CONTEXT_DIR", "")
+        ),
         assignment=ASSIGNMENT,
         grid_mm=float(os.environ.get("M336_GRID_MM", "0.1")),
         clearance_mm=0.0,
@@ -1411,6 +1419,7 @@ def main() -> int:
     result = {
         "status": status,
         "assignment_json": str(ASSIGNMENT),
+        "context_output_dir": str(args.output_dir),
         "packing_side": packing_side,
         "packing_sides": sorted(packing_sides),
         "constraint_counts_by_side": constraint_counts_by_side,
