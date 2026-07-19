@@ -67,3 +67,7 @@ Stop the current/quality K256 seed ladder. Use the two retained equal-HPWL
 plateau placements as additional candidate centers and refresh the page-7 plus
 bottom-0 collision boundary. Keep the certified placement as the independent
 hint and promote only a strict all-fixed replay improvement.
+
+M336-094 completed the global multi-plateau ablation without changing the
+incumbent. Follow-up therefore moves to a page-7-directed hybrid guide instead
+of adding more global candidate centers.
