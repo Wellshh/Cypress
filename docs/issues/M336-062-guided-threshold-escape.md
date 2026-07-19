@@ -97,10 +97,24 @@ quality improvement. The result restored the source placement and has SHA-256
 `b61ab3bed735de7090750f97bc3e755b5c35fcec23e550193b5321d5df7f5876`.
 The M336 suite passes 47/47, including a held-endpoint exclusion test.
 
+## Expanded Held Pair Scan
+
+At budget 100, 13 unique uphill-moved components remained held. The
+hold-active scan evaluated 2,240 relevant pairs and 1,008,883 combinations. It
+found a new `FV602`/`FV607` pair move worth -3.999570 relative to the perturbed
+state. This demonstrates that held blocker topology can expose a higher-order
+move hidden at the source two-optimum.
+
+The pair did not offset the 69.958559 escape rise. Release and ordinary closure
+remained above the source, so restoration correctly retained HPWL
+`15835.344196`. Result SHA-256 is
+`731a9dc6b66769d7d787ae163afc02dc2c8560f57c87a2d369e7e862c5f5ea43`;
+the placement is again byte-identical to the certified source.
+
 ## Next Action
 
-Repeat the held pair scan once at budget 100, where 15 uphill moves produce a
-materially different legal topology. If that hold-active neighborhood also has
-no descending pair, stop this monotonic quality-guide path rather than tuning
-more budgets. Any strict improvement still requires all-fixed CP-SAT replay
-certification before promotion.
+Keep the uphill components held for additional adaptation layers so the new
+pair can expose another one- or two-component move before release. Terminate
+the hold early when a complete layer has neither a single nor pair move, rather
+than rescanning an unchanged state. Any strict improvement still requires
+all-fixed CP-SAT replay certification before promotion.
