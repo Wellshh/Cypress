@@ -62,6 +62,10 @@ from solve_discrete_placement import (  # noqa: E402
     _swept_bboxes_may_overlap,
 )
 from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
+from probe_exact_site_cpsat import (  # noqa: E402
+    _packing_sides,
+    _rows_by_side,
+)
 from dreamplace.constraints.region_projection import (  # noqa: E402
     FeasibleDomain,
     NodeConstraint,
@@ -122,6 +126,23 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_exact_site_rows_are_partitioned_by_physical_side(self):
+        self.assertEqual(_packing_sides("TOP"), frozenset(("TOP",)))
+        self.assertEqual(_packing_sides("BOTTOM"), frozenset(("BOTTOM",)))
+        self.assertEqual(
+            _packing_sides("BOTH"), frozenset(("TOP", "BOTTOM"))
+        )
+        with self.assertRaisesRegex(ValueError, "unknown packing side"):
+            _packing_sides("LEFT")
+
+        top = {"constraint": SimpleNamespace(side="TOP")}
+        bottom = {"constraint": SimpleNamespace(side="BOTTOM")}
+        grouped = _rows_by_side((bottom, top))
+        self.assertEqual(grouped["TOP"], [top])
+        self.assertEqual(grouped["BOTTOM"], [bottom])
+        with self.assertRaisesRegex(ValueError, "unknown constraint side"):
+            _rows_by_side(({"constraint": SimpleNamespace(side="LEFT")},))
+
     def test_scoped_assignment_only_retains_named_region_choices(self):
         assignment_space = {
             "mode": "optimized",

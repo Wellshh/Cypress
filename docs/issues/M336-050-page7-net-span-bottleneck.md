@@ -135,14 +135,34 @@ and canonical-site SHA-256 values are
 `3145a9dbde07d38e19d275d987067de358b58fc99d8d79d73371dd2163e2c3c8`,
 and `2a73503bd2b96fda27ac04e4e85cdc42f6e389e31e9d7ac81092fb968dfb9cfe`.
 
+## Mixed-Side Correction
+
+The exact-site probe now accepts `M336_PACKING_SIDE=BOTH`. This is not a
+simple union of the two existing row lists: a single `NoOverlap2D` would
+incorrectly forbid TOP and BOTTOM footprints from sharing board coordinates.
+The corrected model partitions non-controlled obstacles, rectangular
+`NoOverlap2D` constraints, non-rectangular forbidden tuples, and rectangle
+equivalence audits by physical side. The HPWL objective remains global and can
+therefore couple variables from both side partitions.
+
+An all-fixed K64 integration replay exercised 70 BOTTOM and 30 TOP controlled
+components together, with 22 BOTTOM and 18 TOP non-controlled obstacles. It
+reached `OPTIMAL` with 100 candidates and reproduced HPWL `16045.831364`,
+100/100 containment, zero violations, and zero overlaps. The rectangle audit
+reported zero CP false positives and false negatives. Its placement SHA-256
+`3145a9dbde07d38e19d275d987067de358b58fc99d8d79d73371dd2163e2c3c8`
+is byte-identical to the source placement; result SHA-256 is
+`9cb2c226882c2bbe8f4a4c7d27afd2f579b8000b1e04aaf99b1c3080fdd2f44e`.
+The legacy TOP-only all-fixed replay also preserved the same placement hash.
+Pure-Python M336 regressions pass 35/35.
+
 ## Next Action
 
-Reoptimize page-3/4/6 once from the new page-7 state, then stop repeating
-side-specific blocks and extend the exact model to separate TOP and BOTTOM
-collision sets. This allows a small mixed-side component set drawn from the
-remaining high-delta nets to move in one solve. Preserve the current legal
-incumbent at every stage. A full global solve is justified only after these
-cross-block candidates are assembled; acceptance still requires native
+Run a small `BOTH` subproblem containing only components on the remaining
+high-delta nets, with every other controlled component reduced to its current
+single site. Preserve the current legal incumbent and expand domains only when
+the measured bound justifies it. A full global solve is justified only after
+these cross-block candidates are assembled; acceptance still requires native
 HPWL/RSMT score at least 1.0.
 
 This issue is resolved only when either a legal cross-block model reaches the

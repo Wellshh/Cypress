@@ -81,6 +81,25 @@ ASSIGNMENT = Path(
     )
 )
 GEOMETRY_EPSILON = 1e-10
+PLACEMENT_SIDES = ("TOP", "BOTTOM")
+
+
+def _packing_sides(value: str) -> frozenset[str]:
+    if value == "BOTH":
+        return frozenset(PLACEMENT_SIDES)
+    if value in PLACEMENT_SIDES:
+        return frozenset((value,))
+    raise ValueError(f"unknown packing side: {value}")
+
+
+def _rows_by_side(rows) -> dict[str, list]:
+    grouped = {side: [] for side in PLACEMENT_SIDES}
+    for row in rows:
+        side = row["constraint"].side
+        if side not in grouped:
+            raise ValueError(f"unknown constraint side: {side}")
+        grouped[side].append(row)
+    return grouped
 
 
 def _load_cp_model():
@@ -225,23 +244,21 @@ def main() -> int:
     )
 
     packing_side = os.environ.get("M336_PACKING_SIDE", "TOP")
-    if packing_side not in {"TOP", "BOTTOM"}:
-        raise ValueError(f"unknown packing side: {packing_side}")
-    packing_side_flag = packing_side == "TOP"
+    packing_sides = _packing_sides(packing_side)
     controlled_ids = {constraint.node_id for constraint in context.constraints}
-    obstacles = []
+    obstacles_by_side = {side: [] for side in PLACEMENT_SIDES}
     for node_id in range(placedb.num_physical_nodes):
-        if (
-            node_id in controlled_ids
-            or bool(placedb.node_side_flag[node_id]) != packing_side_flag
-        ):
+        node_side = (
+            "TOP" if bool(placedb.node_side_flag[node_id]) else "BOTTOM"
+        )
+        if node_id in controlled_ids or node_side not in packing_sides:
             continue
         width = float(placedb.node_size_x[node_id])
         height = float(placedb.node_size_y[node_id])
         footprint = _fixed_footprint_local(
             context, placedb, node_id, "decomposed"
         )
-        obstacles.append(
+        obstacles_by_side[node_side].append(
             affinity.translate(
                 footprint,
                 xoff=float(fixed_x[node_id]) + width / 2,
@@ -250,9 +267,13 @@ def main() -> int:
         )
 
     constraints = sorted(
-        (row for row in context.constraints if row.side == packing_side),
+        (row for row in context.constraints if row.side in packing_sides),
         key=lambda row: row.refdes,
     )
+    constraint_counts_by_side = {
+        side: sum(constraint.side == side for constraint in constraints)
+        for side in PLACEMENT_SIDES
+    }
     use_baseline_guide = os.environ.get("M336_USE_BASELINE_GUIDE", "0") == "1"
     if use_baseline_guide:
         guide_paths = ["<manual-baseline>"]
@@ -352,7 +373,9 @@ def main() -> int:
             # A bounding box only removes solutions; it cannot admit a true
             # polygon overlap that NoOverlap2D would otherwise miss.
             conservative_bbox_refdes.append(constraint.refdes)
-        eligible = _obstacle_free_candidate_indices(constraint, obstacles)
+        eligible = _obstacle_free_candidate_indices(
+            constraint, obstacles_by_side[constraint.side]
+        )
         centers = constraint.domain.valid_centers[eligible]
         orders = []
         for guide in guides:
@@ -551,15 +574,18 @@ def main() -> int:
         candidate_count += len(centers)
         candidate_counts[constraint.refdes] = len(centers)
 
-    no_overlap_rows = [
-        row
-        for row in rows
-        if row["is_rectangle"] or nonrect_mode == "bbox"
-    ]
-    model.add_no_overlap_2d(
-        [row["x_interval"] for row in no_overlap_rows],
-        [row["y_interval"] for row in no_overlap_rows],
-    )
+    rows_by_side = _rows_by_side(rows)
+    for side_rows in rows_by_side.values():
+        no_overlap_rows = [
+            row
+            for row in side_rows
+            if row["is_rectangle"] or nonrect_mode == "bbox"
+        ]
+        if no_overlap_rows:
+            model.add_no_overlap_2d(
+                [row["x_interval"] for row in no_overlap_rows],
+                [row["y_interval"] for row in no_overlap_rows],
+            )
     rectangle_audit = {
         "enabled": os.environ.get("M336_AUDIT_RECTANGLES", "1") == "1",
         "pair_count": 0,
@@ -569,111 +595,115 @@ def main() -> int:
         "minimum_positive_overlap_area": None,
     }
     if rectangle_audit["enabled"]:
-        rectangle_rows = [row for row in rows if row["is_rectangle"]]
         minimum_positive_area = None
-        for first_index, first in enumerate(rectangle_rows):
-            first_bounds = first["footprint"].bounds
-            for second in rectangle_rows[first_index + 1 :]:
-                second_bounds = second["footprint"].bounds
-                first_centers = first["centers"]
-                second_centers = second["centers"]
-                overlap_x = np.maximum(
-                    0.0,
-                    np.minimum(
-                        first_centers[:, None, 0] + first_bounds[2],
-                        second_centers[None, :, 0] + second_bounds[2],
+        for side_rows in rows_by_side.values():
+            rectangle_rows = [
+                row for row in side_rows if row["is_rectangle"]
+            ]
+            for first_index, first in enumerate(rectangle_rows):
+                first_bounds = first["footprint"].bounds
+                for second in rectangle_rows[first_index + 1 :]:
+                    second_bounds = second["footprint"].bounds
+                    first_centers = first["centers"]
+                    second_centers = second["centers"]
+                    overlap_x = np.maximum(
+                        0.0,
+                        np.minimum(
+                            first_centers[:, None, 0] + first_bounds[2],
+                            second_centers[None, :, 0] + second_bounds[2],
+                        )
+                        - np.maximum(
+                            first_centers[:, None, 0] + first_bounds[0],
+                            second_centers[None, :, 0] + second_bounds[0],
+                        ),
                     )
-                    - np.maximum(
-                        first_centers[:, None, 0] + first_bounds[0],
-                        second_centers[None, :, 0] + second_bounds[0],
-                    ),
-                )
-                overlap_y = np.maximum(
-                    0.0,
-                    np.minimum(
-                        first_centers[:, None, 1] + first_bounds[3],
-                        second_centers[None, :, 1] + second_bounds[3],
+                    overlap_y = np.maximum(
+                        0.0,
+                        np.minimum(
+                            first_centers[:, None, 1] + first_bounds[3],
+                            second_centers[None, :, 1] + second_bounds[3],
+                        )
+                        - np.maximum(
+                            first_centers[:, None, 1] + first_bounds[1],
+                            second_centers[None, :, 1] + second_bounds[1],
+                        ),
                     )
-                    - np.maximum(
-                        first_centers[:, None, 1] + first_bounds[1],
-                        second_centers[None, :, 1] + second_bounds[1],
-                    ),
-                )
-                overlap_area = overlap_x * overlap_y
-                positive = overlap_area[overlap_area > 0.0]
-                if len(positive):
-                    current_minimum = float(positive.min())
-                    minimum_positive_area = (
-                        current_minimum
-                        if minimum_positive_area is None
-                        else min(minimum_positive_area, current_minimum)
-                    )
-                validator_conflicts = overlap_area > area_epsilon
+                    overlap_area = overlap_x * overlap_y
+                    positive = overlap_area[overlap_area > 0.0]
+                    if len(positive):
+                        current_minimum = float(positive.min())
+                        minimum_positive_area = (
+                            current_minimum
+                            if minimum_positive_area is None
+                            else min(minimum_positive_area, current_minimum)
+                        )
+                    validator_conflicts = overlap_area > area_epsilon
 
-                first_starts = first["integer_starts"]
-                second_starts = second["integer_starts"]
-                integer_overlap_x = (
-                    np.minimum(
-                        first_starts[:, None, 0] + first["width"],
-                        second_starts[None, :, 0] + second["width"],
+                    first_starts = first["integer_starts"]
+                    second_starts = second["integer_starts"]
+                    integer_overlap_x = (
+                        np.minimum(
+                            first_starts[:, None, 0] + first["width"],
+                            second_starts[None, :, 0] + second["width"],
+                        )
+                        > np.maximum(
+                            first_starts[:, None, 0],
+                            second_starts[None, :, 0],
+                        )
                     )
-                    > np.maximum(
-                        first_starts[:, None, 0],
-                        second_starts[None, :, 0],
+                    integer_overlap_y = (
+                        np.minimum(
+                            first_starts[:, None, 1] + first["height"],
+                            second_starts[None, :, 1] + second["height"],
+                        )
+                        > np.maximum(
+                            first_starts[:, None, 1],
+                            second_starts[None, :, 1],
+                        )
                     )
-                )
-                integer_overlap_y = (
-                    np.minimum(
-                        first_starts[:, None, 1] + first["height"],
-                        second_starts[None, :, 1] + second["height"],
+                    cp_conflicts = integer_overlap_x & integer_overlap_y
+                    rectangle_audit["pair_count"] += 1
+                    rectangle_audit["candidate_pair_count"] += overlap_area.size
+                    rectangle_audit["cp_false_positive_count"] += int(
+                        np.count_nonzero(cp_conflicts & ~validator_conflicts)
                     )
-                    > np.maximum(
-                        first_starts[:, None, 1],
-                        second_starts[None, :, 1],
+                    rectangle_audit["cp_false_negative_count"] += int(
+                        np.count_nonzero(~cp_conflicts & validator_conflicts)
                     )
-                )
-                cp_conflicts = integer_overlap_x & integer_overlap_y
-                rectangle_audit["pair_count"] += 1
-                rectangle_audit["candidate_pair_count"] += overlap_area.size
-                rectangle_audit["cp_false_positive_count"] += int(
-                    np.count_nonzero(cp_conflicts & ~validator_conflicts)
-                )
-                rectangle_audit["cp_false_negative_count"] += int(
-                    np.count_nonzero(~cp_conflicts & validator_conflicts)
-                )
         rectangle_audit["minimum_positive_overlap_area"] = minimum_positive_area
     if nonrect_mode == "exact":
-        for first_index, first in enumerate(rows):
-            for second in rows[first_index + 1 :]:
-                if first["is_rectangle"] and second["is_rectangle"]:
-                    continue
-                dx = (
-                    first["centers"][:, None, 0]
-                    - second["centers"][None, :, 0]
-                )
-                dy = (
-                    first["centers"][:, None, 1]
-                    - second["centers"][None, :, 1]
-                )
-                conflicts = acceptance_overlap_mask(
-                    first["footprint"],
-                    second["footprint"],
-                    dx.ravel(),
-                    dy.ravel(),
-                    area_epsilon,
-                ).reshape(dx.shape)
-                first_sites, second_sites = np.nonzero(conflicts)
-                if len(first_sites):
-                    model.add_forbidden_assignments(
-                        [first["site_var"], second["site_var"]],
-                        [
-                            (int(first_site), int(second_site))
-                            for first_site, second_site in zip(
-                                first_sites, second_sites
-                            )
-                        ],
+        for side_rows in rows_by_side.values():
+            for first_index, first in enumerate(side_rows):
+                for second in side_rows[first_index + 1 :]:
+                    if first["is_rectangle"] and second["is_rectangle"]:
+                        continue
+                    dx = (
+                        first["centers"][:, None, 0]
+                        - second["centers"][None, :, 0]
                     )
-                    nonrect_conflict_count += len(first_sites)
+                    dy = (
+                        first["centers"][:, None, 1]
+                        - second["centers"][None, :, 1]
+                    )
+                    conflicts = acceptance_overlap_mask(
+                        first["footprint"],
+                        second["footprint"],
+                        dx.ravel(),
+                        dy.ravel(),
+                        area_epsilon,
+                    ).reshape(dx.shape)
+                    first_sites, second_sites = np.nonzero(conflicts)
+                    if len(first_sites):
+                        model.add_forbidden_assignments(
+                            [first["site_var"], second["site_var"]],
+                            [
+                                (int(first_site), int(second_site))
+                                for first_site, second_site in zip(
+                                    first_sites, second_sites
+                                )
+                            ],
+                        )
+                        nonrect_conflict_count += len(first_sites)
     candidate_domain_overlap_model_exact = (
         rectangle_audit["enabled"]
         and rectangle_audit["cp_false_positive_count"] == 0
@@ -932,7 +962,7 @@ def main() -> int:
             source_site = source_data["selected_sites"][constraint.refdes]
             center = np.asarray(source_site["center"], dtype=np.float64)
             selected_site = dict(source_site)
-            if constraint.side == packing_side:
+            if constraint.side in packing_sides:
                 row = packed_rows[constraint.refdes]
                 selected = int(solver.value(row["site_var"]))
                 center = row["centers"][selected]
@@ -959,6 +989,11 @@ def main() -> int:
         "status": status,
         "assignment_json": str(ASSIGNMENT),
         "packing_side": packing_side,
+        "packing_sides": sorted(packing_sides),
+        "constraint_counts_by_side": constraint_counts_by_side,
+        "obstacle_counts_by_side": {
+            side: len(obstacles_by_side[side]) for side in PLACEMENT_SIDES
+        },
         "source_json": str(SOURCE),
         "guide_json": guide_paths[0],
         "guide_jsons": guide_paths,
