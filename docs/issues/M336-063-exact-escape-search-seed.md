@@ -44,10 +44,28 @@ SHA-256 is `8efd78ac4d8d662e814e3926791feb2492034232b57e97f54b67715a87b00efd`.
 The scorer independently rejects the seed with `exact-site result requires
 fixed certification`. The M336 suite passes 47/47.
 
+## Diversified K64 Result
+
+The all-100 K64 model used the escape seed as source and legal hint, with
+escape, quality, and certified-incumbent guides. It returned `FEASIBLE` after
+300.001279 deterministic-time. The solver recovered the certified floating
+HPWL `15835.344196`; integer HPWL decreased by one unit to `15835344205`, but
+that rounding-scale change is not a reported quality improvement.
+
+Objective replay passes with response, variable, and selected-site values all
+equal. Exact legality is 100/100 with zero violations and overlaps. The valid
+restricted lower bound is `15590.017047`, above the score-1 threshold, so this
+specific K64 domain cannot pass. Full-domain exact closure then scanned 2,877
+pairs and 979,502 combinations without a strict move. Search result, search
+placement, and local result SHA-256 values are:
+
+- `f00d22501e0dabb4b7b50a79f4ca85a7830db4a3b1c2978edce6787477985c6a`;
+- `1d0e7c8e474e1a437bc36ac1e3a71b29b705a95afe0bc50703609a31389005c7`;
+- `d8edac9c668d4df5f89061f409881f5392996639553ca810bcde3e0b7e780b2f`.
+
 ## Next Action
 
-Use this seed once as the current guide and legal hint for an all-100 K64
-CP-SAT optimization, while comparing every returned result against the
-certified HPWL `15835.344196`. A result that merely improves the seed is still
-rejected; only a strict incumbent improvement proceeds to all-fixed replay.
-
+Stop this K64 domain. Recompute current-versus-quality per-net residuals and
+expand the 42-component physical closure with fixed page-86 and `R604/R605`
+boundary components. Keep candidate width bounded while increasing movable
+breadth. Only a strict incumbent improvement proceeds to all-fixed replay.
