@@ -118,6 +118,18 @@ def _candidate_guide_weights(value: str, guide_count: int) -> tuple[int, ...]:
     return tuple(weights)
 
 
+def _optional_nonnegative_integer(value: str, label: str) -> int | None:
+    if not value:
+        return None
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise ValueError(f"{label} must be an integer") from error
+    if str(parsed) != value.strip() or parsed < 0:
+        raise ValueError(f"{label} must be a non-negative integer")
+    return parsed
+
+
 def _weighted_candidate_order(orders, weights, target_count):
     if len(orders) != len(weights) or not orders:
         raise ValueError("candidate orders and weights must align")
@@ -410,6 +422,48 @@ def load_guide(path: Path) -> dict[str, list[float]]:
     }
 
 
+def _guide_rank_replay_audit(
+    solver, rows, objective_mode, objective_value, guide_rank_ceiling
+):
+    selected_rank = sum(
+        int(solver.value(row["site_var"])) for row in rows
+    )
+    objective_available = (
+        objective_mode == "guide_rank" and objective_value is not None
+    )
+    rounded_objective = (
+        int(round(objective_value)) if objective_available else None
+    )
+    objective_is_integral = (
+        math.isclose(objective_value, rounded_objective, abs_tol=1e-6)
+        if objective_available
+        else None
+    )
+    objective_matches_selected_rank = (
+        objective_is_integral and rounded_objective == selected_rank
+        if objective_available
+        else None
+    )
+    within_ceiling = (
+        guide_rank_ceiling is None or selected_rank <= guide_rank_ceiling
+    )
+    return {
+        "passed": within_ceiling
+        and (
+            not objective_available or objective_matches_selected_rank
+        ),
+        "selected_guide_rank": selected_rank,
+        "guide_rank_ceiling": guide_rank_ceiling,
+        "selected_guide_rank_within_ceiling": within_ceiling,
+        "response_objective_available": objective_available,
+        "solver_objective_is_integral": objective_is_integral,
+        "solver_objective_integer": rounded_objective,
+        "solver_objective_matches_selected_guide_rank": (
+            objective_matches_selected_rank
+        ),
+    }
+
+
 def write_json_atomic(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -581,12 +635,25 @@ def main() -> int:
         guides = [load_guide(GUIDE)]
     guide_paths.extend(str(path) for path in ADDITIONAL_GUIDES)
     guides.extend(load_guide(path) for path in ADDITIONAL_GUIDES)
-    hint_guide_index = int(os.environ.get("M336_HINT_GUIDE_INDEX", "0"))
-    if hint_guide_index < 0 or hint_guide_index >= len(guides):
-        raise ValueError(
-            f"hint guide index {hint_guide_index} is outside "
-            f"[0, {len(guides)})"
+    separate_hint_text = os.environ.get("M336_HINT_JSON", "")
+    if separate_hint_text:
+        hint_path = Path(separate_hint_text)
+        hint_guide = load_guide(hint_path)
+        hint_json = str(hint_path)
+        hint_guide_index = None
+        hint_source = "separate"
+    else:
+        hint_guide_index = int(
+            os.environ.get("M336_HINT_GUIDE_INDEX", "0")
         )
+        if hint_guide_index < 0 or hint_guide_index >= len(guides):
+            raise ValueError(
+                f"hint guide index {hint_guide_index} is outside "
+                f"[0, {len(guides)})"
+            )
+        hint_guide = guides[hint_guide_index]
+        hint_json = guide_paths[hint_guide_index]
+        hint_source = "candidate_guide"
     candidate_guide_weights = _candidate_guide_weights(
         os.environ.get("M336_CANDIDATE_GUIDE_WEIGHTS", ""), len(guides)
     )
@@ -619,6 +686,10 @@ def main() -> int:
     minimize_guide_rank = os.environ.get("M336_MINIMIZE_GUIDE_RANK", "0") == "1"
     if optimize_hpwl and minimize_guide_rank:
         raise ValueError("HPWL and guide-rank objectives are mutually exclusive")
+    guide_rank_ceiling = _optional_nonnegative_integer(
+        os.environ.get("M336_GUIDE_RANK_CEILING", ""),
+        "guide-rank ceiling",
+    )
     enforce_hpwl = (
         optimize_hpwl
         or minimum_score > 0
@@ -747,7 +818,7 @@ def main() -> int:
             )
         )
         hint_preferred = np.asarray(
-            guides[hint_guide_index][constraint.refdes], dtype=np.float64
+            hint_guide[constraint.refdes], dtype=np.float64
         )
         hint_distances = np.square(centers - hint_preferred).sum(axis=1)
         hint_site_index = int(
@@ -1009,6 +1080,9 @@ def main() -> int:
     necessary_hpwl_limit = None
     integer_hpwl_limit = None
     hpwl_rounding_allowance = 0
+    guide_rank_expression = sum(row["site_var"] for row in rows)
+    if guide_rank_ceiling is not None:
+        model.add(guide_rank_expression <= guide_rank_ceiling)
     if enforce_hpwl:
         constraint_by_node = {
             constraint.node_id: constraint for constraint in context.constraints
@@ -1107,7 +1181,7 @@ def main() -> int:
         if optimize_hpwl:
             model.minimize(hpwl_objective)
     elif minimize_guide_rank:
-        model.minimize(sum(row["site_var"] for row in rows))
+        model.minimize(guide_rank_expression)
     build_seconds = time.perf_counter() - build_started
 
     max_time_in_seconds = float(os.environ.get("M336_TIME", "300"))
@@ -1173,6 +1247,8 @@ def main() -> int:
             "complete": complete,
             "core_chain_steps": core_chain_steps,
             "guide_jsons": guide_paths,
+            "hint_json": hint_json,
+            "hint_source": hint_source,
             "initial_movable_refdes": sorted(movable_refdes),
             "output_json": str(OUTPUT),
             "released_refdes": sorted(released_refdes),
@@ -1258,6 +1334,7 @@ def main() -> int:
     score = None
     placement_output = None
     objective_replay_audit = None
+    guide_rank_replay_audit = None
     if status_code in (cp_model.FEASIBLE, cp_model.OPTIMAL):
         node_x = np.asarray(placedb.node_x, dtype=np.float64).copy()
         node_y = np.asarray(placedb.node_y, dtype=np.float64).copy()
@@ -1302,6 +1379,13 @@ def main() -> int:
                 hpwl_rounding_allowance,
                 integer_hpwl_limit,
             )
+        guide_rank_replay_audit = _guide_rank_replay_audit(
+            solver,
+            rows,
+            objective_mode,
+            objective_value,
+            guide_rank_ceiling,
+        )
         score = 2.0 / (hpwl / baseline_hpwl + hpwl / baseline_rsmt)
         write_placement_atomic(
             placedb, PLACEMENT_OUTPUT, node_x, node_y
@@ -1323,6 +1407,8 @@ def main() -> int:
         "guide_json": guide_paths[0],
         "guide_jsons": guide_paths,
         "candidate_guide_weights": list(candidate_guide_weights),
+        "hint_json": hint_json,
+        "hint_source": hint_source,
         "manual_baseline_endpoints": sorted(manual_baseline_endpoints),
         "guide_site_distances": guide_site_distances,
         "hint_guide_index": hint_guide_index,
@@ -1363,6 +1449,7 @@ def main() -> int:
             candidate_domain_overlap_model_exact
         ),
         "objective_mode": objective_mode,
+        "guide_rank_ceiling": guide_rank_ceiling,
         "minimum_score": minimum_score,
         "necessary_hpwl_limit": necessary_hpwl_limit,
         "integer_hpwl_ceiling": integer_hpwl_ceiling,
@@ -1398,6 +1485,9 @@ def main() -> int:
         "solver_parameters": {
             "hint_conflict_limit": hint_conflict_limit,
             "hint_guide_index": hint_guide_index,
+            "hint_json": hint_json,
+            "hint_source": hint_source,
+            "guide_rank_ceiling": guide_rank_ceiling,
             "max_deterministic_time": max_deterministic_time,
             "max_time_in_seconds": max_time_in_seconds,
             "minimum_score": minimum_score,
@@ -1411,6 +1501,7 @@ def main() -> int:
         },
         "solver_response_stats": solver.response_stats(),
         "objective_replay_audit": objective_replay_audit,
+        "guide_rank_replay_audit": guide_rank_replay_audit,
         "legality": legality,
         "hpwl": hpwl,
         "normalized_score_upper_bound": score,
@@ -1432,6 +1523,7 @@ def main() -> int:
                     "hpwl",
                     "normalized_score_upper_bound",
                     "objective_replay_audit",
+                    "guide_rank_replay_audit",
                 )
             },
             indent=2,
@@ -1443,6 +1535,10 @@ def main() -> int:
         "passed"
     ]:
         return 3
+    if guide_rank_replay_audit is not None and not guide_rank_replay_audit[
+        "passed"
+    ]:
+        return 4
     return 0
 
 

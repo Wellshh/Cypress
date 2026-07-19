@@ -74,8 +74,10 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
     _candidate_guide_weights,
     _effective_integer_hpwl_limit,
+    _guide_rank_replay_audit,
     _integer_hpwl_by_net,
     _objective_replay_audit,
+    _optional_nonnegative_integer,
     _packing_sides,
     _rows_by_side,
     _solver_integer_hpwl_by_net,
@@ -221,6 +223,40 @@ class M336BaselineTest(unittest.TestCase):
             _candidate_guide_weights("1,x", 2)
         with self.assertRaisesRegex(ValueError, "positive integers"):
             _candidate_guide_weights("1,0", 2)
+
+    def test_optional_nonnegative_integer_is_strict(self):
+        self.assertIsNone(_optional_nonnegative_integer("", "limit"))
+        self.assertEqual(_optional_nonnegative_integer("0", "limit"), 0)
+        self.assertEqual(_optional_nonnegative_integer("17", "limit"), 17)
+        with self.assertRaisesRegex(ValueError, "must be an integer"):
+            _optional_nonnegative_integer("x", "limit")
+        with self.assertRaisesRegex(ValueError, "non-negative integer"):
+            _optional_nonnegative_integer("-1", "limit")
+        with self.assertRaisesRegex(ValueError, "non-negative integer"):
+            _optional_nonnegative_integer("01", "limit")
+
+    def test_guide_rank_replay_checks_objective_and_ceiling(self):
+        solver = SimpleNamespace(value=lambda variable: variable)
+        rows = [{"site_var": 2}, {"site_var": 3}]
+        audit = _guide_rank_replay_audit(
+            solver, rows, "guide_rank", 5.0, 5
+        )
+        self.assertTrue(audit["passed"])
+        self.assertEqual(audit["selected_guide_rank"], 5)
+        self.assertTrue(
+            audit["solver_objective_matches_selected_guide_rank"]
+        )
+
+        self.assertFalse(
+            _guide_rank_replay_audit(
+                solver, rows, "guide_rank", 4.0, None
+            )["passed"]
+        )
+        hpwl_audit = _guide_rank_replay_audit(
+            solver, rows, "hpwl", 123.0, 4
+        )
+        self.assertFalse(hpwl_audit["passed"])
+        self.assertFalse(hpwl_audit["response_objective_available"])
 
     def test_weighted_candidate_order_is_deterministic(self):
         order = _weighted_candidate_order(
