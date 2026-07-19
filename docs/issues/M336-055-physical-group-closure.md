@@ -56,3 +56,23 @@ Run exact local closure, then recompute residual network penalties. Expand by
 whole same-side physical groups or explicit blocker closure, not isolated
 network members. Use K256 as the first incumbent phase and separately budget a
 wider-domain continuation; do not compare FEASIBLE incumbents as domain proofs.
+
+## Exact Local Closure
+
+Full-domain one/two-opt descent from the certified K256 result found one
+`R702`/`R705` blocker-release swap. The components share no net and exchange
+their occupied sites; HPWL decreases exactly `12.0` to `15848.403158`. A
+second complete pair search found no improving move.
+
+The all-fixed replay is `OPTIMAL` at `1e-8` deterministic-time with all integer
+objectives equal `15848403168`, floating delta `0.000010154772`, 100/100
+containment, and zero violations or overlaps. The local result, placement,
+certification result, and certified placement SHA-256 values are:
+
+- `7e554b0d1fea1f7a8f419d8eb7d2396578ec00e763f91789b66348cc5eb09bc8`;
+- `83431dc5428672c89e72c5e8d98438544ab7958a1c5b6fafc6662f99f851556d`;
+- `4ec40e582d2842519b634554a45f46c3b667bdc9c83fd61ceeb308bdf70878d7`;
+- `83431dc5428672c89e72c5e8d98438544ab7958a1c5b6fafc6662f99f851556d`.
+
+The remaining score-1 HPWL gap is `588.033586`. Recompute the physical and
+network boundary from this new two-optimum before the next regional expansion.
