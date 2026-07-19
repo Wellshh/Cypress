@@ -71,6 +71,7 @@ append evidence rather than replacing prior observations.
 | [M336-061](M336-061-current-quality-domain-search-stall.md) | Critical | Open | Current-first quality candidates still stall and the quality guide itself contains 383 overlaps |
 | [M336-062](M336-062-guided-threshold-escape.md) | Critical | Mitigated | Deterministic guided threshold escape crosses local barriers without weakening exact legality |
 | [M336-063](M336-063-exact-escape-search-seed.md) | High | Mitigated | Worse exact escape states can seed global search without entering the scoring path |
+| [M336-064](M336-064-legacy-endpoint-metadata-replay.md) | Critical | Resolved | Legacy endpoint overrides now replay from either metadata location and conflict fail-closed |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

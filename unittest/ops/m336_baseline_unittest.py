@@ -80,6 +80,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _solver_integer_hpwl_by_net,
 )
 from score_exact_site_result import (  # noqa: E402
+    _manual_baseline_endpoints,
     _require_objective_replay_audit,
 )
 from dreamplace.constraints.region_projection import (  # noqa: E402
@@ -142,6 +143,38 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_manual_endpoint_metadata_supports_legacy_model_field(self):
+        self.assertEqual(
+            _manual_baseline_endpoints(
+                {
+                    "model": {
+                        "manual_baseline_endpoint_overrides": ["EMI601"]
+                    }
+                }
+            ),
+            ["EMI601"],
+        )
+        self.assertEqual(
+            _manual_baseline_endpoints(
+                {
+                    "manual_baseline_endpoints": ["EMI601"],
+                    "model": {
+                        "manual_baseline_endpoint_overrides": ["EMI601"]
+                    },
+                }
+            ),
+            ["EMI601"],
+        )
+        with self.assertRaisesRegex(ValueError, "metadata is inconsistent"):
+            _manual_baseline_endpoints(
+                {
+                    "manual_baseline_endpoints": ["EMI601"],
+                    "model": {
+                        "manual_baseline_endpoint_overrides": ["J201"]
+                    },
+                }
+            )
+
     def test_scorer_requires_hpwl_feasibility_audit(self):
         with self.assertRaisesRegex(ValueError, "objective replay audit"):
             _require_objective_replay_audit(

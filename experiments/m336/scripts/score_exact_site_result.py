@@ -79,6 +79,19 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _manual_baseline_endpoints(data):
+    top_level = data.get("manual_baseline_endpoints")
+    model_level = data.get("model", {}).get(
+        "manual_baseline_endpoint_overrides"
+    )
+    if top_level is not None and model_level is not None:
+        if set(top_level) != set(model_level):
+            raise ValueError(
+                "manual baseline endpoint metadata is inconsistent"
+            )
+    return top_level if top_level is not None else model_level or []
+
+
 def _result_positions(data, placedb, context, bookshelf_dir):
     selected_sites = data.get("selected_sites") or {}
     expected_refdes = {constraint.refdes for constraint in context.constraints}
@@ -102,7 +115,7 @@ def _result_positions(data, placedb, context, bookshelf_dir):
         baseline_y,
         fixed_x,
         fixed_y,
-        data.get("manual_baseline_endpoints", []),
+        _manual_baseline_endpoints(data),
     )
 
     controlled_ids = {constraint.node_id for constraint in context.constraints}
