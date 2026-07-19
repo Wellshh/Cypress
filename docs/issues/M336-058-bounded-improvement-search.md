@@ -72,3 +72,39 @@ search. It shows that global L1 repair is too expensive under the current wall
 budget. Apply the same ceiling to the smaller score-bound-permitting physical
 closure, or remove the optimization objective and audit the hard-constraint
 HPWL expression as a pure feasibility model.
+
+## Regional Bounded Improvement
+
+The 42-component physical closure was retried at K128 with the same one-HPWL
+ceiling. The model contained 5,434 candidates and fixed the other 58 controlled
+sites. It returned `FEASIBLE` after 179.705625 wall seconds and 116.714367
+deterministic-time, with 377,827 conflicts and 1,380,243 branches.
+
+The first qualifying solution reduced floating HPWL by `1.059177` to
+`15835.345270`. All response, variable, and selected-site objectives equal
+`15835345279`; exact legality and floating replay pass. Its valid lower bound
+is `15262.996062`, about 2.626 above the score-1 threshold. Therefore this
+K128 physical closure can improve the incumbent but cannot reach score 1.0
+while the other 58 sites remain fixed. That proof does not apply to K256 or to
+the full board.
+
+Full-domain local closure then moved `C607` for another `0.001074` reduction.
+It scanned 2,893 relevant pairs and 1,444,835 site combinations without another
+improvement. Final HPWL is `15835.344196`, normalized score upper bound is
+`0.963690425`, and the remaining necessary HPWL gap is `574.974624`.
+
+The bounded result, bounded placement, first certification, local result,
+local placement, and final certification SHA-256 values are:
+
+- `5d7d05f0694639f6936bc9d99e25494d88ee6f1773ed53066f95102e240145c7`;
+- `5c0a3fb2ff3af216da5ce787397b7503da6182ee4c353790e64a480e07efbc7a`;
+- `801279a9bc22e3ecea2c63d3c73855891ef85ffda5d9442f9ec17e44d4a6916d`;
+- `5e2588bef04bd0ff4c72f8fbf29d1b5bf99768cea50cd905a2c424c1808d076c`;
+- `a44942bee4ba8c1bf275ef08177ed359de588b8045907e2b3853d3f5a0a179c6`;
+- `dd71614338568bfddac1aacf55d14e65a44512f199df7dc44a220c3295c585f2`.
+
+The final all-fixed replay is `OPTIMAL` at `1e-8` deterministic-time. All
+integer objectives equal `15835344206`, floating delta is `0.000010071333`,
+and exact legality remains 100/100 with zero violations and overlaps. Continue
+from this certified placement in the K256 physical domain, whose prior valid
+bound remains below the score threshold.
