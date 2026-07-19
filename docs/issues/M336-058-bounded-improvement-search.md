@@ -108,3 +108,21 @@ integer objectives equal `15835344206`, floating delta is `0.000010071333`,
 and exact legality remains 100/100 with zero violations and overlaps. Continue
 from this certified placement in the K256 physical domain, whose prior valid
 bound remains below the score threshold.
+
+## K256 Step Ablation
+
+Two repair-off K256 runs tested larger bounded steps from the certified result.
+Both exhausted 300 deterministic-time without an incumbent:
+
+| Step | Ceiling | Status | Conflicts | Branches | Bound |
+| --- | ---: | --- | ---: | ---: | ---: |
+| -10 HPWL | 15825344206 | `UNKNOWN` | 789,525 | 2,520,337 | 15164.578912 |
+| -5 HPWL | 15830344206 | `UNKNOWN` | 812,171 | 2,573,303 | 15162.579557 |
+
+The -5 run used 362.096764 wall seconds and result SHA-256
+`102f5d8d1db82b20e35c717d18a4dfe83d242f92b63824e5b039b078499597b0`.
+Both valid bounds remain below their ceilings, so neither run proves the
+requested step infeasible. Halving the step did not produce an incumbent;
+further dense step sweeps would repeat the same optimization search. The next
+model should retain the hard integer ceiling but remove the minimization
+objective, then audit solved HPWL variables and selected-site replay directly.
