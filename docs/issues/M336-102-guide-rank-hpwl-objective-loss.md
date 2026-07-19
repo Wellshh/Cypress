@@ -52,4 +52,14 @@ The repaired objective exposes an equal-HPWL plateau that moves only `B402` by
 approximately 2.0 model units. Its placement SHA-256 is
 `41e49eaf7d1b76950f76e8df71775520c108367fa41c413e8cab52ffa738563f`,
 different from the incumbent. It is a diversity seed, not a strict score
-improvement, and requires independent fixed-site certification before reuse.
+improvement.
+
+An independent all-fixed K1 replay then certified the plateau `OPTIMAL` with
+100 single-site fixed domains, objective and bound `15811.065584`, passing
+integer/per-net replay, and the same exact legality. Certification result
+SHA-256 is
+`6d79227cbe370dbbd0716a733dd5a48205cad6f8fbb7bb0f5423ccf6e5b25f1a`;
+its emitted placement reproduces SHA-256
+`41e49eaf7d1b76950f76e8df71775520c108367fa41c413e8cab52ffa738563f`.
+This state is now eligible for use as a search seed, but it is not promoted as
+the scoring incumbent because its HPWL is equal rather than strictly better.
