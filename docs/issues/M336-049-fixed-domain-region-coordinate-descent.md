@@ -110,6 +110,17 @@ prove the target unreachable. Evidence hashes are:
 - canonical selected sites:
   `b3daad5d952f337c82af2ca698aa29e7fbf9981f69b45485c25d30b6606eee70`.
 
+The second-sweep `bottom_1` K1024 solve reached `OPTIMAL` after 112.075929
+deterministic-time. It reduced exact HPWL by another `55.419107` to
+`16194.525623`, for cumulative improvement `1876.167138` and optimistic score
+upper bound `0.942317`. Exact legality remained unchanged. Evidence hashes
+are:
+
+- result: `46b6979f342f4d3db8afb966acfc11051ce7c5414f665401c78017ddf367a4ad`;
+- placement: `73bfda2b970503cddaa4260a768503499c064c08873d03dc50764e776e1d7fbc`;
+- canonical selected sites:
+  `b69a9025b5cf41345712cf5f71a493b1ab8275f9ae89574c5d7109d3fe2c5ec4`.
+
 ## Acceptance Impact
 
 The result remains above the necessary HPWL threshold `15260.369572`, and
