@@ -1,7 +1,7 @@
 # M336-059: Hint Repair Conflict Limit Does Not Bound Repair Time
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Mitigated
 **Found:** 2026-07-19
 **Affected commit:** `b68f0ee`
 
@@ -49,3 +49,21 @@ quick hint phase. Compare candidate count, ceiling, seed, worker count, status,
 incumbent, conflicts, branches, and both time measures. Do not enable L1 repair
 for production sweeps until it has a separately enforceable time budget or an
 observed nonzero-conflict cutoff. Preserve `UNKNOWN` exactly.
+
+## Controlled Ablation
+
+The exact K256, 10-HPWL-ceiling model was rerun with only repair disabled and
+the quick-hint conflict limit restored to 10. It also returned `UNKNOWN`
+without an incumbent, so neither run proves the ceiling infeasible. However,
+normal search behavior was restored:
+
+| Repair | Wall seconds | DT | Conflicts | Branches | Bound |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| on | 481.970589 | 300.001092 | 0 | 16,600 | 14571.678022 |
+| off | 351.462355 | 300.839439 | 789,525 | 2,520,337 | 15164.578912 |
+
+The repair-off result SHA-256 is
+`d38301b0f1c621b3bc26da6045680784d999cd20faf1da5c192beb0a1acba915`.
+Disabling repair removes the zero-conflict phase and reduces wall time by
+130.508234 seconds. Keep repair disabled for wider K256 bounded sweeps; the
+10-HPWL result remains `UNKNOWN`, so back off the ceiling independently.
