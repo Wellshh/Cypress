@@ -260,6 +260,15 @@ def _escape_hold_refdes(
     )
 
 
+def _escape_sweep_order(constraints, rng):
+    if rng is None:
+        return list(constraints)
+    return [
+        constraints[int(index)]
+        for index in rng.permutation(len(constraints))
+    ]
+
+
 def _pair_total_hpwl(
     placedb,
     first,
@@ -629,6 +638,12 @@ def descend(args) -> dict:
     escape_enabled = args.max_escape_sweeps > 0
     escape_hpwl_ceiling = initial_hpwl + args.escape_hpwl_budget
     escape_moves = []
+    escape_order_rng = (
+        np.random.default_rng(args.escape_order_seed)
+        if args.escape_order_seed is not None
+        else None
+    )
+    escape_sweep_orders = []
     completed_escape_sweeps = 0
     escape_peak_hpwl = initial_hpwl
     escape_stop_reason = "disabled"
@@ -637,7 +652,13 @@ def descend(args) -> dict:
         for escape_sweep in range(args.max_escape_sweeps):
             sweep_moves = 0
             strict_improvement = False
-            for constraint in constraints:
+            sweep_constraints = _escape_sweep_order(
+                constraints, escape_order_rng
+            )
+            escape_sweep_orders.append(
+                [constraint.refdes for constraint in sweep_constraints]
+            )
+            for constraint in sweep_constraints:
                 row = candidate_rows[constraint.refdes]
                 centers = row["centers"]
                 legal = _legal_candidate_mask(
@@ -790,6 +811,13 @@ def descend(args) -> dict:
                     for refdes, row in candidate_rows.items()
                 },
                 "max_escape_sweeps": args.max_escape_sweeps,
+                "escape_order_seed": args.escape_order_seed,
+                "escape_order_rng": (
+                    "numpy.default_rng/PCG64"
+                    if args.escape_order_seed is not None
+                    else None
+                ),
+                "escape_sweep_orders": copy.deepcopy(escape_sweep_orders),
                 "escape_hpwl_budget": args.escape_hpwl_budget,
                 "escape_hpwl_ceiling": escape_hpwl_ceiling,
                 "completed_escape_sweeps": completed_escape_sweeps,
@@ -1102,6 +1130,13 @@ def descend(args) -> dict:
         "max_sweeps": args.max_sweeps,
         "max_pair_moves": args.max_pair_moves,
         "max_escape_sweeps": args.max_escape_sweeps,
+        "escape_order_seed": args.escape_order_seed,
+        "escape_order_rng": (
+            "numpy.default_rng/PCG64"
+            if args.escape_order_seed is not None
+            else None
+        ),
+        "escape_sweep_orders": escape_sweep_orders,
         "escape_hold_sweeps": args.escape_hold_sweeps,
         "completed_escape_hold_sweeps": completed_escape_hold_sweeps,
         "escape_hold_stop_reason": escape_hold_stop_reason,
@@ -1168,6 +1203,7 @@ def parse_args():
     parser.add_argument("--max-sweeps", type=int, default=20)
     parser.add_argument("--max-pair-moves", type=int, default=0)
     parser.add_argument("--max-escape-sweeps", type=int, default=0)
+    parser.add_argument("--escape-order-seed", type=int)
     parser.add_argument("--escape-hpwl-budget", type=float, default=0.0)
     parser.add_argument("--escape-hold-sweeps", type=int, default=0)
     parser.add_argument("--escape-state-output", type=Path)
@@ -1189,6 +1225,8 @@ def parse_args():
         parser.error("--max-pair-moves must be non-negative")
     if args.max_escape_sweeps < 0:
         parser.error("--max-escape-sweeps must be non-negative")
+    if args.escape_order_seed is not None and args.escape_order_seed < 0:
+        parser.error("--escape-order-seed must be non-negative")
     if args.escape_hpwl_budget < 0:
         parser.error("--escape-hpwl-budget must be non-negative")
     if args.escape_hold_sweeps < 0:

@@ -71,6 +71,7 @@ from greedy_exact_site_descent import (  # noqa: E402
     _best_pair_move,
     _candidate_total_hpwl,
     _escape_hold_refdes,
+    _escape_sweep_order,
     _pair_total_hpwl,
     _select_candidate,
     _select_guided_threshold_candidate,
@@ -491,6 +492,40 @@ class M336BaselineTest(unittest.TestCase):
                 escape_moves, current, initial, site_tolerance=1e-8
             ),
             frozenset({"U1"}),
+        )
+
+    def test_escape_sweep_order_is_seeded_without_changing_default(self):
+        constraints = [
+            SimpleNamespace(refdes=refdes)
+            for refdes in ("A", "B", "C", "D")
+        ]
+        self.assertEqual(
+            [row.refdes for row in _escape_sweep_order(constraints, None)],
+            ["A", "B", "C", "D"],
+        )
+
+        first_rng = np.random.default_rng(1000)
+        second_rng = np.random.default_rng(1000)
+        first_orders = [
+            [
+                row.refdes
+                for row in _escape_sweep_order(constraints, first_rng)
+            ]
+            for _ in range(3)
+        ]
+        second_orders = [
+            [
+                row.refdes
+                for row in _escape_sweep_order(constraints, second_rng)
+            ]
+            for _ in range(3)
+        ]
+        self.assertEqual(first_orders, second_orders)
+        self.assertTrue(
+            any(order != ["A", "B", "C", "D"] for order in first_orders)
+        )
+        self.assertEqual(
+            [row.refdes for row in constraints], ["A", "B", "C", "D"]
         )
 
     def test_pair_search_excludes_held_components(self):
