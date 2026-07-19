@@ -72,12 +72,14 @@ from greedy_exact_site_descent import (  # noqa: E402
 )
 from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
+    _candidate_guide_weights,
     _effective_integer_hpwl_limit,
     _integer_hpwl_by_net,
     _objective_replay_audit,
     _packing_sides,
     _rows_by_side,
     _solver_integer_hpwl_by_net,
+    _weighted_candidate_order,
 )
 from score_exact_site_result import (  # noqa: E402
     _manual_baseline_endpoints,
@@ -209,6 +211,34 @@ class M336BaselineTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "ceiling must be positive"):
             _effective_integer_hpwl_limit(None, 100, 3, 0)
+
+    def test_candidate_guide_weights_are_explicit_and_strict(self):
+        self.assertEqual(_candidate_guide_weights("", 3), (1, 1, 1))
+        self.assertEqual(_candidate_guide_weights("1,7", 2), (1, 7))
+        with self.assertRaisesRegex(ValueError, "weight count"):
+            _candidate_guide_weights("1", 2)
+        with self.assertRaisesRegex(ValueError, "must be integers"):
+            _candidate_guide_weights("1,x", 2)
+        with self.assertRaisesRegex(ValueError, "positive integers"):
+            _candidate_guide_weights("1,0", 2)
+
+    def test_weighted_candidate_order_is_deterministic(self):
+        order = _weighted_candidate_order(
+            (
+                np.asarray([0, 1, 2, 3]),
+                np.asarray([4, 5, 6, 7]),
+            ),
+            (1, 2),
+            6,
+        )
+        np.testing.assert_array_equal(order, [0, 4, 5, 1, 6, 7])
+
+        deduplicated = _weighted_candidate_order(
+            (np.asarray([0, 1, 2]), np.asarray([0, 3, 4])),
+            (1, 2),
+            5,
+        )
+        np.testing.assert_array_equal(deduplicated, [0, 3, 4, 1, 2])
 
     def test_greedy_pair_hpwl_recomputes_joint_net_extrema(self):
         placedb = SimpleNamespace(

@@ -80,6 +80,7 @@ append evidence rather than replacing prior observations.
 | [M336-070](M336-070-topology-refresh-page6.md) | Critical | Mitigated | Refreshing the changed topology unlocks a second certified page-6 group improvement |
 | [M336-071](M336-071-model-shape-search-effect.md) | Critical | Mitigated | Wider movable support changes deterministic CP-SAT search even when added variables remain at source sites |
 | [M336-072](M336-072-cross-group-plateau-diversity.md) | Critical | Mitigated | Cross-group K1024 closure yields a certified improvement and distinct equal-HPWL plateau states |
+| [M336-073](M336-073-explicit-guide-candidate-weights.md) | High | Mitigated | Multi-guide candidate allocation is now explicit, weighted, validated, and recorded |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

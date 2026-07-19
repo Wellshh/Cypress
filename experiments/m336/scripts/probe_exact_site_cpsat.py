@@ -92,6 +92,69 @@ def _packing_sides(value: str) -> frozenset[str]:
     raise ValueError(f"unknown packing side: {value}")
 
 
+def _candidate_guide_weights(value: str, guide_count: int) -> tuple[int, ...]:
+    if guide_count <= 0:
+        raise ValueError("candidate selection requires at least one guide")
+    if not value:
+        return (1,) * guide_count
+    parts = value.split(",")
+    if len(parts) != guide_count:
+        raise ValueError(
+            "candidate guide weight count must match guide count"
+        )
+    weights = []
+    for part in parts:
+        try:
+            weight = int(part)
+        except ValueError as error:
+            raise ValueError(
+                "candidate guide weights must be integers"
+            ) from error
+        if str(weight) != part.strip() or weight <= 0:
+            raise ValueError(
+                "candidate guide weights must be positive integers"
+            )
+        weights.append(weight)
+    return tuple(weights)
+
+
+def _weighted_candidate_order(orders, weights, target_count):
+    if len(orders) != len(weights) or not orders:
+        raise ValueError("candidate orders and weights must align")
+    if target_count < 0:
+        raise ValueError("candidate target count must be non-negative")
+    if any(weight <= 0 for weight in weights):
+        raise ValueError("candidate guide weights must be positive")
+    selected = []
+    seen = set()
+    pointers = [0] * len(orders)
+    while len(selected) < target_count:
+        progressed = False
+        for guide_index, current_order in enumerate(orders):
+            accepted = 0
+            while (
+                accepted < weights[guide_index]
+                and pointers[guide_index] < len(current_order)
+            ):
+                index = int(current_order[pointers[guide_index]])
+                pointers[guide_index] += 1
+                if index in seen:
+                    continue
+                seen.add(index)
+                selected.append(index)
+                accepted += 1
+                progressed = True
+                if len(selected) >= target_count:
+                    break
+            if len(selected) >= target_count:
+                break
+        if not progressed:
+            break
+    if len(selected) != target_count:
+        raise ValueError("candidate guide orders did not cover target count")
+    return np.asarray(selected, dtype=np.int64)
+
+
 def _rows_by_side(rows) -> dict[str, list]:
     grouped = {side: [] for side in PLACEMENT_SIDES}
     for row in rows:
@@ -524,6 +587,9 @@ def main() -> int:
             f"hint guide index {hint_guide_index} is outside "
             f"[0, {len(guides)})"
         )
+    candidate_guide_weights = _candidate_guide_weights(
+        os.environ.get("M336_CANDIDATE_GUIDE_WEIGHTS", ""), len(guides)
+    )
 
     candidate_limit = int(os.environ.get("M336_CANDIDATE_LIMIT", "512"))
     expanded_limit = int(os.environ.get("M336_EXPANDED_CANDIDATE_LIMIT", "0"))
@@ -635,26 +701,9 @@ def main() -> int:
                 order = order[:local_limit]
         else:
             target_count = min(local_limit or len(eligible), len(eligible))
-            selected = []
-            seen = set()
-            pointers = [0] * len(orders)
-            while len(selected) < target_count:
-                progressed = False
-                for guide_index, current_order in enumerate(orders):
-                    while pointers[guide_index] < len(current_order):
-                        index = int(current_order[pointers[guide_index]])
-                        pointers[guide_index] += 1
-                        if index in seen:
-                            continue
-                        seen.add(index)
-                        selected.append(index)
-                        progressed = True
-                        break
-                    if len(selected) >= target_count:
-                        break
-                if not progressed:
-                    break
-            order = np.asarray(selected, dtype=np.int64)
+            order = _weighted_candidate_order(
+                orders, candidate_guide_weights, target_count
+            )
         eligible = eligible[order]
         centers = centers[order]
 
@@ -1273,6 +1322,7 @@ def main() -> int:
         "source_json": str(SOURCE),
         "guide_json": guide_paths[0],
         "guide_jsons": guide_paths,
+        "candidate_guide_weights": list(candidate_guide_weights),
         "manual_baseline_endpoints": sorted(manual_baseline_endpoints),
         "guide_site_distances": guide_site_distances,
         "hint_guide_index": hint_guide_index,
