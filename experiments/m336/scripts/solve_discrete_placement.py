@@ -125,11 +125,22 @@ def _score_hpwl_limit(baseline_hpwl, baseline_rsmt, minimum_score):
     )
 
 
-def _hpwl_model_configuration(minimum_score, optimize_hpwl, enforce_hpwl):
+def _hpwl_model_configuration(
+    minimum_score, optimize_hpwl, enforce_hpwl, integer_hpwl_ceiling=None
+):
     if not math.isfinite(minimum_score) or minimum_score < 0:
         raise ValueError("minimum score must be finite and non-negative")
+    if integer_hpwl_ceiling is not None and integer_hpwl_ceiling <= 0:
+        raise ValueError("integer HPWL ceiling must be positive")
     gate_enabled = bool(enforce_hpwl and minimum_score > 0)
-    model_enabled = bool(enforce_hpwl and (optimize_hpwl or gate_enabled))
+    model_enabled = bool(
+        enforce_hpwl
+        and (
+            optimize_hpwl
+            or gate_enabled
+            or integer_hpwl_ceiling is not None
+        )
+    )
     return model_enabled, gate_enabled
 
 
@@ -1489,9 +1500,13 @@ def _build_model(
     nonrectangle_inner_slices=0,
     diagnose_fixed_hint_core=False,
     rectangle_interval_inset=1,
+    integer_hpwl_ceiling=None,
 ):
     hpwl_model_enabled, hpwl_gate_enabled = _hpwl_model_configuration(
-        minimum_score, optimize_hpwl, enforce_hpwl
+        minimum_score,
+        optimize_hpwl,
+        enforce_hpwl,
+        integer_hpwl_ceiling,
     )
     if site_model not in ("element", "coordinate-table"):
         raise ValueError("unknown site model: %s" % site_model)
@@ -2284,6 +2299,7 @@ def _build_model(
 
     hpwl_limit = None
     hpwl_limit_integer = None
+    score_hpwl_limit_integer = None
     rounding_allowance = 0
     if hpwl_model_enabled:
         net_spans = []
@@ -2350,9 +2366,19 @@ def _build_model(
             hpwl_limit = _score_hpwl_limit(
                 baseline_hpwl, baseline_rsmt, minimum_score
             )
-            hpwl_limit_integer = (
+            score_hpwl_limit_integer = (
                 math.floor(hpwl_limit * integer_scale) + rounding_allowance
             )
+        integer_limits = [
+            value
+            for value in (
+                score_hpwl_limit_integer,
+                integer_hpwl_ceiling,
+            )
+            if value is not None
+        ]
+        if integer_limits:
+            hpwl_limit_integer = min(integer_limits)
             model.add(hpwl_objective <= hpwl_limit_integer)
         if optimize_hpwl:
             model.minimize(hpwl_objective)
@@ -2370,6 +2396,8 @@ def _build_model(
         "fixed_y": fixed_y,
         "hpwl_limit": hpwl_limit,
         "hpwl_limit_integer": hpwl_limit_integer,
+        "score_hpwl_limit_integer": score_hpwl_limit_integer,
+        "integer_hpwl_ceiling": integer_hpwl_ceiling,
         "hpwl_rounding_allowance_integer": rounding_allowance,
         "hpwl_rounding_allowance": rounding_allowance / integer_scale,
         "candidate_count": candidate_count,
@@ -2501,6 +2529,8 @@ def _model_report(args, state, assignment_space):
         "hpwl_gate_enabled": state["hpwl_gate_enabled"],
         "necessary_hpwl_limit": state["hpwl_limit"],
         "integer_hpwl_limit": state["hpwl_limit_integer"],
+        "score_hpwl_limit_integer": state["score_hpwl_limit_integer"],
+        "integer_hpwl_ceiling": state["integer_hpwl_ceiling"],
         "hpwl_rounding_allowance": state["hpwl_rounding_allowance"],
         "candidate_count": state["candidate_count"],
         "site_model": state["site_model"],
@@ -2877,6 +2907,7 @@ def solve(args):
         args.nonrectangle_inner_slices,
         args.diagnose_fixed_hint_core,
         args.rectangle_interval_inset,
+        args.integer_hpwl_ceiling,
     )
 
     solver = cp_model.CpSolver()
@@ -3130,6 +3161,11 @@ def main():
     parser.add_argument("--clearance-mm", type=float, default=0.0)
     parser.add_argument("--minimum-score", type=float, default=1.0)
     parser.add_argument(
+        "--integer-hpwl-ceiling",
+        type=int,
+        help="optional hard upper bound on the scaled integer HPWL model",
+    )
+    parser.add_argument(
         "--feasibility-only",
         action="store_true",
         help="return the first solution under the configured HPWL limit",
@@ -3331,6 +3367,8 @@ def main():
         parser.error("packing-only requires feasibility-only")
     if args.packing_side and not args.packing_only:
         parser.error("packing-side requires packing-only")
+    if args.packing_only and args.integer_hpwl_ceiling is not None:
+        parser.error("packing-only cannot enforce an integer HPWL ceiling")
     for name in (
         "bookshelf_dir",
         "assignment",
@@ -3351,6 +3389,10 @@ def main():
     if (
         not math.isfinite(args.minimum_score)
         or args.minimum_score < 0
+        or (
+            args.integer_hpwl_ceiling is not None
+            and args.integer_hpwl_ceiling <= 0
+        )
         or args.integer_scale <= 0
         or args.capacity_scale <= 0
         or args.time_limit <= 0

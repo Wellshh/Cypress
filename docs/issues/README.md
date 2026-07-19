@@ -93,6 +93,7 @@ append evidence rather than replacing prior observations.
 | [M336-083](M336-083-rectangle-collision-quantization.md) | Critical | Resolved | Direct edge quantization removes a known-legal rectangle collision false positive |
 | [M336-084](M336-084-full-site-cross-group-closure.md) | Critical | Open | Five full-site group pairs are exact optima; the sixth has a valid non-scoring domain bound |
 | [M336-085](M336-085-hinted-capacity-continuation.md) | Critical | Resolved | Exact-legal hints establish a no-regression capacity floor and refresh assignment diagnostics |
+| [M336-086](M336-086-incumbent-hpwl-ceiling.md) | High | Resolved | Explicit integer HPWL ceilings make finite continuation searches monotonic |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

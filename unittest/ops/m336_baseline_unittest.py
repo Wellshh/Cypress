@@ -233,12 +233,18 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(
             _hpwl_model_configuration(1.0, True, False), (False, False)
         )
+        self.assertEqual(
+            _hpwl_model_configuration(0.0, False, True, 100),
+            (True, False),
+        )
         with self.assertRaisesRegex(ValueError, "non-negative"):
             _hpwl_model_configuration(-1.0, True, True)
         with self.assertRaisesRegex(ValueError, "non-negative"):
             _hpwl_model_configuration(float("nan"), True, True)
         with self.assertRaisesRegex(ValueError, "positive"):
             _score_hpwl_limit(10.0, 11.0, 0.0)
+        with self.assertRaisesRegex(ValueError, "ceiling must be positive"):
+            _hpwl_model_configuration(0.0, False, True, 0)
 
     def test_rectangle_intervals_quantize_complete_bounds_once(self):
         starts, width, height = _quantized_rectangle_intervals(
