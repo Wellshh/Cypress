@@ -342,6 +342,7 @@ def main() -> int:
     guide_site_distances = {}
     hint_site_indices = {}
     hint_site_distances = {}
+    single_site_fixed_refdes = []
     build_started = time.perf_counter()
 
     for constraint in constraints:
@@ -442,6 +443,20 @@ def main() -> int:
         hint_site_distances[constraint.refdes] = float(
             np.sqrt(hint_distances[hint_site_index])
         )
+        if (
+            fix_guide
+            and not core_chain
+            and constraint.refdes not in movable_refdes
+        ):
+            selected = np.asarray([hint_site_index], dtype=np.int64)
+            integer_starts = integer_starts[selected]
+            centers = centers[selected]
+            eligible = eligible[selected]
+            if integer_node_lowers is not None:
+                integer_node_lowers = integer_node_lowers[selected]
+            hint_site_index = 0
+            hint_site_indices[constraint.refdes] = hint_site_index
+            single_site_fixed_refdes.append(constraint.refdes)
 
         width = int(round((max_x - min_x) * integer_scale)) - 2 * interval_inset
         height = int(round((max_y - min_y) * integer_scale)) - 2 * interval_inset
@@ -952,6 +967,8 @@ def main() -> int:
         "hint_guide_index": hint_guide_index,
         "hint_site_indices": hint_site_indices,
         "hint_site_distances": hint_site_distances,
+        "single_site_fixed_domain_count": len(single_site_fixed_refdes),
+        "single_site_fixed_refdes": single_site_fixed_refdes,
         "fix_guide": fix_guide,
         "movable_refdes": sorted(movable_refdes),
         "effective_movable_refdes": sorted(movable_refdes | released_refdes),

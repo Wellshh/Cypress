@@ -1,0 +1,59 @@
+# M336-049: Reduce Fixed Domains for Regional HPWL Descent
+
+**Severity:** Critical
+**Status:** Mitigated
+**Found:** 2026-07-19
+**Affected commit:** `bfbf7ee`
+
+## Problem
+
+The exact-site probe fixed unlisted components with site equalities but still
+retained every K512 candidate. Those unreachable sites inflated rectangle and
+nonrectangle collision tables, preventing practical coordinate descent from a
+legal full-board state. The global BOTTOM score solve therefore searched 70
+components simultaneously and remained `UNKNOWN`.
+
+## Correction
+
+When `M336_FIX_GUIDE=1` and core-chain release is disabled, every unlisted
+component now receives only its selected hint site. Core-chain mode retains
+the full domains because it must be able to release assumptions later. Results
+record both the fixed refdes list and single-site fixed-domain count.
+
+The all-fixed BOTTOM K64 regression reduced the model from 4,480 candidates to
+70.
+It reproduced HPWL `18070.692761`, 100/100 containment, zero violations and
+zero overlaps. The placement SHA-256 remained
+`74749eced0bc87945837b93ce708bf52a0fed643f6f4f0bf72763f05abbb257f`;
+CP-SAT solve time was `0.002907` seconds.
+
+## First Regional Improvement
+
+The legal placement was then optimized with only the 17 `bottom_1` components
+movable. Each movable K512 domain alternated candidates around the legal state
+and the collision-relaxed quality guide; the other 53 BOTTOM components had
+one fixed site. The full-board exact HPWL objective produced:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| HPWL | 18,070.692761 | 17,656.428748 |
+| Optimistic score upper bound | 0.844482 | 0.864295 |
+| Containment | 100/100 | 100/100 |
+| Violations / overlaps | 0 / 0 | 0 / 0 |
+
+The `414.264013` improvement is monotonic and exact. The run ended `FEASIBLE`
+at 100.153171 deterministic-time with objective `17656.428764` and bound
+`17463.464409`; no optimality claim is made. Evidence hashes are:
+
+- result: `b3edbaee3ea4533124b780fa74c4df760412ef27f09ff1ff0a36b649528734bb`;
+- placement: `46fa27d5141fdd3c45b56fd4001c628cca62adbb5b03019bc749027137d3ecf6`;
+- canonical selected sites:
+  `e3198c8e19e162a4b47d684cc351d2a5d80c02f0be35bdec37f9c755cb996311`.
+
+## Acceptance Impact
+
+The result remains above the necessary HPWL threshold `15260.369572`, and
+`0.864295` is only an HPWL/RSMT upper bound. Continue the same exact descent
+for `bottom_2` and `bottom_0`, repeat sweeps until no improvement, then invoke
+the native scorer. Acceptance still requires native normalized score at least
+1.0 and promotion of the EMI601 endpoint policy from diagnostic mode.
