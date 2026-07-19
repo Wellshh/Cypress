@@ -121,6 +121,7 @@ append evidence rather than replacing prior observations.
 | [M336-111](M336-111-grid005-fifth-pair-improvement.md) | Critical | Mitigated | Fifth 0.05 mm pair scan improves certified HPWL by 0.999893 |
 | [M336-112](M336-112-grid005-sixth-pair-improvement.md) | Critical | Mitigated | Sixth 0.05 mm pair scan improves certified HPWL by 0.999893 |
 | [M336-113](M336-113-grid005-seventh-pair-improvement.md) | Critical | Mitigated | Seventh 0.05 mm pair scan improves certified HPWL by 0.999893 |
+| [M336-114](M336-114-grid005-eighth-pair-chain-improvement.md) | Critical | Mitigated | Eighth pair scan plus one-opt follow-up improves certified HPWL by 1.999785 |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
