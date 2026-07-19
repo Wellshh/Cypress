@@ -50,10 +50,22 @@ at 100.153171 deterministic-time with objective `17656.428764` and bound
 - canonical selected sites:
   `e3198c8e19e162a4b47d684cc351d2a5d80c02f0be35bdec37f9c755cb996311`.
 
+The next stage fixed that result and optimized the 14 `bottom_2` components.
+It reached a proven `OPTIMAL` HPWL `17293.213586` after 23.475082
+deterministic-time, improving the second stage by `363.215162` and the legal
+starting point by `777.479175`. Exact containment remained 100/100 with zero
+violations and zero overlaps; the optimistic score upper bound rose to
+`0.882448`. Evidence hashes are:
+
+- result: `5b48ef8bc08968de56d5830520414a672b829317c4f20b84c508d11d11943ca5`;
+- placement: `b34c2eb8989d786c814347c5eda30b89ad8bbf6c5acec2b54566eec6efd0ebda`;
+- canonical selected sites:
+  `8b56268b4e2b007ac1dfcc773268f0841ad0b9fefc662d7559496e88216d43a8`.
+
 ## Acceptance Impact
 
 The result remains above the necessary HPWL threshold `15260.369572`, and
 `0.864295` is only an HPWL/RSMT upper bound. Continue the same exact descent
-for `bottom_2` and `bottom_0`, repeat sweeps until no improvement, then invoke
-the native scorer. Acceptance still requires native normalized score at least
-1.0 and promotion of the EMI601 endpoint policy from diagnostic mode.
+for `bottom_0`, repeat sweeps until no improvement, then invoke the native
+scorer. Acceptance still requires native normalized score at least 1.0 and
+promotion of the EMI601 endpoint policy from diagnostic mode.
