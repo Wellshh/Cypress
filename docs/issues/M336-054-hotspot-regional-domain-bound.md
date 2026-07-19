@@ -116,3 +116,25 @@ SHA-256 values are:
 The new certified incumbent is `648.809279` above the score-1 threshold. The
 next solve should expand the connected movable boundary again; simply raising
 K512 for the old 20-component neighborhood is now exactly proven ineffective.
+
+Full-domain local descent after the top-15 solve found two strict `RT601`
+moves of `-1.999785` each and one blocker-release `FV702`/`R705` pair of
+`-3.999570`. The pair shares no net and became available only after the
+regional solve changed surrounding occupancy. HPWL decreased by another
+`7.999141` to `15901.179710`, where a second full pair scan established a new
+two-optimum.
+
+The all-fixed replay is `OPTIMAL` at `1e-8` deterministic-time. All integer
+objectives equal `15901179716`, floating replay differs by `0.000006342108`,
+and exact legality remains 100/100 with zero violations and overlaps. The local
+result, placement, certification result, and certified placement SHA-256
+values are:
+
+- `7ad118bef149ef403e177499019ba4b1d6ad88353cac991ec2a6b76443550b7d`;
+- `e582fda682d27211772504f944d6de237712132411c27fa20bd6b488ae58665d`;
+- `c12de1f677cd96ed0b84ca9229d6b8996eb1c7a7c96ce94c03a7537c1e4e7a63`;
+- `e582fda682d27211772504f944d6de237712132411c27fa20bd6b488ae58665d`.
+
+The remaining score-1 HPWL gap is `640.810138`. Regional expansion and exact
+local closure must continue as an alternating loop; neither phase alone sees
+the boundary-release moves created by the other.
