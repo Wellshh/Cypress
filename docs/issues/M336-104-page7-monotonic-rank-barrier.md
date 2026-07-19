@@ -42,3 +42,15 @@ restricted-domain rank proof, not a global HPWL or feasibility claim.
 Next optimize HPWL with rank capped at 68 to close the minimum-rank layer. If
 that layer is exact at the incumbent, stop this page-7 K256 route and change
 the candidate lattice/domain rather than adding seeds.
+
+## Rank-68 HPWL Closure
+
+Automatic and partial-fixed HPWL solves at seed 1000 retained the identical
+model and imposed rank at most 68. Both returned `OPTIMAL` with zero branches
+and conflicts, HPWL objective and bound `15811.065584`, and the current
+placement hash. Both replay audits and exact legality passed.
+
+Thus, within this candidate domain, no strict HPWL improvement exists at rank
+68 or below; any improving solution must have page-7 guide rank at least 69.
+The result closes only the minimum-rank layer. Stop this K256 route and change
+the candidate domain or 0.10 mm lattice before further page-7 search.
