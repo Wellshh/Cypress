@@ -144,10 +144,24 @@ hashes are:
 - canonical selected sites:
   `004ea7004289ce4667f6f8c34c61b772614502d81c293ad5b8baa76f2dbf1ff1`.
 
+Adding manual-baseline projections as a third guide for the BOTTOM page-7
+block reduced HPWL by `38.554288` to `16078.764992`. The cumulative legal
+improvement is `1991.927769`, with optimistic score upper bound `0.949101`.
+The run remained `FEASIBLE` at 500.002032 deterministic-time and preserved
+exact legality. Evidence hashes are:
+
+- result: `9751d02bd6a550ec53a63a1ee164a38d44d9ac64a6186a1337182f10b62af42d`;
+- placement: `252597015d2e45650195d0c35eaf5a8e9377b3c8d77e612f8e1c96a9a6ab01d4`;
+- canonical selected sites:
+  `595991aaf3b6311260dbecf0b7ccddbc01315aebc4d4af57d0b1e818de219479`.
+
 ## Acceptance Impact
 
-The result remains above the necessary HPWL threshold `15260.369572`, and
-`0.864295` is only an HPWL/RSMT upper bound. Continue the same exact descent
-for `bottom_0`, repeat sweeps until no improvement, then invoke the native
+The result remains `818.395420` above the necessary HPWL threshold
+`15260.369572`, and `0.949101` is only an optimistic HPWL/RSMT upper bound,
+not a native acceptance score. The page-7-only K1536 objective lower bound is
+`15420.003200`, so continuing that block while every other site stays fixed
+cannot close the gate. Continue with cross-block movement as tracked in
+[M336-050](M336-050-page7-net-span-bottleneck.md), then invoke the native
 scorer. Acceptance still requires native normalized score at least 1.0 and
 promotion of the EMI601 endpoint policy from diagnostic mode.
