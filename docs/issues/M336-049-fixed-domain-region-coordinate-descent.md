@@ -131,6 +131,19 @@ cumulative improvement is `1944.439853`, the optimistic score upper bound is
 - canonical selected sites:
   `a9a7f68916ba777ff474e5ac32edf4688654e5d355f4d453d68f4405a86e3cfa`.
 
+A complete TOP K1024 sweep then held the latest BOTTOM state fixed. The
+page-6 block improved by `7.432339`; page-2/5/7 was already optimal; and the
+page-3/86 block improved by `1.501289`. Every TOP subproblem reached
+`OPTIMAL`. The resulting full-board HPWL is `16117.319280`, cumulative
+improvement is `1953.373481`, and optimistic score upper bound is `0.946831`.
+Exact legality remains 100/100 with zero violations and overlaps. Evidence
+hashes are:
+
+- result: `80bc6ee1eb89aafcd53822f6422ee383072a0177f764118fc7c71d8bafe282f5`;
+- placement: `f858c733d920398cf12e164bf3f1c6eac94af5f3e9ff78e50edf089f9325c453`;
+- canonical selected sites:
+  `004ea7004289ce4667f6f8c34c61b772614502d81c293ad5b8baa76f2dbf1ff1`.
+
 ## Acceptance Impact
 
 The result remains above the necessary HPWL threshold `15260.369572`, and
