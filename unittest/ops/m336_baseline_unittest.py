@@ -62,7 +62,11 @@ from solve_discrete_placement import (  # noqa: E402
     _swept_bboxes_may_overlap,
 )
 from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
-from greedy_exact_site_descent import _candidate_total_hpwl  # noqa: E402
+from greedy_exact_site_descent import (  # noqa: E402
+    _candidate_total_hpwl,
+    _pair_total_hpwl,
+    _select_candidate,
+)
 from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
     _integer_hpwl_by_net,
@@ -130,6 +134,69 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_greedy_pair_hpwl_recomputes_joint_net_extrema(self):
+        placedb = SimpleNamespace(
+            net2pin_map=[np.asarray([0, 1, 2])],
+            pin2node_map=np.asarray([0, 1, 2]),
+            pin_offset_x=np.zeros(3),
+            pin_offset_y=np.zeros(3),
+            net_weights=np.asarray([1.0]),
+        )
+
+        def net_hpwl(node_x, node_y, net_id):
+            pins = placedb.net2pin_map[net_id]
+            nodes = placedb.pin2node_map[pins]
+            return float(
+                node_x[nodes].max()
+                - node_x[nodes].min()
+                + node_y[nodes].max()
+                - node_y[nodes].min()
+            )
+
+        placedb.net_hpwl = net_hpwl
+        first = SimpleNamespace(node_id=0, node_width=0.0, node_height=0.0)
+        second = SimpleNamespace(node_id=1, node_width=0.0, node_height=0.0)
+        pair_hpwl = _pair_total_hpwl(
+            placedb,
+            first,
+            np.asarray([[0.0, 0.0], [3.0, 0.0]]),
+            second,
+            np.asarray([[4.0, 0.0], [8.0, 0.0]]),
+            np.asarray([0.0, 4.0, 10.0]),
+            np.zeros(3),
+            {0},
+            current_hpwl=10.0,
+        )
+        np.testing.assert_allclose(pair_hpwl, [[10.0, 10.0], [7.0, 7.0]])
+
+    def test_greedy_plateau_move_is_lexicographically_improving(self):
+        centers = np.asarray([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]])
+        selected, move_type = _select_candidate(
+            np.asarray([10.0, 10.0, 11.0]),
+            np.asarray([True, True, True]),
+            centers,
+            current_center=centers[0],
+            current_hpwl=10.0,
+            guide_center=centers[2],
+            improvement_tolerance=1e-9,
+            equality_tolerance=1e-9,
+            guide_tolerance=1e-12,
+        )
+        self.assertEqual((selected, move_type), (1, "plateau"))
+
+        selected, move_type = _select_candidate(
+            np.asarray([10.0, 10.0, 9.0]),
+            np.asarray([True, True, True]),
+            centers,
+            current_center=centers[0],
+            current_hpwl=10.0,
+            guide_center=centers[0],
+            improvement_tolerance=1e-9,
+            equality_tolerance=1e-9,
+            guide_tolerance=1e-12,
+        )
+        self.assertEqual((selected, move_type), (2, "strict"))
+
     def test_greedy_candidate_hpwl_only_replaces_incident_nets(self):
         placedb = SimpleNamespace(
             net2pin_map=[np.asarray([0, 1]), np.asarray([2, 3])],
