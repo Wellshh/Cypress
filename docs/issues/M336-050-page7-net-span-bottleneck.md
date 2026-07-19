@@ -210,7 +210,9 @@ The certification result SHA-256 is
 Use the certified expanded incumbent as the next guide. Any subsequent global
 search whose response metadata fails replay must be followed by an all-fixed
 certification before promotion, and its original search bound must remain
-quarantined. Acceptance still requires native HPWL/RSMT score at least 1.0.
+quarantined. Exact one-component descent from that state is tracked in
+[M336-052](M336-052-exact-one-opt-descent.md). Acceptance still requires native
+HPWL/RSMT score at least 1.0.
 
 This issue is resolved only when either a legal cross-block model reaches the
 native score gate or a valid lower bound for a model containing every relevant

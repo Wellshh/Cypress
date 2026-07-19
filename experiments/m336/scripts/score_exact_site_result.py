@@ -172,6 +172,8 @@ def score(args) -> dict:
         raise ValueError("exact-site result has no feasible incumbent")
     if not source.get("candidate_domain_overlap_model_exact"):
         raise ValueError("exact-site result used a relaxed collision model")
+    if source.get("certification_required"):
+        raise ValueError("exact-site result requires fixed certification")
     if source.get("objective_mode") == "hpwl":
         objective_audit = source.get("objective_replay_audit")
         if not objective_audit or not objective_audit.get("passed"):

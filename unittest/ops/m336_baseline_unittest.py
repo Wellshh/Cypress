@@ -62,6 +62,7 @@ from solve_discrete_placement import (  # noqa: E402
     _swept_bboxes_may_overlap,
 )
 from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
+from greedy_exact_site_descent import _candidate_total_hpwl  # noqa: E402
 from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
     _integer_hpwl_by_net,
@@ -129,6 +130,44 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_greedy_candidate_hpwl_only_replaces_incident_nets(self):
+        placedb = SimpleNamespace(
+            net2pin_map=[np.asarray([0, 1]), np.asarray([2, 3])],
+            pin2node_map=np.asarray([0, 1, 2, 3]),
+            pin_offset_x=np.zeros(4),
+            pin_offset_y=np.zeros(4),
+            net_weights=np.asarray([1.0, 1.0]),
+        )
+
+        def net_hpwl(node_x, node_y, net_id):
+            pins = placedb.net2pin_map[net_id]
+            nodes = placedb.pin2node_map[pins]
+            return float(
+                node_x[nodes].max()
+                - node_x[nodes].min()
+                + node_y[nodes].max()
+                - node_y[nodes].min()
+            )
+
+        placedb.net_hpwl = net_hpwl
+        constraint = SimpleNamespace(
+            node_id=0,
+            node_width=0.0,
+            node_height=0.0,
+        )
+        node_x = np.asarray([0.0, 4.0, 10.0, 12.0])
+        node_y = np.zeros(4)
+        candidate_hpwl = _candidate_total_hpwl(
+            placedb,
+            constraint,
+            np.asarray([[0.0, 0.0], [3.0, 0.0], [6.0, 0.0]]),
+            node_x,
+            node_y,
+            {0},
+            current_hpwl=6.0,
+        )
+        np.testing.assert_allclose(candidate_hpwl, [6.0, 3.0, 4.0])
+
     def test_objective_replay_handles_heterogeneous_candidate_domains(self):
         class FakeSolver:
             def __init__(self, values):

@@ -59,6 +59,7 @@ append evidence rather than replacing prior observations.
 | [M336-049](M336-049-fixed-domain-region-coordinate-descent.md) | Critical | Mitigated | Exact regional/global descent improves certified legal HPWL by 2,073.420 |
 | [M336-050](M336-050-page7-net-span-bottleneck.md) | Critical | Open | Certified boundary-driven expansion improves HPWL; its search bound remains quarantined |
 | [M336-051](M336-051-cpsat-objective-replay-mismatch.md) | Critical | Mitigated | Objective metadata can lag postsolved values; replay audit and fixed certification fail closed |
+| [M336-052](M336-052-exact-one-opt-descent.md) | Critical | Open | Exact one-component descent improves HPWL but proves the remaining gap requires coupled moves |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
