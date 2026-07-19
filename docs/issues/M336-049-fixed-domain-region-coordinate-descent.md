@@ -87,6 +87,17 @@ violations and overlaps. Evidence hashes are:
 - canonical selected sites:
   `b4a58d4379519b5a5479b75010ac4babaec4f544070a9874867dca2c3bbbcf2f`.
 
+The final first-sweep stage optimized the remaining `MHC8601` and `RT601`
+sites to `OPTIMAL` in 0.001148 deterministic-time. It reduced HPWL by another
+`3.999570` to `16370.594045`, for a first-sweep cumulative improvement of
+`1700.098715` and optimistic score upper bound `0.932182`. Exact legality was
+unchanged. Evidence hashes are:
+
+- result: `6f5d3e02a5486e80f0b59b3a2db2afee697a9f6ce7b720a182f68e48f1a8d064`;
+- placement: `9d5b551670ca4c4e92282769bd64c34856866acbb32c4d6cfcf5678c5df2b6d6`;
+- canonical selected sites:
+  `0c6e9fbf4c679a9974b0921e15c45a7b6f5fe272573ebf594dc2532a743117a3`.
+
 ## Acceptance Impact
 
 The result remains above the necessary HPWL threshold `15260.369572`, and
