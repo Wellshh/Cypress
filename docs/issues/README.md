@@ -82,6 +82,7 @@ append evidence rather than replacing prior observations.
 | [M336-072](M336-072-cross-group-plateau-diversity.md) | Critical | Mitigated | Cross-group K1024 closure yields a certified improvement and distinct equal-HPWL plateau states |
 | [M336-073](M336-073-explicit-guide-candidate-weights.md) | High | Mitigated | Multi-guide candidate allocation is now explicit, weighted, validated, and recorded |
 | [M336-074](M336-074-alternating-regional-refresh.md) | Critical | Mitigated | Alternating cross-group closure with 80-component refresh produces another certified improvement |
+| [M336-075](M336-075-hierarchical-bottom0-lns-closure.md) | Critical | Open | Every K1024 three-group bottom-0 LNS domain has a valid bound above score 1.0 |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
