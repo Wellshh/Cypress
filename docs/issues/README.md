@@ -56,7 +56,7 @@ append evidence rather than replacing prior observations.
 | [M336-046](M336-046-no-overlap-2d-propagation-regression.md) | High | Resolved | Optional NoOverlap2D propagators regress K512 and do not find a K1024 placement |
 | [M336-047](M336-047-emi-only-legal-skeleton.md) | Critical | Mitigated | EMI-only restores exact K512 TOP packing, but BOTTOM quality remains below the score gate |
 | [M336-048](M336-048-side-specific-hpwl-native-replay.md) | Critical | Mitigated | Exact side packing now couples HPWL and native replay, but final BOTTOM closure remains unresolved |
-| [M336-049](M336-049-fixed-domain-region-coordinate-descent.md) | Critical | Mitigated | Single-site fixed domains enable legal coordinate descent; BOTTOM/TOP sweeps improve by 1,991.928 |
+| [M336-049](M336-049-fixed-domain-region-coordinate-descent.md) | Critical | Mitigated | Single-site fixed domains enable legal coordinate descent; BOTTOM/TOP sweeps improve by 2,000.864 |
 | [M336-050](M336-050-page7-net-span-bottleneck.md) | Critical | Open | Page-7 dominates residual HPWL, but page-7-only K1536 has a bound above the score gate |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |

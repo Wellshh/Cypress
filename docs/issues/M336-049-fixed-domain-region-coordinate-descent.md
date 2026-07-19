@@ -155,10 +155,25 @@ exact legality. Evidence hashes are:
 - canonical selected sites:
   `595991aaf3b6311260dbecf0b7ccddbc01315aebc4d4af57d0b1e818de219479`.
 
+An alternating three-guide K1536 sweep then proved the TOP page-2/5/7 and
+BOTTOM `bottom_2` blocks `OPTIMAL` without changing HPWL. BOTTOM `bottom_1`
+also reached `OPTIMAL` at the same HPWL but selected an equal-objective legal
+state with lower mean anchor distance. Starting from that state, the
+page-3/4/6 BOTTOM block reached `OPTIMAL` in 10.526191 deterministic-time and
+reduced HPWL by `8.936205` to `16069.828787`. The cumulative improvement is
+now `2000.863974`, the optimistic score upper bound is `0.949629`, and exact
+legality remains 100/100 with zero violations and overlaps. Evidence hashes
+are:
+
+- result: `fd87672cee39efd78f4c640d1c012b6ba8e9390cbe764470cf615650aedc2712`;
+- placement: `484d2aeef5da13f1ed29e0001f3d11c00918f08949ea59eaa1ee10b69ea520f0`;
+- canonical selected sites:
+  `aec99eb687c1f1165aff72de452c84eabc4975463675c92a182fb842bd95a8d4`.
+
 ## Acceptance Impact
 
-The result remains `818.395420` above the necessary HPWL threshold
-`15260.369572`, and `0.949101` is only an optimistic HPWL/RSMT upper bound,
+The result remains `809.459215` above the necessary HPWL threshold
+`15260.369572`, and `0.949629` is only an optimistic HPWL/RSMT upper bound,
 not a native acceptance score. The page-7-only K1536 objective lower bound is
 `15420.003200`, so continuing that block while every other site stays fixed
 cannot close the gate. Continue with cross-block movement as tracked in

@@ -65,10 +65,25 @@ domains. It stopped `FEASIBLE` at 500.002032 deterministic-time; it was not
 
 ## Reproduction
 
+The repository's system Python has PyTorch and geometry dependencies but no
+OR-Tools; the existing `pcb_pr` Conda environment has OR-Tools but no PyTorch.
+Install the exact optional solver packages into a disposable target without
+administrator access or production dependency changes:
+
+```bash
+python3.11 -m pip install \
+  --target /tmp/m336-ortools-py311 \
+  --no-deps \
+  ortools==9.15.6755 \
+  absl-py==2.4.0 \
+  protobuf==6.33.6 \
+  immutabledict==4.3.1
+```
+
 From the repository root, with the two transient guide results present:
 
 ```bash
-PYTHONPATH="$PWD/install:$PWD" \
+PYTHONPATH="/tmp/m336-ortools-py311:$PWD/install:$PWD" \
 M336_SOURCE_JSON=/tmp/m336_cd_top_sweep1_page386_k1024.json \
 M336_ASSIGNMENT_JSON=/tmp/m336_emi_only_grid01_assignment.json \
 M336_OUTPUT_JSON=/tmp/m336_cd_sweep3_bottom0_page7_three_guides_k1536.json \
@@ -91,13 +106,35 @@ Expected evidence is 100/100 containment, zero keep-in violations, zero
 overlaps, HPWL `16078.764992`, objective `16078.765007`, and objective lower
 bound `15420.003200`.
 
+## Alternating Sweep
+
+Starting from the page-7 result, four neighboring regional models were
+reopened with the same baseline/current/quality guides and K1536 domains:
+
+| Movable block | Status | Deterministic time | HPWL change |
+| --- | --- | ---: | ---: |
+| TOP page-2/5/7, 10 components | `OPTIMAL` | 7.043199 | 0.000000 |
+| BOTTOM `bottom_2`, 14 components | `OPTIMAL` | 22.396480 | 0.000000 |
+| BOTTOM `bottom_1`, 17 components | `OPTIMAL` | 99.492609 | 0.000000 |
+| BOTTOM page-3/4/6, 19 components | `OPTIMAL` | 10.526191 | -8.936205 |
+
+The `bottom_1` solve changed sites at equal HPWL and lowered mean anchor
+distance; using that state enabled the page-3/4/6 improvement to HPWL
+`16069.828787`. Exact legality remained 100/100 with zero violations and
+overlaps. Result, placement, and canonical-site SHA-256 values are
+`fd87672cee39efd78f4c640d1c012b6ba8e9390cbe764470cf615650aedc2712`,
+`484d2aeef5da13f1ed29e0001f3d11c00918f08949ea59eaa1ee10b69ea520f0`,
+and `aec99eb687c1f1165aff72de452c84eabc4975463675c92a182fb842bd95a8d4`.
+
 ## Next Action
 
-Alternate BOTTOM page-7 with its TOP page-7 neighbors, then jointly release
-only blocks appearing in the remaining high-delta nets. Preserve the current
-legal incumbent at every stage. A full global solve is justified only after
-these cross-block candidates are assembled; acceptance still requires native
-HPWL/RSMT score at least 1.0.
+Reopen BOTTOM page-7 once from the improved page-3/4/6 state, then jointly
+release only blocks appearing in the remaining high-delta nets. Preserve the
+current legal incumbent at every stage. If the repeated side-specific sweep
+stalls, extend the exact model to separate TOP and BOTTOM collision sets so a
+small mixed-side component set can move in one solve. A full global solve is
+justified only after these cross-block candidates are assembled; acceptance
+still requires native HPWL/RSMT score at least 1.0.
 
 This issue is resolved only when either a legal cross-block model reaches the
 native score gate or a valid lower bound for a model containing every relevant
