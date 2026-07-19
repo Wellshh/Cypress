@@ -75,6 +75,18 @@ was `16178.841353`, so no optimality claim is made. Exact legality remained
 - canonical selected sites:
   `89e9edccb1ea9b0f1f5e6c2016923688b2f213e95f13f97e39c314da74d80b0b`.
 
+The fourth stage jointly optimized 19 spatially coupled page-3/4/6 components
+in `bottom_0`. It reached `OPTIMAL` after only 4.921191 deterministic-time and
+reduced exact HPWL to `16374.593616`. The stage improvement is `592.216357`
+and the cumulative improvement is `1696.099145`; the optimistic score upper
+bound rose to `0.931954`. Exact legality again remained 100/100 with zero
+violations and overlaps. Evidence hashes are:
+
+- result: `2d2eb5d304e14b27d99a585939cbd06a8b9f87135f8ac4ec46c86bd558c5ee0b`;
+- placement: `35b7633b4c01c0b154cfd7b0a6395930b834e907c4b48b4c704cc56ceff2b65e`;
+- canonical selected sites:
+  `b4a58d4379519b5a5479b75010ac4babaec4f544070a9874867dca2c3bbbcf2f`.
+
 ## Acceptance Impact
 
 The result remains above the necessary HPWL threshold `15260.369572`, and
