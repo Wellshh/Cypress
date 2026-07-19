@@ -47,12 +47,16 @@ from solve_discrete_placement import (  # noqa: E402
     _hpwl_rounding_allowance_units,
     _hinted_group_regions,
     _horizontal_inner_rectangles,
+    _hpwl_model_configuration,
     _inactive_controlled_collision_pairs,
     _nearest_site_index,
     _limited_candidate_indices,
     _normalize_controlled_collision_pairs,
     _override_fixed_endpoint_coordinates,
     _partial_fix_refdes,
+    _quantized_rectangle_intervals,
+    _quantized_swept_bbox,
+    _rectangle_interval_overlap_area_bound,
     _selected_assignment_data,
     _score_hpwl_limit,
     _scaled_inner_rectangles,
@@ -80,6 +84,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _optional_nonnegative_integer,
     _packing_sides,
     _rows_by_side,
+    _selected_site_in_region,
     _solver_integer_hpwl_by_net,
     _weighted_candidate_order,
 )
@@ -214,6 +219,62 @@ class M336BaselineTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ceiling must be positive"):
             _effective_integer_hpwl_limit(None, 100, 3, 0)
 
+    def test_zero_minimum_score_disables_only_the_hpwl_gate(self):
+        self.assertEqual(
+            _hpwl_model_configuration(0.0, True, True), (True, False)
+        )
+        self.assertEqual(
+            _hpwl_model_configuration(0.0, False, True), (False, False)
+        )
+        self.assertEqual(
+            _hpwl_model_configuration(1.0, False, True), (True, True)
+        )
+        self.assertEqual(
+            _hpwl_model_configuration(1.0, True, False), (False, False)
+        )
+        with self.assertRaisesRegex(ValueError, "non-negative"):
+            _hpwl_model_configuration(-1.0, True, True)
+        with self.assertRaisesRegex(ValueError, "non-negative"):
+            _hpwl_model_configuration(float("nan"), True, True)
+        with self.assertRaisesRegex(ValueError, "positive"):
+            _score_hpwl_limit(10.0, 11.0, 0.0)
+
+    def test_rectangle_intervals_quantize_complete_bounds_once(self):
+        starts, width, height = _quantized_rectangle_intervals(
+            np.asarray([[625.9327706224885, 195.97895054633835]]),
+            (
+                -3.4996241168988718,
+                -6.49930193138357,
+                3.4996241168989854,
+                6.499301931383798,
+            ),
+            1_000_000,
+            1,
+        )
+        self.assertEqual(starts.tolist(), [[622433148, 189479650]])
+        self.assertEqual((width, height), (6999246, 12998602))
+        self.assertEqual(
+            _quantized_swept_bbox(
+                np.asarray([[625.9327706224885, 195.97895054633835]]),
+                (
+                    -3.4996241168988718,
+                    -6.49930193138357,
+                    3.4996241168989854,
+                    6.499301931383798,
+                ),
+                1_000_000,
+            ),
+            (622433146, 189479648, 629432395, 202478253),
+        )
+        self.assertLess(
+            _rectangle_interval_overlap_area_bound(321.0, 1_000_000, 1),
+            0.003999,
+        )
+        with self.assertRaisesRegex(ValueError, "inset non-negative"):
+            _quantized_rectangle_intervals(
+                np.asarray([[0.0, 0.0]]), (0.0, 0.0, 1.0, 1.0), 1, -1
+            )
+
     def test_candidate_guide_weights_are_explicit_and_strict(self):
         self.assertEqual(_candidate_guide_weights("", 3), (1, 1, 1))
         self.assertEqual(_candidate_guide_weights("1,7", 2), (1, 7))
@@ -257,6 +318,19 @@ class M336BaselineTest(unittest.TestCase):
         )
         self.assertFalse(hpwl_audit["passed"])
         self.assertFalse(hpwl_audit["response_objective_available"])
+
+    def test_selected_site_region_is_explicit_and_consistent(self):
+        selected = _selected_site_in_region(
+            {"center": [1.0, 2.0], "region_candidate_index": 3},
+            "bottom_0",
+        )
+        self.assertEqual(selected["region_id"], "bottom_0")
+        self.assertEqual(selected["center"], [1.0, 2.0])
+        self.assertEqual(
+            _selected_site_in_region(selected, "bottom_0"), selected
+        )
+        with self.assertRaisesRegex(ValueError, "conflicts"):
+            _selected_site_in_region(selected, "bottom_1")
 
     def test_weighted_candidate_order_is_deterministic(self):
         order = _weighted_candidate_order(

@@ -60,10 +60,77 @@ def _scaled(value, scale):
     return result
 
 
+def _quantized_rectangle_intervals(
+    centers, bounds, integer_scale, interval_inset
+):
+    centers = np.asarray(centers, dtype=np.float64)
+    if centers.ndim != 2 or centers.shape[1] != 2:
+        raise ValueError("rectangle centers must be two-dimensional")
+    if integer_scale <= 0 or interval_inset < 0:
+        raise ValueError(
+            "rectangle scale must be positive and inset non-negative"
+        )
+    min_x, min_y, max_x, max_y = map(float, bounds)
+    starts = np.rint(
+        (centers + np.asarray((min_x, min_y))) * integer_scale
+    ).astype(np.int64)
+    starts += interval_inset
+    width = _scaled(max_x - min_x, integer_scale) - 2 * interval_inset
+    height = _scaled(max_y - min_y, integer_scale) - 2 * interval_inset
+    if width <= 0 or height <= 0:
+        raise ValueError("rectangle interval inset removed the footprint")
+    return starts, width, height
+
+
+def _rectangle_interval_overlap_area_bound(
+    maximum_orthogonal_span, integer_scale, interval_inset
+):
+    if maximum_orthogonal_span < 0:
+        raise ValueError("maximum rectangle span must be non-negative")
+    if integer_scale <= 0 or interval_inset < 0:
+        raise ValueError(
+            "rectangle scale must be positive and inset non-negative"
+        )
+    # Cover one rounded start and extent plus both inward interval offsets.
+    maximum_overlap_width = (2 * interval_inset + 2) / integer_scale
+    return maximum_overlap_width * maximum_orthogonal_span
+
+
+def _quantized_swept_bbox(centers, bounds, integer_scale):
+    centers = np.asarray(centers, dtype=np.float64)
+    if centers.ndim != 2 or centers.shape[1] != 2:
+        raise ValueError("swept-bbox centers must be two-dimensional")
+    if integer_scale <= 0:
+        raise ValueError("swept-bbox scale must be positive")
+    min_x, min_y, max_x, max_y = map(float, bounds)
+    lower = np.floor(
+        (centers + np.asarray((min_x, min_y))) * integer_scale
+    ).astype(np.int64)
+    upper = np.ceil(
+        (centers + np.asarray((max_x, max_y))) * integer_scale
+    ).astype(np.int64)
+    return (
+        int(lower[:, 0].min()),
+        int(lower[:, 1].min()),
+        int(upper[:, 0].max()),
+        int(upper[:, 1].max()),
+    )
+
+
 def _score_hpwl_limit(baseline_hpwl, baseline_rsmt, minimum_score):
+    if not math.isfinite(minimum_score) or minimum_score <= 0:
+        raise ValueError("minimum score must be finite and positive")
     return 2.0 * baseline_hpwl * baseline_rsmt / (
         minimum_score * (baseline_hpwl + baseline_rsmt)
     )
+
+
+def _hpwl_model_configuration(minimum_score, optimize_hpwl, enforce_hpwl):
+    if not math.isfinite(minimum_score) or minimum_score < 0:
+        raise ValueError("minimum score must be finite and non-negative")
+    gate_enabled = bool(enforce_hpwl and minimum_score > 0)
+    model_enabled = bool(enforce_hpwl and (optimize_hpwl or gate_enabled))
+    return model_enabled, gate_enabled
 
 
 def _hpwl_rounding_allowance_units(net_weights):
@@ -1374,7 +1441,11 @@ def _build_model(
     controlled_collision_pairs=(),
     nonrectangle_inner_slices=0,
     diagnose_fixed_hint_core=False,
+    rectangle_interval_inset=1,
 ):
+    hpwl_model_enabled, hpwl_gate_enabled = _hpwl_model_configuration(
+        minimum_score, optimize_hpwl, enforce_hpwl
+    )
     if site_model not in ("element", "coordinate-table"):
         raise ValueError("unknown site model: %s" % site_model)
     if packing_objective not in ("none", "hint-l1"):
@@ -1406,6 +1477,8 @@ def _build_model(
     )
     if nonrectangle_inner_slices < 0:
         raise ValueError("nonrectangle inner slice count must be non-negative")
+    if rectangle_interval_inset < 0:
+        raise ValueError("rectangle interval inset must be non-negative")
     if controlled_collision_pairs:
         if controlled_collision_relaxation != "none":
             raise ValueError(
@@ -1472,6 +1545,7 @@ def _build_model(
     y_intervals = {"TOP": [], "BOTTOM": []}
     controlled_shapes = {"TOP": [], "BOTTOM": []}
     controlled_inner_rectangle_reports = []
+    maximum_rectangle_span = 0.0
     packing_distance_terms = []
     fixed_obstacle_candidate_count = 0
     fixed_obstacle_pruned_site_count = 0
@@ -1671,26 +1745,77 @@ def _build_model(
         local_min_x, local_min_y, local_max_x, local_max_y = (
             footprint_local.bounds
         )
-        x_offset = _scaled(
-            constraint.node_width / 2 + local_min_x, integer_scale
-        )
-        y_offset = _scaled(
-            constraint.node_height / 2 + local_min_y, integer_scale
-        )
-        width = max(1, _scaled(local_max_x - local_min_x, integer_scale))
-        height = max(1, _scaled(local_max_y - local_min_y, integer_scale))
-        x_start = x_var + x_offset
-        y_start = y_var + y_offset
         is_rectangle = _is_rectangle(footprint_local)
+        rectangle_starts, width, height = _quantized_rectangle_intervals(
+            centers,
+            (local_min_x, local_min_y, local_max_x, local_max_y),
+            integer_scale,
+            rectangle_interval_inset if is_rectangle else 0,
+        )
+        swept_bbox = _quantized_swept_bbox(
+            centers,
+            (local_min_x, local_min_y, local_max_x, local_max_y),
+            integer_scale,
+        )
+        bbox_x = model.new_int_var(
+            int(rectangle_starts[:, 0].min()),
+            int(rectangle_starts[:, 0].max()),
+            "bbox_x_%s" % constraint.refdes,
+        )
+        bbox_y = model.new_int_var(
+            int(rectangle_starts[:, 1].min()),
+            int(rectangle_starts[:, 1].max()),
+            "bbox_y_%s" % constraint.refdes,
+        )
+        if site_model == "element":
+            model.add_element(
+                site, rectangle_starts[:, 0].tolist(), bbox_x
+            )
+            model.add_element(
+                site, rectangle_starts[:, 1].tolist(), bbox_y
+            )
+        else:
+            model.add_allowed_assignments(
+                (
+                    x_var,
+                    y_var,
+                    assignment_state["group_vars"][group_id],
+                    bbox_x,
+                    bbox_y,
+                ),
+                [
+                    [
+                        int(x_value),
+                        int(y_value),
+                        int(region_index),
+                        int(start_x),
+                        int(start_y),
+                    ]
+                    for x_value, y_value, region_index, (
+                        start_x,
+                        start_y,
+                    ) in zip(
+                        x_values,
+                        y_values,
+                        region_indices,
+                        rectangle_starts,
+                    )
+                ],
+            )
         if is_rectangle:
+            maximum_rectangle_span = max(
+                maximum_rectangle_span,
+                local_max_x - local_min_x,
+                local_max_y - local_min_y,
+            )
             x_intervals[constraint.side].append(
                 model.new_fixed_size_interval_var(
-                    x_start, width, "ix_%s" % constraint.refdes
+                    bbox_x, width, "ix_%s" % constraint.refdes
                 )
             )
             y_intervals[constraint.side].append(
                 model.new_fixed_size_interval_var(
-                    y_start, height, "iy_%s" % constraint.refdes
+                    bbox_y, height, "iy_%s" % constraint.refdes
                 )
             )
         elif nonrectangle_inner_slices:
@@ -1752,17 +1877,12 @@ def _build_model(
                 "name": constraint.refdes,
                 "x": x_var,
                 "y": y_var,
-                "bbox_x": x_start,
-                "bbox_y": y_start,
+                "bbox_x": bbox_x,
+                "bbox_y": bbox_y,
                 "width": width,
                 "height": height,
                 "is_rectangle": is_rectangle,
-                "swept_bbox": (
-                    int(x_values.min()) + x_offset,
-                    int(y_values.min()) + y_offset,
-                    int(x_values.max()) + x_offset + width,
-                    int(y_values.max()) + y_offset + height,
-                ),
+                "swept_bbox": swept_bbox,
                 "parts": _model_convex_parts(
                     constraint.refdes,
                     footprint_local,
@@ -1945,6 +2065,8 @@ def _build_model(
     exact_controlled_component_pair_count = 0
     available_controlled_collision_pairs = set()
     fixed_shapes = {"TOP": [], "BOTTOM": []}
+    rectangle_acceptance_area_epsilon = None
+    rectangle_overlap_area_bound = None
     if collision_mode in ("convex", "decomposed"):
         for node_id in range(placedb.num_physical_nodes):
             if node_id in all_controlled_ids:
@@ -1963,18 +2085,36 @@ def _build_model(
             local_min_x, local_min_y, local_max_x, local_max_y = (
                 footprint_local.bounds
             )
-            fixed_bbox_x = fixed_start_x + _scaled(
-                node_width / 2 + local_min_x, integer_scale
+            fixed_is_rectangle = _is_rectangle(footprint_local)
+            fixed_center = np.asarray(
+                [
+                    [
+                        float(fixed_x[node_id]) + node_width / 2,
+                        float(fixed_y[node_id]) + node_height / 2,
+                    ]
+                ]
             )
-            fixed_bbox_y = fixed_start_y + _scaled(
-                node_height / 2 + local_min_y, integer_scale
+            fixed_rectangle_starts, fixed_width, fixed_height = (
+                _quantized_rectangle_intervals(
+                    fixed_center,
+                    (local_min_x, local_min_y, local_max_x, local_max_y),
+                    integer_scale,
+                    rectangle_interval_inset if fixed_is_rectangle else 0,
+                )
             )
-            fixed_width = max(
-                1, _scaled(local_max_x - local_min_x, integer_scale)
+            fixed_swept_bbox = _quantized_swept_bbox(
+                fixed_center,
+                (local_min_x, local_min_y, local_max_x, local_max_y),
+                integer_scale,
             )
-            fixed_height = max(
-                1, _scaled(local_max_y - local_min_y, integer_scale)
-            )
+            fixed_bbox_x = int(fixed_rectangle_starts[0, 0])
+            fixed_bbox_y = int(fixed_rectangle_starts[0, 1])
+            if fixed_is_rectangle:
+                maximum_rectangle_span = max(
+                    maximum_rectangle_span,
+                    local_max_x - local_min_x,
+                    local_max_y - local_min_y,
+                )
             fixed_shape = {
                 "name": name,
                 "x": fixed_start_x,
@@ -1983,13 +2123,8 @@ def _build_model(
                 "bbox_y": fixed_bbox_y,
                 "width": fixed_width,
                 "height": fixed_height,
-                "is_rectangle": _is_rectangle(footprint_local),
-                "swept_bbox": (
-                    fixed_bbox_x,
-                    fixed_bbox_y,
-                    fixed_bbox_x + fixed_width,
-                    fixed_bbox_y + fixed_height,
-                ),
+                "is_rectangle": fixed_is_rectangle,
+                "swept_bbox": fixed_swept_bbox,
                 "parts": _model_convex_parts(
                     name,
                     footprint_local,
@@ -2020,6 +2155,24 @@ def _build_model(
                     collision_pair_constraint_count += _add_part_nonoverlap(
                         model, controlled, fixed_shape
                     )
+
+        rectangle_acceptance_area_epsilon = float(
+            context.config.get("reporting", {}).get(
+                "area_epsilon_mm2", 1e-5
+            )
+        ) * abs(float(context.alignment.scale)) ** 2
+        rectangle_overlap_area_bound = (
+            _rectangle_interval_overlap_area_bound(
+                maximum_rectangle_span,
+                integer_scale,
+                rectangle_interval_inset,
+            )
+        )
+        if rectangle_overlap_area_bound > rectangle_acceptance_area_epsilon:
+            raise ValueError(
+                "rectangle interval quantization can exceed the acceptance "
+                "overlap threshold; increase integer scale"
+            )
 
         collision_sides = (
             (packing_side,) if packing_side is not None else ("TOP", "BOTTOM")
@@ -2068,7 +2221,7 @@ def _build_model(
     hpwl_limit = None
     hpwl_limit_integer = None
     rounding_allowance = 0
-    if enforce_hpwl:
+    if hpwl_model_enabled:
         net_spans = []
         populated_net_weights = []
         coordinate_limit = 2**50
@@ -2126,16 +2279,17 @@ def _build_model(
             )
 
         hpwl_objective = sum(net_spans)
-        hpwl_limit = _score_hpwl_limit(
-            baseline_hpwl, baseline_rsmt, minimum_score
-        )
         rounding_allowance = _hpwl_rounding_allowance_units(
             populated_net_weights
         )
-        hpwl_limit_integer = (
-            math.floor(hpwl_limit * integer_scale) + rounding_allowance
-        )
-        model.add(hpwl_objective <= hpwl_limit_integer)
+        if hpwl_gate_enabled:
+            hpwl_limit = _score_hpwl_limit(
+                baseline_hpwl, baseline_rsmt, minimum_score
+            )
+            hpwl_limit_integer = (
+                math.floor(hpwl_limit * integer_scale) + rounding_allowance
+            )
+            model.add(hpwl_objective <= hpwl_limit_integer)
         if optimize_hpwl:
             model.minimize(hpwl_objective)
     if packing_objective == "hint-l1":
@@ -2212,6 +2366,18 @@ def _build_model(
         "controlled_inner_rectangles": (
             controlled_inner_rectangle_reports
         ),
+        "rectangle_interval_inset": rectangle_interval_inset,
+        "rectangle_interval_overlap_area_bound": (
+            rectangle_overlap_area_bound
+        ),
+        "rectangle_acceptance_area_epsilon": (
+            rectangle_acceptance_area_epsilon
+        ),
+        "rectangle_interval_acceptance_sound": (
+            rectangle_overlap_area_bound is not None
+            and rectangle_overlap_area_bound
+            <= rectangle_acceptance_area_epsilon
+        ),
         "inactive_controlled_collision_pair_count": len(
             inactive_controlled_collision_pairs
         ),
@@ -2240,8 +2406,9 @@ def _build_model(
         "site_hint": site_hint_report,
         "candidate_limit_per_region": candidate_limit_per_region,
         "candidate_guide": candidate_guide_report,
-        "hpwl_gate_enabled": bool(enforce_hpwl),
-        "optimize_hpwl": bool(optimize_hpwl and enforce_hpwl),
+        "hpwl_model_enabled": hpwl_model_enabled,
+        "hpwl_gate_enabled": hpwl_gate_enabled,
+        "optimize_hpwl": bool(optimize_hpwl and hpwl_model_enabled),
         "packing_side": packing_side,
         "site_model": site_model,
         "packing_objective": packing_objective,
@@ -2256,18 +2423,17 @@ def _model_report(args, state, assignment_space):
         "constraint_grid_mm": args.grid_mm,
         "minimum_score": args.minimum_score,
         "objective_mode": (
-            (
-                "packing_hint_l1"
-                if state["optimize_packing"]
-                else "packing_only"
-            )
-            if not state["hpwl_gate_enabled"]
-            else (
-                "minimize_hpwl"
-                if state["optimize_hpwl"]
-                else "first_feasible"
-            )
+            "packing_hint_l1"
+            if state["optimize_packing"]
+            else "minimize_hpwl"
+            if state["optimize_hpwl"]
+            else "first_feasible"
+            if state["hpwl_gate_enabled"]
+            else "packing_only"
+            if args.packing_only
+            else "feasibility_only"
         ),
+        "hpwl_model_enabled": state["hpwl_model_enabled"],
         "hpwl_gate_enabled": state["hpwl_gate_enabled"],
         "necessary_hpwl_limit": state["hpwl_limit"],
         "integer_hpwl_limit": state["hpwl_limit_integer"],
@@ -2324,6 +2490,16 @@ def _model_report(args, state, assignment_space):
         ],
         "controlled_inner_rectangles": state[
             "controlled_inner_rectangles"
+        ],
+        "rectangle_interval_inset": state["rectangle_interval_inset"],
+        "rectangle_interval_overlap_area_bound": state[
+            "rectangle_interval_overlap_area_bound"
+        ],
+        "rectangle_acceptance_area_epsilon": state[
+            "rectangle_acceptance_area_epsilon"
+        ],
+        "rectangle_interval_acceptance_sound": state[
+            "rectangle_interval_acceptance_sound"
         ],
         "inactive_controlled_collision_pair_count": state[
             "inactive_controlled_collision_pair_count"
@@ -2601,6 +2777,7 @@ def solve(args):
         args.controlled_collision_pair,
         args.nonrectangle_inner_slices,
         args.diagnose_fixed_hint_core,
+        args.rectangle_interval_inset,
     )
 
     solver = cp_model.CpSolver()
@@ -2962,6 +3139,15 @@ def main():
         ),
     )
     parser.add_argument(
+        "--rectangle-interval-inset",
+        type=int,
+        default=1,
+        help=(
+            "inward integer units applied to rectangle collision intervals; "
+            "the model verifies the resulting overlap bound"
+        ),
+    )
+    parser.add_argument(
         "--use-packing-hint",
         action="store_true",
         help="seed a fixed-assignment solve with deterministic exact packing",
@@ -3064,16 +3250,21 @@ def main():
     if args.candidate_guide_placement is not None:
         args.candidate_guide_placement = args.candidate_guide_placement.resolve()
     if (
-        args.integer_scale <= 0
+        not math.isfinite(args.minimum_score)
+        or args.minimum_score < 0
+        or args.integer_scale <= 0
         or args.capacity_scale <= 0
         or args.time_limit <= 0
         or args.workers <= 0
         or args.candidate_limit_per_region < 0
         or args.nonrectangle_inner_slices < 0
+        or args.rectangle_interval_inset < 0
         or args.hint_conflict_limit <= 0
     ):
         parser.error(
-            "scales, limits, time limit, and workers must be positive"
+            "minimum score, candidate limits, slices, and rectangle inset "
+            "must be non-negative; scales, time limit, and workers must be "
+            "positive"
         )
     for path in (
         args.bookshelf_dir / "m336.aux",

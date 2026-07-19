@@ -422,6 +422,17 @@ def load_guide(path: Path) -> dict[str, list[float]]:
     }
 
 
+def _selected_site_in_region(selected_site, region_id):
+    existing_region = selected_site.get("region_id")
+    if existing_region is not None and existing_region != region_id:
+        raise ValueError(
+            "selected site region conflicts with fixed assignment"
+        )
+    result = dict(selected_site)
+    result["region_id"] = region_id
+    return result
+
+
 def _guide_rank_replay_audit(
     solver, rows, objective_mode, objective_value, guide_rank_ceiling
 ):
@@ -1349,13 +1360,16 @@ def main() -> int:
         for constraint in context.constraints:
             source_site = source_data["selected_sites"][constraint.refdes]
             center = np.asarray(source_site["center"], dtype=np.float64)
-            selected_site = dict(source_site)
+            selected_site = _selected_site_in_region(
+                source_site, constraint.region_id
+            )
             if constraint.side in packing_sides:
                 row = packed_rows[constraint.refdes]
                 selected = int(solver.value(row["site_var"]))
                 center = row["centers"][selected]
                 selected_site = {
                     "candidate_index": selected,
+                    "region_id": constraint.region_id,
                     "region_candidate_index": int(row["eligible"][selected]),
                     "center": center.tolist(),
                 }

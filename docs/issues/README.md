@@ -88,6 +88,9 @@ append evidence rather than replacing prior observations.
 | [M336-078](M336-078-complete-bottom0-k1024-search.md) | Critical | Open | Complete bottom-0 K1024 models are score-permitting but fail to improve within deterministic budgets |
 | [M336-079](M336-079-full-site-four-component-closure.md) | Critical | Open | Directed four-component ejection closures are full-site exact optima at the current placement |
 | [M336-080](M336-080-full-site-physical-group-closure.md) | Critical | Open | Major bottom-0 physical groups are exact optima over every available site |
+| [M336-081](M336-081-exact-site-result-region-contract.md) | High | Resolved | Exact-site results now retain fail-closed region identity for scoped continuation |
+| [M336-082](M336-082-zero-score-gate-semantics.md) | High | Resolved | Zero score thresholds disable only the score gate, not requested HPWL optimization |
+| [M336-083](M336-083-rectangle-collision-quantization.md) | Critical | Resolved | Direct edge quantization removes a known-legal rectangle collision false positive |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
