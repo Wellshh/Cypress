@@ -470,6 +470,7 @@ def _objective_replay_audit(
     floating_hpwl,
     rounding_allowance,
     integer_hpwl_limit=None,
+    response_objective_mode="hpwl",
 ):
     coordinate_mismatches = _candidate_coordinate_mismatches(rows, solver)
     solver_total, solver_nets = _solver_integer_hpwl_by_net(
@@ -498,14 +499,24 @@ def _objective_replay_audit(
                 }
             )
     response_objective_available = objective_value is not None
-    rounded_objective = (
+    response_objective_checked_as_hpwl = (
+        response_objective_available and response_objective_mode == "hpwl"
+    )
+    rounded_response_objective = (
         int(round(objective_value))
         if response_objective_available
         else None
     )
     objective_is_integral = (
-        math.isclose(objective_value, rounded_objective, abs_tol=1e-6)
-        if response_objective_available
+        math.isclose(
+            objective_value, rounded_response_objective, abs_tol=1e-6
+        )
+        if response_objective_checked_as_hpwl
+        else None
+    )
+    rounded_objective = (
+        rounded_response_objective
+        if response_objective_checked_as_hpwl
         else None
     )
     float_delta = replay_total / integer_scale - floating_hpwl
@@ -517,7 +528,7 @@ def _objective_replay_audit(
     )
     passed = (
         (
-            not response_objective_available
+            not response_objective_checked_as_hpwl
             or (
                 objective_is_integral
                 and rounded_objective == solver_total
@@ -532,18 +543,24 @@ def _objective_replay_audit(
     return {
         "passed": passed,
         "response_objective_available": response_objective_available,
+        "response_objective_mode": (
+            response_objective_mode if response_objective_available else None
+        ),
+        "response_objective_checked_as_hpwl": (
+            response_objective_checked_as_hpwl
+        ),
         "solver_objective_is_integral": objective_is_integral,
         "solver_objective_integer": rounded_objective,
         "solver_variable_objective_integer": solver_total,
         "selected_site_objective_integer": replay_total,
         "solver_minus_variable_integer": (
             rounded_objective - solver_total
-            if response_objective_available
+            if response_objective_checked_as_hpwl
             else None
         ),
         "solver_minus_selected_site_integer": (
             rounded_objective - replay_total
-            if response_objective_available
+            if response_objective_checked_as_hpwl
             else None
         ),
         "selected_site_minus_floating_hpwl": float_delta,
@@ -558,6 +575,25 @@ def _objective_replay_audit(
         "net_objective_mismatch_count": len(net_mismatches),
         "net_objective_mismatches": net_mismatches,
     }
+
+
+def _set_model_objective(
+    model,
+    objective_mode,
+    hpwl_objective,
+    guide_rank_expression,
+):
+    if objective_mode == "hpwl":
+        if hpwl_objective is None:
+            raise ValueError("HPWL objective expression is unavailable")
+        expression = hpwl_objective
+    elif objective_mode == "guide_rank":
+        expression = guide_rank_expression
+    elif objective_mode in {"none", "hpwl_feasibility"}:
+        return
+    else:
+        raise ValueError(f"unknown objective mode: {objective_mode}")
+    model.minimize(expression)
 
 
 def _load_cp_model():
@@ -1429,10 +1465,12 @@ def main() -> int:
         )
         if integer_hpwl_limit is not None:
             model.add(hpwl_objective <= integer_hpwl_limit)
-        if optimize_hpwl:
-            model.minimize(hpwl_objective)
-    elif minimize_guide_rank:
-        model.minimize(guide_rank_expression)
+    _set_model_objective(
+        model,
+        objective_mode,
+        hpwl_objective,
+        guide_rank_expression,
+    )
     build_seconds = time.perf_counter() - build_started
 
     max_time_in_seconds = float(os.environ.get("M336_TIME", "300"))
@@ -1641,6 +1679,7 @@ def main() -> int:
                 hpwl,
                 hpwl_rounding_allowance,
                 integer_hpwl_limit,
+                response_objective_mode=objective_mode,
             )
         guide_rank_replay_audit = _guide_rank_replay_audit(
             solver,

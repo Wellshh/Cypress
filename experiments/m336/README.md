@@ -142,6 +142,13 @@ are visited first. The complete hint is still attempted independently before
 regular search. Results record the mode, exact refdes order, guide deltas, and
 candidate counts; use one worker for deterministic comparisons.
 
+`M336_MINIMIZE_GUIDE_RANK=1` may be combined with
+`M336_INTEGER_HPWL_CEILING=<UNITS>` to find guide-near diversity without
+allowing HPWL regression. In this mode guide rank is the solver objective and
+HPWL remains a hard constraint. The guide-rank replay checks the response
+objective, while the HPWL replay independently checks modeled net spans,
+selected coordinates, floating HPWL, and the ceiling.
+
 Use `--packing-only --feasibility-only` only to isolate keep-in, capacity, and
 collision feasibility. This diagnostic mode omits all HPWL variables and the
 score gate; it still reports actual HPWL after finding a candidate, but its

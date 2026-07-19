@@ -92,6 +92,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _required_guide_support_indices,
     _search_branching_mode,
     _selected_site_in_region,
+    _set_model_objective,
     _solver_integer_hpwl_by_net,
     _weighted_candidate_order,
 )
@@ -423,6 +424,20 @@ class M336BaselineTest(unittest.TestCase):
         )
         self.assertFalse(hpwl_audit["passed"])
         self.assertFalse(hpwl_audit["response_objective_available"])
+
+    def test_guide_rank_objective_survives_hpwl_model_construction(self):
+        minimized = []
+        model = SimpleNamespace(minimize=minimized.append)
+        _set_model_objective(model, "guide_rank", "hpwl", "rank")
+        self.assertEqual(minimized, ["rank"])
+
+        minimized.clear()
+        _set_model_objective(model, "hpwl", "hpwl", "rank")
+        self.assertEqual(minimized, ["hpwl"])
+
+        minimized.clear()
+        _set_model_objective(model, "hpwl_feasibility", "hpwl", "rank")
+        self.assertEqual(minimized, [])
 
     def test_selected_site_region_is_explicit_and_consistent(self):
         selected = _selected_site_in_region(
@@ -854,6 +869,19 @@ class M336BaselineTest(unittest.TestCase):
         audit = _objective_replay_audit(*arguments, 6499)
         self.assertFalse(audit["passed"])
         self.assertFalse(audit["selected_site_within_integer_hpwl_limit"])
+
+        rank_arguments = list(arguments)
+        rank_arguments[1] = 2.0
+        audit = _objective_replay_audit(
+            *rank_arguments,
+            6500,
+            response_objective_mode="guide_rank",
+        )
+        self.assertTrue(audit["passed"])
+        self.assertTrue(audit["response_objective_available"])
+        self.assertEqual(audit["response_objective_mode"], "guide_rank")
+        self.assertFalse(audit["response_objective_checked_as_hpwl"])
+        self.assertIsNone(audit["solver_objective_integer"])
 
     def test_objective_replay_rejects_canceling_net_mismatches(self):
         class FakeSolver:
