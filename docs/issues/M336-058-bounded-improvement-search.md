@@ -57,3 +57,18 @@ Run all-100 K128 with a ceiling at least one HPWL unit below the incumbent,
 `repair_hint=1`, a recorded conflict limit, and stop-after-first enabled.
 Certify any returned placement before local closure. A budget-limited result
 without a solution remains `UNKNOWN`, never infeasible.
+
+## First Bounded Run
+
+The all-100 K128 run used integer ceiling `15835404457`, exactly one HPWL unit
+below the audited incumbent, L1 hint repair with a 10,000-conflict limit, and
+stop-after-first mode. It returned `UNKNOWN` without an incumbent when the
+600.008863-second wall limit expired. Deterministic time reached 286.208955,
+with 1,143,608 conflicts and 3,859,927 branches. The valid lower bound was
+`14809.784116`, still below the requested ceiling.
+
+This result neither proves the K128 domain infeasible nor disproves bounded
+search. It shows that global L1 repair is too expensive under the current wall
+budget. Apply the same ceiling to the smaller score-bound-permitting physical
+closure, or remove the optimization objective and audit the hard-constraint
+HPWL expression as a pure feasibility model.
