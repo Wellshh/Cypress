@@ -62,6 +62,7 @@ append evidence rather than replacing prior observations.
 | [M336-052](M336-052-exact-one-opt-descent.md) | Critical | Open | Reproducible exact one- and two-component descent improves HPWL but leaves a higher-order gap |
 | [M336-053](M336-053-threshold-feasibility-search-unknown.md) | Critical | Open | Global threshold searches exhaust deterministic budgets as UNKNOWN, not infeasible |
 | [M336-054](M336-054-hotspot-regional-domain-bound.md) | Critical | Open | A hotspot K512 region improves HPWL but its valid bound proves the restricted domain cannot score 1.0 |
+| [M336-055](M336-055-physical-group-closure.md) | Critical | Open | Physical collision closure improves HPWL and exposes fixed-budget candidate-width regression |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
