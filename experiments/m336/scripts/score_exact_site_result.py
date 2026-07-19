@@ -30,6 +30,7 @@ DEFAULT_BASELINE_RESULT = (
     ROOT
     / "results/m336/baseline_warmstart_smoke/baseline/baseline-result.json"
 )
+HPWL_AUDIT_MODES = frozenset(("hpwl", "hpwl_feasibility"))
 
 
 def _write_text_atomic(path: Path, content: str) -> None:
@@ -166,6 +167,16 @@ def _serialized_positions(placedb, placement_path: Path):
     return node_x, node_y
 
 
+def _require_objective_replay_audit(source) -> None:
+    if source.get("objective_mode") not in HPWL_AUDIT_MODES:
+        return
+    objective_audit = source.get("objective_replay_audit")
+    if not objective_audit or not objective_audit.get("passed"):
+        raise ValueError(
+            "HPWL-constrained result failed objective replay audit"
+        )
+
+
 def score(args) -> dict:
     source = json.loads(args.result.read_text())
     if source.get("status") not in {"FEASIBLE", "OPTIMAL"}:
@@ -174,12 +185,7 @@ def score(args) -> dict:
         raise ValueError("exact-site result used a relaxed collision model")
     if source.get("certification_required"):
         raise ValueError("exact-site result requires fixed certification")
-    if source.get("objective_mode") == "hpwl":
-        objective_audit = source.get("objective_replay_audit")
-        if not objective_audit or not objective_audit.get("passed"):
-            raise ValueError(
-                "HPWL-optimized result failed objective replay audit"
-            )
+    _require_objective_replay_audit(source)
 
     required_fields = {
         "assignment_json",

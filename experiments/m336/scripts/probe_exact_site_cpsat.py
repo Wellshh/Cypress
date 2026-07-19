@@ -236,6 +236,7 @@ def _objective_replay_audit(
     integer_scale,
     floating_hpwl,
     rounding_allowance,
+    integer_hpwl_limit=None,
 ):
     coordinate_mismatches = _candidate_coordinate_mismatches(rows, solver)
     solver_total, solver_nets = _solver_integer_hpwl_by_net(
@@ -263,33 +264,62 @@ def _objective_replay_audit(
                     "delta_integer": delta,
                 }
             )
-    rounded_objective = int(round(objective_value))
-    objective_is_integral = math.isclose(
-        objective_value, rounded_objective, abs_tol=1e-6
+    response_objective_available = objective_value is not None
+    rounded_objective = (
+        int(round(objective_value))
+        if response_objective_available
+        else None
+    )
+    objective_is_integral = (
+        math.isclose(objective_value, rounded_objective, abs_tol=1e-6)
+        if response_objective_available
+        else None
     )
     float_delta = replay_total / integer_scale - floating_hpwl
     float_within_allowance = (
         abs(float_delta) <= rounding_allowance / integer_scale + 1e-12
     )
+    within_integer_hpwl_limit = (
+        integer_hpwl_limit is None or replay_total <= integer_hpwl_limit
+    )
     passed = (
-        objective_is_integral
-        and rounded_objective == solver_total
+        (
+            not response_objective_available
+            or (
+                objective_is_integral
+                and rounded_objective == solver_total
+            )
+        )
         and solver_total == replay_total
+        and not net_mismatches
         and not coordinate_mismatches
         and float_within_allowance
+        and within_integer_hpwl_limit
     )
     return {
         "passed": passed,
+        "response_objective_available": response_objective_available,
         "solver_objective_is_integral": objective_is_integral,
         "solver_objective_integer": rounded_objective,
         "solver_variable_objective_integer": solver_total,
         "selected_site_objective_integer": replay_total,
-        "solver_minus_variable_integer": rounded_objective - solver_total,
-        "solver_minus_selected_site_integer": rounded_objective
-        - replay_total,
+        "solver_minus_variable_integer": (
+            rounded_objective - solver_total
+            if response_objective_available
+            else None
+        ),
+        "solver_minus_selected_site_integer": (
+            rounded_objective - replay_total
+            if response_objective_available
+            else None
+        ),
         "selected_site_minus_floating_hpwl": float_delta,
         "rounding_allowance_integer": rounding_allowance,
         "floating_hpwl_within_rounding_allowance": float_within_allowance,
+        "integer_hpwl_limit": integer_hpwl_limit,
+        "selected_site_within_integer_hpwl_limit": (
+            within_integer_hpwl_limit
+        ),
         "candidate_coordinate_mismatch_count": len(coordinate_mismatches),
         "candidate_coordinate_mismatches": coordinate_mismatches,
         "net_objective_mismatch_count": len(net_mismatches),
@@ -528,11 +558,14 @@ def main() -> int:
         or minimum_score > 0
         or integer_hpwl_ceiling is not None
     )
+    has_objective = optimize_hpwl or minimize_guide_rank
     objective_mode = (
         "hpwl"
         if optimize_hpwl
         else "guide_rank" if minimize_guide_rank else "none"
     )
+    if objective_mode == "none" and enforce_hpwl:
+        objective_mode = "hpwl_feasibility"
     model = cp_model.CpModel()
     rows = []
     packed_node_vars = {}
@@ -1114,12 +1147,12 @@ def main() -> int:
         has_incumbent = status_code in (cp_model.FEASIBLE, cp_model.OPTIMAL)
         objective_value = (
             float(solver.objective_value)
-            if objective_mode != "none" and has_incumbent
+            if has_objective and has_incumbent
             else None
         )
         best_objective_bound = (
             float(solver.best_objective_bound)
-            if objective_mode != "none"
+            if has_objective
             else None
         )
         step_result = {
@@ -1206,7 +1239,7 @@ def main() -> int:
         position = torch.from_numpy(np.concatenate((node_x, node_y)))
         legality = context.exact_report(position, placedb)
         hpwl = float(placedb.hpwl(node_x, node_y))
-        if objective_mode == "hpwl":
+        if enforce_hpwl:
             objective_replay_audit = _objective_replay_audit(
                 solver,
                 objective_value,
@@ -1218,6 +1251,7 @@ def main() -> int:
                 integer_scale,
                 hpwl,
                 hpwl_rounding_allowance,
+                integer_hpwl_limit,
             )
         score = 2.0 / (hpwl / baseline_hpwl + hpwl / baseline_rsmt)
         write_placement_atomic(

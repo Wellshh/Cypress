@@ -71,9 +71,13 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
     _effective_integer_hpwl_limit,
     _integer_hpwl_by_net,
+    _objective_replay_audit,
     _packing_sides,
     _rows_by_side,
     _solver_integer_hpwl_by_net,
+)
+from score_exact_site_result import (  # noqa: E402
+    _require_objective_replay_audit,
 )
 from dreamplace.constraints.region_projection import (  # noqa: E402
     FeasibleDomain,
@@ -135,6 +139,25 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_scorer_requires_hpwl_feasibility_audit(self):
+        with self.assertRaisesRegex(ValueError, "objective replay audit"):
+            _require_objective_replay_audit(
+                {"objective_mode": "hpwl_feasibility"}
+            )
+        with self.assertRaisesRegex(ValueError, "objective replay audit"):
+            _require_objective_replay_audit(
+                {
+                    "objective_mode": "hpwl_feasibility",
+                    "objective_replay_audit": {"passed": False},
+                }
+            )
+        _require_objective_replay_audit(
+            {
+                "objective_mode": "hpwl_feasibility",
+                "objective_replay_audit": {"passed": True},
+            }
+        )
+
     def test_effective_integer_hpwl_limit_uses_strictest_bound(self):
         self.assertEqual(
             _effective_integer_hpwl_limit(12.25, 100, 3, None), 1228
@@ -335,6 +358,121 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(replay_total, 6500)
         self.assertEqual(solver_total, replay_total)
         self.assertEqual(solver_nets, replay_nets)
+
+    def test_feasibility_hpwl_replay_without_response_objective(self):
+        class FakeSolver:
+            def value(self, variable):
+                return {
+                    "site": 0,
+                    "node_x": 250,
+                    "node_y": 1000,
+                    "max_x": 2250,
+                    "min_x": 500,
+                    "max_y": 2500,
+                    "min_y": 1000,
+                }[variable]
+
+        placedb = SimpleNamespace(
+            net2pin_map=[np.asarray([0, 1])],
+            pin2node_map=np.asarray([0, 1]),
+            pin_offset_x=np.asarray([0.25, -0.5]),
+            pin_offset_y=np.asarray([0.0, 0.5]),
+            net_weights=np.asarray([2.0]),
+            net_names=np.asarray([b"N1"]),
+        )
+        rows = [
+            {
+                "constraint": SimpleNamespace(refdes="A"),
+                "site_var": "site",
+                "node_x_var": "node_x",
+                "node_y_var": "node_y",
+                "integer_node_lowers": np.asarray([[250, 1000]]),
+                "centers": np.zeros((1, 2)),
+            }
+        ]
+        objective_rows = [
+            {
+                "net_id": 0,
+                "net_name": "N1",
+                "weight": 2,
+                "max_x_var": "max_x",
+                "min_x_var": "min_x",
+                "max_y_var": "max_y",
+                "min_y_var": "min_y",
+            }
+        ]
+        arguments = (
+            FakeSolver(),
+            None,
+            rows,
+            objective_rows,
+            placedb,
+            np.asarray([0.25, 2.75]),
+            np.asarray([1.0, 2.0]),
+            1000,
+            6.5,
+            4,
+        )
+        audit = _objective_replay_audit(*arguments, 6500)
+        self.assertTrue(audit["passed"])
+        self.assertFalse(audit["response_objective_available"])
+        self.assertIsNone(audit["solver_objective_integer"])
+        self.assertTrue(audit["selected_site_within_integer_hpwl_limit"])
+
+        audit = _objective_replay_audit(*arguments, 6499)
+        self.assertFalse(audit["passed"])
+        self.assertFalse(audit["selected_site_within_integer_hpwl_limit"])
+
+    def test_objective_replay_rejects_canceling_net_mismatches(self):
+        class FakeSolver:
+            def value(self, variable):
+                return {
+                    "first_max_x": 11,
+                    "first_min_x": 0,
+                    "first_max_y": 0,
+                    "first_min_y": 0,
+                    "second_max_x": 19,
+                    "second_min_x": 0,
+                    "second_max_y": 0,
+                    "second_min_y": 0,
+                }[variable]
+
+        placedb = SimpleNamespace(
+            net2pin_map=[np.asarray([0, 1]), np.asarray([2, 3])],
+            pin2node_map=np.asarray([0, 1, 2, 3]),
+            pin_offset_x=np.zeros(4),
+            pin_offset_y=np.zeros(4),
+            net_weights=np.ones(2),
+            net_names=np.asarray([b"N1", b"N2"]),
+        )
+        objective_rows = []
+        for prefix, net_id in (("first", 0), ("second", 1)):
+            objective_rows.append(
+                {
+                    "net_id": net_id,
+                    "net_name": f"N{net_id + 1}",
+                    "weight": 1,
+                    "max_x_var": f"{prefix}_max_x",
+                    "min_x_var": f"{prefix}_min_x",
+                    "max_y_var": f"{prefix}_max_y",
+                    "min_y_var": f"{prefix}_min_y",
+                }
+            )
+        audit = _objective_replay_audit(
+            FakeSolver(),
+            30,
+            [],
+            objective_rows,
+            placedb,
+            np.asarray([0.0, 10.0, 0.0, 20.0]),
+            np.zeros(4),
+            1,
+            30.0,
+            0,
+            30,
+        )
+        self.assertFalse(audit["passed"])
+        self.assertEqual(audit["net_objective_mismatch_count"], 2)
 
     def test_exact_site_rows_are_partitioned_by_physical_side(self):
         self.assertEqual(_packing_sides("TOP"), frozenset(("TOP",)))
