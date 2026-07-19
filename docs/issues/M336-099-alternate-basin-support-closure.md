@@ -24,6 +24,24 @@ those equalities. Consequently, the 80-component portfolio cannot reproduce
 the complete certified basin and cannot support a claim that the basin fails
 to improve. `UNKNOWN` remains budget exhaustion, never infeasibility.
 
+## Restricted A/B Result
+
+All four 80-component K256 runs completed at deterministic time 300. They
+retained the incumbent exactly and remained fully legal:
+
+| Seed | Status | HPWL | Best HPWL bound |
+| ---: | --- | ---: | ---: |
+| 1000 | `FEASIBLE` | 15811.06557381333 | 14715.885225 |
+| 1001 | `FEASIBLE` | 15811.06557381333 | 14745.783707 |
+| 1002 | `FEASIBLE` | 15811.06557381333 | 14733.521304 |
+| 1003 | `FEASIBLE` | 15811.06557381333 | 14733.521304 |
+
+Every objective replay passed with 100/100 containment, zero violations, and
+zero overlaps. All four placement files have the incumbent SHA-256
+`e3fa2a59b85653751ef6c67ba63157c85082996ed142aef828626fbf572119bf`.
+The bounds remain below the score-1 HPWL threshold, so these finite searches
+do not prove absence of a better solution even inside the restricted domain.
+
 ## Mitigation
 
 Retain the 80-component runs only as an ordering A/B. The corrected support is
