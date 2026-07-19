@@ -98,6 +98,18 @@ unchanged. Evidence hashes are:
 - canonical selected sites:
   `0c6e9fbf4c679a9974b0921e15c45a7b6f5fe272573ebf594dc2532a743117a3`.
 
+A second sweep reopened the non-optimal page-7 block with K1024 domains. At
+300.001580 deterministic-time it found a better exact legal incumbent with
+HPWL `16249.944730`, a stage improvement of `120.649316` and cumulative
+improvement of `1820.748031`. The optimistic score upper bound is `0.939103`.
+The run remained `FEASIBLE` with objective bound `15539.905363`; it does not
+prove the target unreachable. Evidence hashes are:
+
+- result: `b9bafbd1502d4259f6298425de860a8739c8e6916a86a87f7cdad9e65d21a296`;
+- placement: `52f35791a8cd3638eb6cebdddbbba94b9a4e45f89d9960e61d36aac13be0827e`;
+- canonical selected sites:
+  `b3daad5d952f337c82af2ca698aa29e7fbf9981f69b45485c25d30b6606eee70`.
+
 ## Acceptance Impact
 
 The result remains above the necessary HPWL threshold `15260.369572`, and
