@@ -463,6 +463,22 @@ class M336BaselineTest(unittest.TestCase):
         )
         self.assertEqual((selected, move_type), (None, None))
 
+        selected, move_type = _select_guided_threshold_candidate(
+            total_hpwl=np.asarray([10.0, 10.5, 10.5, 9.0]),
+            hpwl_ceiling=11.0,
+            max_move_rise=0.4,
+            **arguments,
+        )
+        self.assertEqual((selected, move_type), (None, None))
+
+        selected, move_type = _select_guided_threshold_candidate(
+            total_hpwl=np.asarray([10.0, 10.5, 10.5, 9.0]),
+            hpwl_ceiling=11.0,
+            max_move_rise=0.5,
+            **arguments,
+        )
+        self.assertEqual((selected, move_type), (2, "uphill"))
+
         arguments["legal"] = np.asarray([True, True, False, False])
         selected, move_type = _select_guided_threshold_candidate(
             total_hpwl=np.asarray([10.0, 9.5, 10.5, 9.0]),

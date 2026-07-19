@@ -201,6 +201,7 @@ def _select_guided_threshold_candidate(
     equality_tolerance,
     guide_tolerance,
     site_tolerance,
+    max_move_rise=None,
 ):
     """Select the cheapest legal move that progresses toward the guide."""
     guide_distance = np.square(centers - guide_center).sum(axis=1)
@@ -208,11 +209,17 @@ def _select_guided_threshold_candidate(
         np.square(current_center - guide_center).sum()
     )
     site_distance = np.square(centers - current_center).sum(axis=1)
+    move_hpwl_ceiling = (
+        np.inf
+        if max_move_rise is None
+        else current_hpwl + max_move_rise
+    )
     eligible = np.flatnonzero(
         legal
         & (site_distance > site_tolerance**2)
         & (guide_distance < current_guide_distance - guide_tolerance)
         & (total_hpwl <= hpwl_ceiling + equality_tolerance)
+        & (total_hpwl <= move_hpwl_ceiling + equality_tolerance)
     )
     if not len(eligible):
         return None, None
@@ -693,6 +700,7 @@ def descend(args) -> dict:
                     args.equality_tolerance,
                     args.guide_tolerance,
                     args.site_tolerance,
+                    args.max_escape_move_rise,
                 )
                 if selected is None:
                     continue
@@ -825,6 +833,7 @@ def descend(args) -> dict:
                 "escape_sweep_orders": copy.deepcopy(escape_sweep_orders),
                 "escape_hpwl_budget": args.escape_hpwl_budget,
                 "escape_hpwl_ceiling": escape_hpwl_ceiling,
+                "max_escape_move_rise": args.max_escape_move_rise,
                 "completed_escape_sweeps": completed_escape_sweeps,
                 "escape_stop_reason": escape_stop_reason,
                 "escape_move_count": len(escape_moves),
@@ -1151,6 +1160,7 @@ def descend(args) -> dict:
         "escape_held_refdes": sorted(escape_held_refdes),
         "escape_hpwl_budget": args.escape_hpwl_budget,
         "escape_hpwl_ceiling": escape_hpwl_ceiling,
+        "max_escape_move_rise": args.max_escape_move_rise,
         "completed_escape_sweeps": completed_escape_sweeps,
         "escape_stop_reason": escape_stop_reason,
         "escape_peak_hpwl": escape_peak_hpwl,
@@ -1213,6 +1223,7 @@ def parse_args():
     parser.add_argument("--max-escape-sweeps", type=int, default=0)
     parser.add_argument("--escape-order-seed", type=int)
     parser.add_argument("--escape-hpwl-budget", type=float, default=0.0)
+    parser.add_argument("--max-escape-move-rise", type=float)
     parser.add_argument("--escape-hold-sweeps", type=int, default=0)
     parser.add_argument("--escape-state-output", type=Path)
     parser.add_argument("--escape-state-placement", type=Path)
@@ -1237,6 +1248,11 @@ def parse_args():
         parser.error("--escape-order-seed must be non-negative")
     if args.escape_hpwl_budget < 0:
         parser.error("--escape-hpwl-budget must be non-negative")
+    if (
+        args.max_escape_move_rise is not None
+        and args.max_escape_move_rise < 0
+    ):
+        parser.error("--max-escape-move-rise must be non-negative")
     if args.escape_hold_sweeps < 0:
         parser.error("--escape-hold-sweeps must be non-negative")
     if args.max_escape_sweeps and args.plateau_guide is None:

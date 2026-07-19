@@ -145,3 +145,9 @@ NumPy version plus every realized refdes order; compare only runs with
 identical escape budgets, sweep limits, guides, and source hashes. This changes
 search order only: exact site containment, collision checks, and the HPWL
 envelope remain mandatory.
+
+`--max-escape-move-rise <HPWL>` optionally limits the positive HPWL increase
+of one guided move relative to its current state. It is separate from the
+total `--escape-hpwl-budget` envelope and defaults to no per-move limit. Use it
+to prevent one large guide-directed jump from consuming a long-path budget;
+both limits and every accepted move delta are recorded in the result.
