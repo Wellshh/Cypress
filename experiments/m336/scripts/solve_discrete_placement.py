@@ -974,6 +974,37 @@ def _capacity_integer_bounds(group_areas, region_capacities, scale):
     return area_units, capacity_units
 
 
+def _capacity_units_with_hint_floor(
+    area_units, capacity_units, hinted_regions, enabled
+):
+    configured = dict(capacity_units)
+    floors = {region_id: 0 for region_id in configured}
+    if enabled:
+        unknown_groups = sorted(set(hinted_regions) - set(area_units))
+        if unknown_groups:
+            raise ValueError(
+                "capacity hint contains unknown subgroups: %s"
+                % ", ".join(unknown_groups)
+            )
+        for group_id, region_id in hinted_regions.items():
+            if region_id in floors:
+                floors[region_id] += area_units[group_id]
+    effective = {
+        region_id: max(capacity, floors[region_id])
+        for region_id, capacity in configured.items()
+    }
+    overrides = {
+        region_id: {
+            "configured": configured[region_id],
+            "hint_floor": floors[region_id],
+            "effective": effective[region_id],
+        }
+        for region_id in configured
+        if effective[region_id] != configured[region_id]
+    }
+    return effective, floors, overrides
+
+
 def _is_rectangle(shape, epsilon=1e-9):
     return box(*shape.bounds).difference(shape).area <= epsilon
 
@@ -1350,7 +1381,11 @@ def _swept_bboxes_may_overlap(first, second):
 
 
 def _add_assignment_variables(
-    model, assignment_space, capacity_scale, hinted_regions=None
+    model,
+    assignment_space,
+    capacity_scale,
+    hinted_regions=None,
+    preserve_hinted_capacity=False,
 ):
     hinted_regions = dict(hinted_regions or {})
     group_vars = {}
@@ -1387,10 +1422,18 @@ def _add_assignment_variables(
             model.add(group_var == preferred_index)
         group_vars[group_id] = group_var
 
-    area_units, capacity_units = _capacity_integer_bounds(
+    area_units, configured_capacity_units = _capacity_integer_bounds(
         assignment_space["group_areas"],
         assignment_space["region_capacities"],
         capacity_scale,
+    )
+    capacity_units, capacity_hint_floor_units, capacity_overrides = (
+        _capacity_units_with_hint_floor(
+            area_units,
+            configured_capacity_units,
+            hinted_regions,
+            preserve_hinted_capacity,
+        )
     )
     for region_id, capacity in sorted(capacity_units.items()):
         terms = [
@@ -1406,6 +1449,10 @@ def _add_assignment_variables(
         "capacity_scale": capacity_scale,
         "area_units": area_units,
         "capacity_units": capacity_units,
+        "configured_capacity_units": configured_capacity_units,
+        "capacity_hint_floor_enabled": bool(preserve_hinted_capacity),
+        "capacity_hint_floor_units": capacity_hint_floor_units,
+        "capacity_hint_floor_overrides": capacity_overrides,
     }
 
 
@@ -1494,8 +1541,25 @@ def _build_model(
     candidate_guides = dict(candidate_guides or {})
     model = cp_model.CpModel()
     hinted_regions = _hinted_group_regions(site_hints, assignment_space)
+    capacity_groups = {
+        group_id
+        for group_id, nodes in assignment_space["group_nodes"].items()
+        if nodes
+    }
+    preserve_hinted_capacity = bool(
+        assignment_space["region_capacities"]
+        and capacity_groups
+        and capacity_groups <= set(hinted_regions)
+        and site_hint_report is not None
+        and site_hint_report.get("keepin_violation_count") == 0
+        and site_hint_report.get("overlap_pair_count") == 0
+    )
     assignment_state = _add_assignment_variables(
-        model, assignment_space, capacity_scale, hinted_regions
+        model,
+        assignment_space,
+        capacity_scale,
+        hinted_regions,
+        preserve_hinted_capacity,
     )
     modeled_constraints = tuple(
         constraint
@@ -2543,6 +2607,7 @@ def _model_report(args, state, assignment_space):
         "movable_subgroups": sorted(set(args.movable_subgroup)),
         "assignment_group_count": len(assignment_state["group_vars"]),
         "assignment_option_count": assignment_state["option_count"],
+        "assignment_group_areas": assignment_space["group_areas"],
         "assignment_options": {
             group_id: list(options)
             for group_id, options in sorted(
@@ -2554,6 +2619,18 @@ def _model_report(args, state, assignment_space):
         ),
         "capacity_scale": assignment_state["capacity_scale"],
         "capacity_units": assignment_state["capacity_units"],
+        "configured_capacity_units": assignment_state[
+            "configured_capacity_units"
+        ],
+        "capacity_hint_floor_enabled": assignment_state[
+            "capacity_hint_floor_enabled"
+        ],
+        "capacity_hint_floor_units": assignment_state[
+            "capacity_hint_floor_units"
+        ],
+        "capacity_hint_floor_overrides": assignment_state[
+            "capacity_hint_floor_overrides"
+        ],
         "region_capacities": assignment_space["region_capacities"],
         "collision_mode": args.collision_mode,
         "geometry_model": {
@@ -2583,6 +2660,28 @@ def _selected_assignment_data(template, selected_regions, search_report):
         selected_region = selected_regions[row["subgroup_id"]]
         for candidate in row["candidates"]:
             candidate["selected"] = candidate["region_id"] == selected_region
+    group_areas = search_report.get("model", {}).get(
+        "assignment_group_areas"
+    )
+    if group_areas is not None:
+        missing = sorted(set(selected_regions) - set(group_areas))
+        if missing:
+            raise ValueError(
+                "assignment report lacks subgroup areas: %s"
+                % ", ".join(missing)
+            )
+        region_areas = {
+            region_id: 0.0 for region_id in output["capacity_diagnostics"]
+        }
+        for group_id, region_id in selected_regions.items():
+            region_areas[region_id] += float(group_areas[group_id])
+        for region_id, row in output["capacity_diagnostics"].items():
+            member_area = region_areas[region_id]
+            row["member_area_mm2"] = member_area
+            row["utilization"] = member_area / float(row["region_area_mm2"])
+            row["free_area_utilization"] = member_area / float(
+                row["free_area_after_anchors_mm2"]
+            )
     return output
 
 

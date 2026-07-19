@@ -39,6 +39,7 @@ from solve_discrete_placement import (  # noqa: E402
     _assumption_core_refdes,
     _candidate_indices_without_obstacle_overlap,
     _capacity_integer_bounds,
+    _capacity_units_with_hint_floor,
     _coordinate_choice_index,
     _convex_parts,
     _exact_site_index,
@@ -1207,6 +1208,28 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(area, {"g": 1000001})
         self.assertEqual(capacity, {"r": 2999999})
 
+    def test_legal_hint_capacity_floor_preserves_incumbent_load(self):
+        effective, floors, overrides = _capacity_units_with_hint_floor(
+            {"g1": 3, "g2": 4},
+            {"r1": 5, "r2": 10},
+            {"g1": "r1", "g2": "r1"},
+            True,
+        )
+        self.assertEqual(effective, {"r1": 7, "r2": 10})
+        self.assertEqual(floors, {"r1": 7, "r2": 0})
+        self.assertEqual(
+            overrides,
+            {"r1": {"configured": 5, "hint_floor": 7, "effective": 7}},
+        )
+        disabled, disabled_floors, disabled_overrides = (
+            _capacity_units_with_hint_floor(
+                {"g1": 3}, {"r1": 2}, {"g1": "r1"}, False
+            )
+        )
+        self.assertEqual(disabled, {"r1": 2})
+        self.assertEqual(disabled_floors, {"r1": 0})
+        self.assertEqual(disabled_overrides, {})
+
     def test_selected_assignment_data_updates_rows_and_candidates(self):
         template = {
             "assignments": [
@@ -1221,9 +1244,24 @@ class M336BaselineTest(unittest.TestCase):
                     ],
                 }
             ],
+            "capacity_diagnostics": {
+                "left": {
+                    "region_area_mm2": 10.0,
+                    "free_area_after_anchors_mm2": 8.0,
+                },
+                "right": {
+                    "region_area_mm2": 20.0,
+                    "free_area_after_anchors_mm2": 16.0,
+                },
+            },
         }
         output = _selected_assignment_data(
-            template, {"g": "right"}, {"status": "FEASIBLE"}
+            template,
+            {"g": "right"},
+            {
+                "status": "FEASIBLE",
+                "model": {"assignment_group_areas": {"g": 2.0}},
+            },
         )
         self.assertEqual(output["schema"], "m336_region_assignment_v4")
         self.assertEqual(
@@ -1232,6 +1270,20 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(
             [row["selected"] for row in output["candidate_diagnostics"][0]["candidates"]],
             [False, True],
+        )
+        self.assertEqual(
+            output["capacity_diagnostics"]["left"]["member_area_mm2"],
+            0.0,
+        )
+        self.assertEqual(
+            output["capacity_diagnostics"]["right"]["member_area_mm2"],
+            2.0,
+        )
+        self.assertEqual(
+            output["capacity_diagnostics"]["right"][
+                "free_area_utilization"
+            ],
+            0.125,
         )
 
     def test_candidate_domains_do_not_apply_clearance_twice(self):
