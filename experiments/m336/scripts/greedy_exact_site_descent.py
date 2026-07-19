@@ -817,6 +817,11 @@ def descend(args) -> dict:
                     if args.escape_order_seed is not None
                     else None
                 ),
+                "escape_order_numpy_version": (
+                    np.__version__
+                    if args.escape_order_seed is not None
+                    else None
+                ),
                 "escape_sweep_orders": copy.deepcopy(escape_sweep_orders),
                 "escape_hpwl_budget": args.escape_hpwl_budget,
                 "escape_hpwl_ceiling": escape_hpwl_ceiling,
@@ -1135,6 +1140,9 @@ def descend(args) -> dict:
             "numpy.default_rng/PCG64"
             if args.escape_order_seed is not None
             else None
+        ),
+        "escape_order_numpy_version": (
+            np.__version__ if args.escape_order_seed is not None else None
         ),
         "escape_sweep_orders": escape_sweep_orders,
         "escape_hold_sweeps": args.escape_hold_sweeps,

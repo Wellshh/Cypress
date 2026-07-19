@@ -141,6 +141,7 @@ between concurrent probes with different assignments or geometry settings.
 `greedy_exact_site_descent.py --escape-order-seed <SEED>` samples a fresh,
 deterministic component order for each guided escape sweep. Omit the option to
 preserve the original sorted order. Seeded runs record the PCG64 generator and
-every realized refdes order; compare only runs with identical escape budgets,
-sweep limits, guides, and source hashes. This changes search order only: exact
-site containment, collision checks, and the HPWL envelope remain mandatory.
+NumPy version plus every realized refdes order; compare only runs with
+identical escape budgets, sweep limits, guides, and source hashes. This changes
+search order only: exact site containment, collision checks, and the HPWL
+envelope remain mandatory.
