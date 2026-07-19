@@ -78,6 +78,7 @@ append evidence rather than replacing prior observations.
 | [M336-068](M336-068-page6-group-improvement.md) | Critical | Mitigated | K1024 page-6 group optimization produces a strict certified improvement and fresh two-optimum |
 | [M336-069](M336-069-current-quality-domain-breadth.md) | Critical | Mitigated | Current/quality K512 candidate allocation improves the certified bottom-0/page-7 closure |
 | [M336-070](M336-070-topology-refresh-page6.md) | Critical | Mitigated | Refreshing the changed topology unlocks a second certified page-6 group improvement |
+| [M336-071](M336-071-model-shape-search-effect.md) | Critical | Mitigated | Wider movable support changes deterministic CP-SAT search even when added variables remain at source sites |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
