@@ -64,6 +64,11 @@ append evidence rather than replacing prior observations.
 | [M336-054](M336-054-hotspot-regional-domain-bound.md) | Critical | Open | A hotspot K512 region improves HPWL but its valid bound proves the restricted domain cannot score 1.0 |
 | [M336-055](M336-055-physical-group-closure.md) | Critical | Open | Physical collision closure improves HPWL and exposes fixed-budget candidate-width regression |
 | [M336-056](M336-056-bottom0-score-bound.md) | Critical | Open | Full bottom-0 K256 closure restores a valid lower bound below the score-1 threshold |
+| [M336-057](M336-057-refreshed-regional-search-stall.md) | Critical | Open | Refreshed regional and global searches remain budget-limited without another incumbent |
+| [M336-058](M336-058-bounded-improvement-search.md) | Critical | Mitigated | Hard improvement bounds expose reproducible restricted searches without weakening legality |
+| [M336-059](M336-059-hint-repair-conflict-budget.md) | High | Mitigated | Hint repair can consume deterministic time without reaching its conflict budget |
+| [M336-060](M336-060-hpwl-feasibility-audit-gap.md) | Critical | Mitigated | Pure HPWL feasibility now fails closed through selected-site and per-net replay |
+| [M336-061](M336-061-current-quality-domain-search-stall.md) | Critical | Open | Current-first quality candidates still stall and the quality guide itself contains 383 overlaps |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
