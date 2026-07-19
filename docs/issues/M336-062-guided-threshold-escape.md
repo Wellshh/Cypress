@@ -43,9 +43,36 @@ An independent rerun produced identical normalized JSON SHA-256
 Both emitted placements and the source placement are byte-identical with
 SHA-256 `a44942bee4ba8c1bf275ef08177ed359de588b8045907e2b3853d3f5a0a179c6`.
 
+## Budget Ladder
+
+Three wider deterministic runs retained the same source, quality guide, sorted
+component order, and exact checks. None produced a strict improvement, so all
+restored the source placement:
+
+| Budget | Sweeps | Guided moves | Uphill moves | Peak rise | Stop reason |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 1 | 18 | 2 | 0.885394 | sweep limit |
+| 5 | 3 | 24 | 5 | 4.286124 | no guided candidate |
+| 20 | 3 | 24 | 5 | 19.443496 | no guided candidate |
+| 100 | 3 | 33 | 15 | 69.958559 | no guided candidate |
+
+All final reports remain 100/100 contained with zero violations and overlaps.
+Raw result SHA-256 values in ascending budget order are:
+
+- `9dc1f248c2b06dbaa2c9e10c978e8c46a227b6743c9f65d5c675739d8c615379`;
+- `e672eccd5a9f8cb5b4af9034a7acb96aa6b2d225199881859570332d178d61e6`;
+- `147159c8e2818686a32bd3c5879685dae0ef17ab738bd7178bb4567ddb0f058b`;
+- `88b46cc299821192007ee02e35bbfe6e3aab63957a8fb278c18f10867f7df56d`.
+
+The budget-100 closure immediately reversed 10 perturbations before other
+components could adapt. Its largest exact reversals were `C8606` (-23.349699),
+`C8611` (-7.999141), and `C8603` (-7.928230). Increasing the envelope further
+therefore does not address the observed mechanism.
+
 ## Next Action
 
-Run a small deterministic budget ladder with multiple escape sweeps. Add pair
-closure only after a threshold path changes the post-descent topology; avoid
-repeating the already closed one-sweep basin. Any strict improvement still
-requires all-fixed CP-SAT replay certification before promotion.
+Hold only the uphill-moved components for one deterministic adaptation sweep,
+allowing all other components to descend while the changed blocker topology is
+present. Then release the hold and run normal closure. Do not enlarge the HPWL
+budget unless this controlled hold exposes a new reason. Any strict improvement
+still requires all-fixed CP-SAT replay certification before promotion.
