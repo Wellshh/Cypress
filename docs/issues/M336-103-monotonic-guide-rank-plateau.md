@@ -49,6 +49,19 @@ legality. Certification result SHA-256 is
 
 The monotonic objective now produces a certified topology near the alternate
 basin without sacrificing HPWL, so the diversity limitation is mitigated. It
-does not improve the scoring incumbent. Next, optimize HPWL from this plateau
-in the identical candidate domain, first with rank capped at 12 and then
-without a rank cap. Promote only a strict independently certified improvement.
+does not improve the scoring incumbent.
+
+## Rank-12 HPWL Closure
+
+Eight follow-up runs kept the identical model and plateau hint, changed the
+objective back to HPWL, and imposed guide rank at most 12. Both branching modes
+and seeds 1000--1003 returned `OPTIMAL` at HPWL objective and bound
+`15811.065584`. All emitted the certified plateau and passed both replay audits
+and exact legality. Automatic runs used 0.307--0.308 deterministic seconds;
+partial-fixed runs used 0.304--0.316.
+
+Therefore, within this fixed 89-component K256 candidate domain, no strict
+HPWL improvement exists at rank 12 or below; an improving candidate must have
+rank at least 13. This is a restricted-domain proof, not a whole-board bound.
+The next recovery removes the rank cap while retaining the current HPWL ceiling
+and plateau hint. Promote only a strict independently certified improvement.
