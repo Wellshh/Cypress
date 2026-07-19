@@ -22,3 +22,4 @@ tuner_logs/
 !experiments/m336/input/*.json
 !experiments/m336/schemas/*.json
 !experiments/m336/checkpoints/**/*.json
+!experiments/m336/guides/**/*.json

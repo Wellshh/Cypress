@@ -1,0 +1,40 @@
+{
+  "candidate_guides": [
+    {
+      "hpwl": 15652.448544219742,
+      "path": "s3000-certified.json",
+      "placement": "s3000-certified.pl",
+      "placement_sha256": "9a3ea48d129e4ba8b4b57d1f19376028f8744fd97a3e40ee23691cdca9783c5f",
+      "result_sha256": "ed0f29dcb715e7a74a6807b00de7bccfbddb6e42224ebc1e1f0946981cd13035",
+      "seed": 3000
+    },
+    {
+      "hpwl": 15649.948866405257,
+      "path": "s3001-certified.json",
+      "placement": "s3001-certified.pl",
+      "placement_sha256": "14b534af7e58bd277ff1fcfd4045636756bbb3a9de4386f3c307f021ddec2ed5",
+      "result_sha256": "a3a8a8ffbbd3070477e5dec13c82815b561dd5b153d0f2b2f0f4197c9c4b3f15",
+      "seed": 3001
+    },
+    {
+      "hpwl": 15652.948544219742,
+      "path": "s3003-certified.json",
+      "placement": "s3003-certified.pl",
+      "placement_sha256": "1d6830320d438463c3244232c4d68291be34d82bed0a02e9fb7da555cefc434b",
+      "result_sha256": "d868b2b3fc0ba0fd5ea675ebaf30495b59220885237d864561b45c798fec2a99",
+      "seed": 3003
+    }
+  ],
+  "moved_refdes": [
+    "C703",
+    "FV707",
+    "R707",
+    "R708"
+  ],
+  "quality_hybrid": {
+    "path": "page7-quality-hybrid.json",
+    "sha256": "0c3f83fd4d7510d316c3b08332124a5689f4b3340522fd8d41e10ccb907c2f46"
+  },
+  "schema": "m336_exact_site_guide_bundle_v1",
+  "source_checkpoint": "../../checkpoints/M336-118/certificate.json"
+}
