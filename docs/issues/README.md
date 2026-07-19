@@ -108,7 +108,7 @@ append evidence rather than replacing prior observations.
 | [M336-098](M336-098-per-move-escape-rise.md) | High | Mitigated | Guided escape can bound one HPWL rise independently from its total path envelope |
 | [M336-099](M336-099-alternate-basin-support-closure.md) | High | Mitigated | A restricted movable set fixes nine components needed to reproduce a certified alternate basin |
 | [M336-100](M336-100-guide-support-closure-audit.md) | High | Resolved | Exact probes now audit and optionally require candidate-guide support closure |
-| [M336-101](M336-101-guide-directed-search-branching.md) | High | Open | Guide-directed site branching preserves a separate incumbent hint for controlled A/B evaluation |
+| [M336-101](M336-101-guide-directed-search-branching.md) | High | Resolved | Controlled guide-directed branching lowers the restricted bound but retains the incumbent |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
