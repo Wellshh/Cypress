@@ -156,14 +156,36 @@ is byte-identical to the source placement; result SHA-256 is
 The legacy TOP-only all-fixed replay also preserved the same placement hash.
 Pure-Python M336 regressions pass 35/35.
 
+## Global Mixed-Side Result
+
+A five-component page-86 closure (`C8653`, `L8607`, `L8626`, `L8630`, and
+`MHC8601`) first reached `OPTIMAL` in 0.909893 deterministic-time without
+improving HPWL. The direct cross-side nets in that isolated K1536 subproblem
+therefore do not explain the remaining gap by themselves.
+
+The next run made all 100 controlled components movable in K64 domains
+interleaved around manual-baseline, current-legal, and quality-guide sites. It
+retained the current legal placement as the hint and used separate TOP/BOTTOM
+collision sets. At 300.000732 deterministic-time the run remained `FEASIBLE`
+but improved HPWL by `40.059070` to `16005.772295`. Exact containment remained
+100/100 with zero violations and zero overlaps.
+
+The 6,380-candidate model's valid objective lower bound is `15017.626687`,
+which is `242.742885` below the necessary HPWL threshold `15260.369572`.
+This proves only that the restricted model's bound does not rule out the
+threshold; it does not prove a threshold-passing assignment exists. Result,
+placement, and canonical-site SHA-256 values are
+`9a38dfd77d49bb8489446c60596a3f28d23f4ed63565b55e888f5cf311e3d8ee`,
+`6c7eb4d50b4e8f48bd2ed59ae3377065f6a0c2b45c5542cec6ccfb9a0c5b1cc3`,
+and `c17f28669ae6a450dabefbfd16a67c2a7f1f3b56c804706effb2b1314cc2f2a1`.
+
 ## Next Action
 
-Run a small `BOTH` subproblem containing only components on the remaining
-high-delta nets, with every other controlled component reduced to its current
-single site. Preserve the current legal incumbent and expand domains only when
-the measured bound justifies it. A full global solve is justified only after
-these cross-block candidates are assembled; acceptance still requires native
-HPWL/RSMT score at least 1.0.
+Continue from the global K64 incumbent with the same candidate model and a
+larger deterministic budget, then expand only the components that selected a
+domain boundary or still dominate per-net deltas. Preserve the current legal
+incumbent at every stage. Acceptance still requires native HPWL/RSMT score at
+least 1.0.
 
 This issue is resolved only when either a legal cross-block model reaches the
 native score gate or a valid lower bound for a model containing every relevant

@@ -182,13 +182,27 @@ legal improvement is `2024.861396`, the optimistic score upper bound is
 - canonical selected sites:
   `2a73503bd2b96fda27ac04e4e85cdc42f6e389e31e9d7ac81092fb968dfb9cfe`.
 
+The first global mixed-side sweep made all 100 controlled components movable
+in three-guide K64 domains. It found a further `40.059070` reduction to HPWL
+`16005.772295` while preserving exact legality. The run stopped `FEASIBLE` at
+300.000732 deterministic-time with 6,380 candidates, objective
+`16005.772307`, and valid lower bound `15017.626687`. The bound is below the
+necessary score threshold but does not prove that a threshold-passing
+incumbent exists. Cumulative legal improvement is `2064.920466`, and the
+optimistic score upper bound is `0.953429`. Evidence hashes are:
+
+- result: `9a38dfd77d49bb8489446c60596a3f28d23f4ed63565b55e888f5cf311e3d8ee`;
+- placement: `6c7eb4d50b4e8f48bd2ed59ae3377065f6a0c2b45c5542cec6ccfb9a0c5b1cc3`;
+- canonical selected sites:
+  `c17f28669ae6a450dabefbfd16a67c2a7f1f3b56c804706effb2b1314cc2f2a1`.
+
 ## Acceptance Impact
 
-The result remains `785.461792` above the necessary HPWL threshold
-`15260.369572`, and `0.951049` is only an optimistic HPWL/RSMT upper bound,
-not a native acceptance score. The page-7-only K1536 objective lower bound is
-now `15419.513138`, so continuing that block while every other site stays
-fixed cannot close the gate. Continue with cross-block movement as tracked in
+The result remains `745.402723` above the necessary HPWL threshold
+`15260.369572`, and `0.953429` is only an optimistic HPWL/RSMT upper bound,
+not a native acceptance score. The global K64 lower bound `15017.626687`
+leaves the score gate open within that candidate model, unlike the fixed-block
+page-7 bound. Continue global mixed-side descent as tracked in
 [M336-050](M336-050-page7-net-span-bottleneck.md), then invoke the native
 scorer. Acceptance still requires native normalized score at least 1.0 and
 promotion of the EMI601 endpoint policy from diagnostic mode.
