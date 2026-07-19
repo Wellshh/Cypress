@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import time
@@ -185,6 +186,58 @@ def _select_candidate(
     ):
         return None, None
     return selected, "plateau"
+
+
+def _select_guided_threshold_candidate(
+    total_hpwl,
+    legal,
+    centers,
+    current_center,
+    current_hpwl,
+    guide_center,
+    hpwl_ceiling,
+    region_candidate_indices,
+    improvement_tolerance,
+    equality_tolerance,
+    guide_tolerance,
+    site_tolerance,
+):
+    """Select the cheapest legal move that progresses toward the guide."""
+    guide_distance = np.square(centers - guide_center).sum(axis=1)
+    current_guide_distance = float(
+        np.square(current_center - guide_center).sum()
+    )
+    site_distance = np.square(centers - current_center).sum(axis=1)
+    eligible = np.flatnonzero(
+        legal
+        & (site_distance > site_tolerance**2)
+        & (guide_distance < current_guide_distance - guide_tolerance)
+        & (total_hpwl <= hpwl_ceiling + equality_tolerance)
+    )
+    if not len(eligible):
+        return None, None
+    best_hpwl = float(np.min(total_hpwl[eligible]))
+    tied = eligible[
+        np.abs(total_hpwl[eligible] - best_hpwl) <= equality_tolerance
+    ]
+    selected = int(
+        tied[
+            np.lexsort(
+                (
+                    region_candidate_indices[tied],
+                    guide_distance[tied],
+                )
+            )[0]
+        ]
+    )
+    selected_hpwl = float(total_hpwl[selected])
+    if selected_hpwl < current_hpwl - improvement_tolerance:
+        move_type = "strict"
+    elif selected_hpwl > current_hpwl + equality_tolerance:
+        move_type = "uphill"
+    else:
+        move_type = "plateau"
+    return selected, move_type
 
 
 def _pair_total_hpwl(
@@ -538,10 +591,131 @@ def descend(args) -> dict:
 
     initial_hpwl = float(placedb.hpwl(node_x, node_y))
     current_hpwl = initial_hpwl
+    started = time.perf_counter()
+    initial_node_x = node_x.copy()
+    initial_node_y = node_y.copy()
+    initial_centers = {
+        refdes: center.copy() for refdes, center in current_centers.items()
+    }
+    initial_selected_sites = copy.deepcopy(selected_sites)
+    escape_enabled = args.max_escape_sweeps > 0
+    escape_hpwl_ceiling = initial_hpwl + args.escape_hpwl_budget
+    escape_moves = []
+    completed_escape_sweeps = 0
+    escape_peak_hpwl = initial_hpwl
+    escape_stop_reason = "disabled"
+    if escape_enabled:
+        escape_stop_reason = "max_escape_sweeps"
+        for escape_sweep in range(args.max_escape_sweeps):
+            sweep_moves = 0
+            strict_improvement = False
+            for constraint in constraints:
+                row = candidate_rows[constraint.refdes]
+                centers = row["centers"]
+                legal = _legal_candidate_mask(
+                    constraint,
+                    centers,
+                    constraints_by_side[constraint.side],
+                    current_centers,
+                    area_epsilon,
+                )
+                total_hpwl = _candidate_total_hpwl(
+                    placedb,
+                    constraint,
+                    centers,
+                    node_x,
+                    node_y,
+                    node_nets[constraint.node_id],
+                    current_hpwl,
+                )
+                guide_center = np.asarray(
+                    plateau_guide[constraint.refdes], dtype=np.float64
+                )
+                selected, move_type = _select_guided_threshold_candidate(
+                    total_hpwl,
+                    legal,
+                    centers,
+                    current_centers[constraint.refdes],
+                    current_hpwl,
+                    guide_center,
+                    escape_hpwl_ceiling,
+                    row["eligible"],
+                    args.improvement_tolerance,
+                    args.equality_tolerance,
+                    args.guide_tolerance,
+                    args.site_tolerance,
+                )
+                if selected is None:
+                    continue
+                old_center = current_centers[constraint.refdes].copy()
+                new_center = centers[selected].copy()
+                before_hpwl = current_hpwl
+                predicted_hpwl = float(total_hpwl[selected])
+                node_x[constraint.node_id] = (
+                    new_center[0] - constraint.node_width / 2
+                )
+                node_y[constraint.node_id] = (
+                    new_center[1] - constraint.node_height / 2
+                )
+                current_centers[constraint.refdes] = new_center
+                current_hpwl = float(placedb.hpwl(node_x, node_y))
+                if abs(current_hpwl - predicted_hpwl) > 1e-8:
+                    raise ValueError(
+                        "guided candidate HPWL replay failed for "
+                        f"{constraint.refdes}"
+                    )
+                if current_hpwl > (
+                    escape_hpwl_ceiling + args.equality_tolerance
+                ):
+                    raise ValueError("guided move exceeded HPWL ceiling")
+                selected_sites[constraint.refdes] = {
+                    "region_candidate_index": int(row["eligible"][selected]),
+                    "center": new_center.tolist(),
+                }
+                escape_moves.append(
+                    {
+                        "sweep": escape_sweep,
+                        "refdes": constraint.refdes,
+                        "side": constraint.side,
+                        "move_type": move_type,
+                        "old_center": old_center.tolist(),
+                        "new_center": new_center.tolist(),
+                        "guide_distance_before": float(
+                            np.linalg.norm(old_center - guide_center)
+                        ),
+                        "guide_distance_after": float(
+                            np.linalg.norm(new_center - guide_center)
+                        ),
+                        "region_candidate_index": int(
+                            row["eligible"][selected]
+                        ),
+                        "legal_candidate_count": int(
+                            np.count_nonzero(legal)
+                        ),
+                        "hpwl_before": before_hpwl,
+                        "hpwl_after": current_hpwl,
+                        "hpwl_delta": current_hpwl - before_hpwl,
+                    }
+                )
+                escape_peak_hpwl = max(escape_peak_hpwl, current_hpwl)
+                sweep_moves += 1
+                if (
+                    current_hpwl
+                    < initial_hpwl - args.improvement_tolerance
+                ):
+                    escape_stop_reason = "strict_improvement"
+                    strict_improvement = True
+                    break
+            completed_escape_sweeps += 1
+            if strict_improvement:
+                break
+            if not sweep_moves:
+                escape_stop_reason = "no_guided_candidate"
+                break
+    escape_final_hpwl = current_hpwl
     moves = []
     pair_moves = []
     pair_searches = []
-    started = time.perf_counter()
     completed_sweeps = 0
     stop_reason = "max_sweeps"
     while completed_sweeps < args.max_sweeps:
@@ -728,6 +902,24 @@ def descend(args) -> dict:
             )
         break
 
+    search_stop_reason = stop_reason
+    returned_to_source = False
+    if (
+        escape_enabled
+        and current_hpwl
+        >= initial_hpwl - args.improvement_tolerance
+    ):
+        node_x = initial_node_x.copy()
+        node_y = initial_node_y.copy()
+        current_centers = {
+            refdes: center.copy()
+            for refdes, center in initial_centers.items()
+        }
+        selected_sites = copy.deepcopy(initial_selected_sites)
+        current_hpwl = initial_hpwl
+        returned_to_source = True
+        stop_reason = f"restored_source_after_{search_stop_reason}"
+
     position = torch.from_numpy(np.concatenate((node_x, node_y)))
     legality = context.exact_report(position, placedb)
     if legality["keepin_violation_count"] or legality["overlap_pair_count"]:
@@ -739,10 +931,28 @@ def descend(args) -> dict:
         current_hpwl / baseline_hpwl + current_hpwl / baseline_rsmt
     )
     write_placement_atomic(placedb, args.placement, node_x, node_y)
+    attempted_move_count = (
+        len(escape_moves) + len(moves) + 2 * len(pair_moves)
+    )
+    attempted_strict_move_count = (
+        sum(move["move_type"] == "strict" for move in escape_moves)
+        + sum(move["move_type"] == "strict" for move in moves)
+    )
+    attempted_plateau_move_count = (
+        sum(move["move_type"] == "plateau" for move in escape_moves)
+        + sum(move["move_type"] == "plateau" for move in moves)
+    )
+    attempted_uphill_move_count = sum(
+        move["move_type"] == "uphill" for move in escape_moves
+    )
     result = {
         "status": "FEASIBLE",
         "method": (
-            "deterministic_exact_lexicographic_two_opt_descent"
+            "deterministic_exact_guided_threshold_two_opt_search"
+            if escape_enabled and args.max_pair_moves
+            else "deterministic_exact_guided_threshold_site_search"
+            if escape_enabled
+            else "deterministic_exact_lexicographic_two_opt_descent"
             if plateau_guide is not None and args.max_pair_moves
             else "deterministic_exact_two_opt_descent"
             if args.max_pair_moves
@@ -770,18 +980,47 @@ def descend(args) -> dict:
         },
         "max_sweeps": args.max_sweeps,
         "max_pair_moves": args.max_pair_moves,
+        "max_escape_sweeps": args.max_escape_sweeps,
+        "escape_hpwl_budget": args.escape_hpwl_budget,
+        "escape_hpwl_ceiling": escape_hpwl_ceiling,
+        "completed_escape_sweeps": completed_escape_sweeps,
+        "escape_stop_reason": escape_stop_reason,
+        "escape_peak_hpwl": escape_peak_hpwl,
+        "escape_peak_hpwl_rise": escape_peak_hpwl - initial_hpwl,
+        "escape_final_hpwl": escape_final_hpwl,
+        "escape_move_count": len(escape_moves),
+        "escape_strict_move_count": sum(
+            move["move_type"] == "strict" for move in escape_moves
+        ),
+        "escape_plateau_move_count": sum(
+            move["move_type"] == "plateau" for move in escape_moves
+        ),
+        "escape_uphill_move_count": sum(
+            move["move_type"] == "uphill" for move in escape_moves
+        ),
+        "escape_moves": escape_moves,
         "completed_sweeps": completed_sweeps,
         "stop_reason": stop_reason,
+        "search_stop_reason": search_stop_reason,
+        "returned_to_source": returned_to_source,
         "elapsed_seconds": time.perf_counter() - started,
-        "move_count": len(moves) + 2 * len(pair_moves),
-        "strict_move_count": sum(
-            move["move_type"] == "strict" for move in moves
+        "attempted_move_count": attempted_move_count,
+        "attempted_strict_move_count": attempted_strict_move_count,
+        "attempted_plateau_move_count": attempted_plateau_move_count,
+        "attempted_uphill_move_count": attempted_uphill_move_count,
+        "attempted_pair_move_count": len(pair_moves),
+        "move_count": 0 if returned_to_source else attempted_move_count,
+        "strict_move_count": (
+            0 if returned_to_source else attempted_strict_move_count
         ),
-        "plateau_move_count": sum(
-            move["move_type"] == "plateau" for move in moves
+        "plateau_move_count": (
+            0 if returned_to_source else attempted_plateau_move_count
+        ),
+        "uphill_move_count": (
+            0 if returned_to_source else attempted_uphill_move_count
         ),
         "moves": moves,
-        "pair_move_count": len(pair_moves),
+        "pair_move_count": 0 if returned_to_source else len(pair_moves),
         "pair_moves": pair_moves,
         "pair_searches": pair_searches,
         "initial_hpwl": initial_hpwl,
@@ -803,6 +1042,8 @@ def parse_args():
     parser.add_argument("--placement", type=Path, required=True)
     parser.add_argument("--max-sweeps", type=int, default=20)
     parser.add_argument("--max-pair-moves", type=int, default=0)
+    parser.add_argument("--max-escape-sweeps", type=int, default=0)
+    parser.add_argument("--escape-hpwl-budget", type=float, default=0.0)
     parser.add_argument("--plateau-guide", type=Path)
     parser.add_argument("--site-tolerance", type=float, default=1e-8)
     parser.add_argument("--improvement-tolerance", type=float, default=1e-9)
@@ -818,6 +1059,12 @@ def parse_args():
         parser.error("--max-sweeps must be positive")
     if args.max_pair_moves < 0:
         parser.error("--max-pair-moves must be non-negative")
+    if args.max_escape_sweeps < 0:
+        parser.error("--max-escape-sweeps must be non-negative")
+    if args.escape_hpwl_budget < 0:
+        parser.error("--escape-hpwl-budget must be non-negative")
+    if args.max_escape_sweeps and args.plateau_guide is None:
+        parser.error("--max-escape-sweeps requires --plateau-guide")
     if any(
         tolerance < 0
         for tolerance in (
@@ -841,6 +1088,10 @@ def main() -> int:
                 for key in (
                     "status",
                     "stop_reason",
+                    "escape_stop_reason",
+                    "escape_move_count",
+                    "escape_peak_hpwl_rise",
+                    "returned_to_source",
                     "completed_sweeps",
                     "move_count",
                     "initial_hpwl",

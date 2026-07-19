@@ -66,6 +66,7 @@ from greedy_exact_site_descent import (  # noqa: E402
     _candidate_total_hpwl,
     _pair_total_hpwl,
     _select_candidate,
+    _select_guided_threshold_candidate,
 )
 from probe_exact_site_cpsat import (  # noqa: E402
     _candidate_coordinate_mismatches,
@@ -236,6 +237,44 @@ class M336BaselineTest(unittest.TestCase):
             guide_tolerance=1e-12,
         )
         self.assertEqual((selected, move_type), (2, "strict"))
+
+    def test_guided_threshold_move_is_bounded_and_deterministic(self):
+        centers = np.asarray(
+            [[0.0, 0.0], [2.0, 1.0], [2.0, -1.0], [3.0, 0.0]]
+        )
+        arguments = dict(
+            legal=np.asarray([True, True, True, False]),
+            centers=centers,
+            current_center=centers[0],
+            current_hpwl=10.0,
+            guide_center=centers[3],
+            region_candidate_indices=np.asarray([0, 9, 4, 3]),
+            improvement_tolerance=1e-9,
+            equality_tolerance=1e-9,
+            guide_tolerance=1e-12,
+            site_tolerance=1e-8,
+        )
+        selected, move_type = _select_guided_threshold_candidate(
+            total_hpwl=np.asarray([10.0, 10.5, 10.5, 9.0]),
+            hpwl_ceiling=10.5,
+            **arguments,
+        )
+        self.assertEqual((selected, move_type), (2, "uphill"))
+
+        selected, move_type = _select_guided_threshold_candidate(
+            total_hpwl=np.asarray([10.0, 10.5, 10.5, 9.0]),
+            hpwl_ceiling=10.4,
+            **arguments,
+        )
+        self.assertEqual((selected, move_type), (None, None))
+
+        arguments["legal"] = np.asarray([True, True, False, False])
+        selected, move_type = _select_guided_threshold_candidate(
+            total_hpwl=np.asarray([10.0, 9.5, 10.5, 9.0]),
+            hpwl_ceiling=10.0,
+            **arguments,
+        )
+        self.assertEqual((selected, move_type), (1, "strict"))
 
     def test_greedy_candidate_hpwl_only_replaces_incident_nets(self):
         placedb = SimpleNamespace(
