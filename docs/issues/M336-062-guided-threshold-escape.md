@@ -84,10 +84,23 @@ the restored placement remains `a44942bee4ba8c1bf275ef08177ed359de588b8045907e2b
 The M336 suite passes 46/46, including exclusion of reverted uphill and pure
 plateau moves from the held set.
 
+## Held Pair Scan
+
+Pair search now accepts an excluded refdes set. Held components remain in exact
+blocker and collision calculations but cannot be pair endpoints. The budget-20
+hold-active scan evaluated 2,629 relevant pairs and 1,210,129 site
+combinations among the other 95 components. It found no descending pair.
+
+After release, two ordinary pair moves reverted the remaining `B401` and
+`C501` perturbations, returning exactly to source HPWL. They are recovery, not
+quality improvement. The result restored the source placement and has SHA-256
+`b61ab3bed735de7090750f97bc3e755b5c35fcec23e550193b5321d5df7f5876`.
+The M336 suite passes 47/47, including a held-endpoint exclusion test.
+
 ## Next Action
 
-Run blocker-aware exact pair search during the hold window, excluding the five
-held components while retaining them as collision obstacles. This tests the
-smallest remaining higher-order neighborhood without increasing the HPWL
-budget. Any strict improvement still requires all-fixed CP-SAT replay
+Repeat the held pair scan once at budget 100, where 15 uphill moves produce a
+materially different legal topology. If that hold-active neighborhood also has
+no descending pair, stop this monotonic quality-guide path rather than tuning
+more budgets. Any strict improvement still requires all-fixed CP-SAT replay
 certification before promotion.

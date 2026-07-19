@@ -400,6 +400,7 @@ def _best_pair_move(
     current_hpwl,
     area_epsilon,
     improvement_tolerance,
+    excluded_refdes=frozenset(),
 ):
     blockers = _candidate_blockers(
         constraints, candidate_rows, current_centers, area_epsilon
@@ -408,10 +409,14 @@ def _best_pair_move(
     evaluated_pairs = 0
     evaluated_combinations = 0
     for first_index, first in enumerate(constraints):
+        if first.refdes in excluded_refdes:
+            continue
         first_row = candidate_rows[first.refdes]
         first_blockers = blockers[first.refdes]
         for second_index in range(first_index + 1, len(constraints)):
             second = constraints[second_index]
+            if second.refdes in excluded_refdes:
+                continue
             second_row = candidate_rows[second.refdes]
             second_blockers = blockers[second.refdes]
             shared_nets = node_nets[first.node_id] & node_nets[second.node_id]
@@ -852,8 +857,11 @@ def descend(args) -> dict:
         completed_sweeps += 1
         if hold_active:
             completed_escape_hold_sweeps += 1
-        if sweep_moves or hold_active:
+        if sweep_moves:
             continue
+        pair_excluded_refdes = (
+            escape_held_refdes if hold_active else frozenset()
+        )
         if len(pair_moves) < args.max_pair_moves:
             pair_started = time.perf_counter()
             pair_move, pair_diagnostics = _best_pair_move(
@@ -867,6 +875,11 @@ def descend(args) -> dict:
                 current_hpwl,
                 area_epsilon,
                 args.improvement_tolerance,
+                excluded_refdes=pair_excluded_refdes,
+            )
+            pair_diagnostics["hold_active"] = hold_active
+            pair_diagnostics["excluded_refdes"] = sorted(
+                pair_excluded_refdes
             )
             pair_diagnostics["elapsed_seconds"] = (
                 time.perf_counter() - pair_started
@@ -921,6 +934,8 @@ def descend(args) -> dict:
                 )
                 pair_moves.append(pair_move)
                 continue
+        if hold_active:
+            continue
         if args.max_pair_moves and len(pair_moves) >= args.max_pair_moves:
             stop_reason = "max_pair_moves"
             break

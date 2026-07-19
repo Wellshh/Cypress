@@ -63,6 +63,7 @@ from solve_discrete_placement import (  # noqa: E402
 )
 from analyze_shared_box_bound import solve_shared_box_assignment  # noqa: E402
 from greedy_exact_site_descent import (  # noqa: E402
+    _best_pair_move,
     _candidate_total_hpwl,
     _escape_hold_refdes,
     _pair_total_hpwl,
@@ -299,6 +300,46 @@ class M336BaselineTest(unittest.TestCase):
             ),
             frozenset({"U1"}),
         )
+
+    def test_pair_search_excludes_held_components(self):
+        footprint = box(-0.5, -0.5, 0.5, 0.5)
+        constraints = [
+            SimpleNamespace(
+                refdes=refdes,
+                node_id=node_id,
+                side="TOP",
+                domain=SimpleNamespace(footprint_local=footprint),
+            )
+            for node_id, refdes in enumerate(("A", "B"))
+        ]
+        candidate_rows = {
+            "A": {
+                "centers": np.asarray([[0.0, 0.0]]),
+                "eligible": np.asarray([0]),
+            },
+            "B": {
+                "centers": np.asarray([[2.0, 0.0]]),
+                "eligible": np.asarray([0]),
+            },
+        }
+        move, diagnostics = _best_pair_move(
+            placedb=None,
+            constraints=constraints,
+            candidate_rows=candidate_rows,
+            current_centers={
+                "A": np.asarray([0.0, 0.0]),
+                "B": np.asarray([2.0, 0.0]),
+            },
+            node_x=None,
+            node_y=None,
+            node_nets={},
+            current_hpwl=10.0,
+            area_epsilon=1e-5,
+            improvement_tolerance=1e-9,
+            excluded_refdes=frozenset({"A"}),
+        )
+        self.assertIsNone(move)
+        self.assertEqual(diagnostics["evaluated_pair_count"], 0)
 
     def test_greedy_candidate_hpwl_only_replaces_incident_nets(self):
         placedb = SimpleNamespace(
