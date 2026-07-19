@@ -72,6 +72,7 @@ append evidence rather than replacing prior observations.
 | [M336-062](M336-062-guided-threshold-escape.md) | Critical | Mitigated | Deterministic guided threshold escape crosses local barriers without weakening exact legality |
 | [M336-063](M336-063-exact-escape-search-seed.md) | High | Mitigated | Worse exact escape states can seed global search without entering the scoring path |
 | [M336-064](M336-064-legacy-endpoint-metadata-replay.md) | Critical | Resolved | Legacy endpoint overrides now replay from either metadata location and conflict fail-closed |
+| [M336-065](M336-065-corrected-residual-boundary-expansion.md) | Critical | Open | Corrected 80-component residual boundary is score-permitting but stalls under one K128 budget |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
