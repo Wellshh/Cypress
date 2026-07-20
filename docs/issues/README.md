@@ -187,6 +187,7 @@ append-only audit ledger.
 | [M336-174](M336-174-contact-consensus-overcorrects-active-components.md) | Critical | Open | Contact consensus overwrites every active proposal and conflates crossing endpoints with bounded correction scope |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
+| [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |
 
 Status values are `Open`, `Mitigated`, `Resolved`, and `Accepted Risk`. A
 finding is resolved only after its acceptance criteria have direct test or
