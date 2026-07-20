@@ -1,7 +1,7 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-138`
+证据范围：`M336-105` 至 `M336-139`
 
 上位合同：[`SPEC.md`](SPEC.md)
 
@@ -15,7 +15,7 @@ keep-in、锚点、E0-E4 与默认关闭行为的验收合同；本文不得削�
 generation 与 HPWL closure、按 residual net 生成 guide、按物理闭包扩张
 support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应用以下修正：
 
-- 提案快照止于 M336-122；当前实现证据已推进到 M336-138。
+- 提案快照止于 M336-122；当前实现证据已推进到 M336-139。
 - guide-rank 是稳定的拓扑成本，不是多样性约束；M336-128 已证明无 HPWL
   上限时它仍返回 seed 3001。
 - M336-050 和旧 Q601/two-anchor 证明只能约束各自声明的有限域，不能外推为
@@ -103,6 +103,13 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
   最近距离仍逐字等于 M336-137，其他五类 dedicated guide 均 exact-cover 自身
   endpoint。故 DATA2 下一步必须直接优化 exact-feasible net span 并分类其
   full-domain 障碍，不能继续复用 collision-relaxed target 做 weight ladder。
+- `M336-139` 将 target coverage 扩展到 continuous keep-in、完整 keep-in lattice
+  与完整 uncontrolled-obstacle-free domain。`FV710/R708` target 均是 exact
+  keep-in site，但分别与 frozen `MIC401` 重叠 `0.081943924/0.013330545 mm2`，
+  obstacle pruning 后最近距离为 `2.934706/0.05 mm`。M336-138 candidate set 以
+  Jaccard `1.0` 重放，排除 instrumentation side effect。扩大 K 或调整 weight
+  无法恢复完整 obstacle-free domain 中不存在的坐标；必须保持 `MIC401` 冻结并
+  直接优化 DATA2 的 legal alternative。
 
 当前六个主要乐观 residual 均集中在 page 7：
 
@@ -211,10 +218,13 @@ target-directed 位移。下一轮必须直接优化各 residual net span，并�
 obstacle-pruned domain fingerprint、candidate count 与 candidate-index SHA，否则
 fail closed。tracked reference 为
 `experiments/m336/coverage/M336-137/m122-page7-k4096.json`。`M336-138` 已完成六个
-M336-130 target guide 对照：candidate set 明显变化但 DATA2 exact gap 不变。下一
-节点必须报告 DATA2 target 到完整 obstacle-pruned domain 的最近距离及阻碍类型，
-并直接生成 exact-feasible span guide。guide 的 first-admitted site 数只表示
-weighted round-robin 中实际插入者，不能替代 target-presence 检查。
+M336-130 target guide 对照：candidate set 明显变化但 DATA2 exact gap 不变。
+`M336-139` 已完成 DATA2 full-domain 分类：两个 target 的唯一 uncontrolled fixed
+blocker 都是 `MIC401`；M336-124 另有 controlled/releasable `B402` overlap。下一
+节点不再追逐原 target 坐标，而是在 `MIC401` frozen、`FV710/R708/B402` 及实测
+physical partner movable 的合同下直接最小化 `PSIM2_DATA2` exact span，并保留
+global HPWL rise envelope。guide 的 first-admitted site 数只表示 weighted
+round-robin 中实际插入者，不能替代 target-presence 检查。
 
 高 residual endpoint/blocker 可用 full-site 或 K8192，次要 page-7 member 用
 K2048/K4096，低相关 member 用 K512/K1024。只有 coverage 报告证明新增了不同

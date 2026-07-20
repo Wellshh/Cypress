@@ -363,6 +363,142 @@ def _candidate_domain_fingerprint(region_indices, centers):
     return digest.hexdigest()
 
 
+def _candidate_target_domain_coverage(
+    constraint,
+    obstacle_free_region_indices,
+    guides,
+    fixed_obstacles,
+    site_tolerance=DIVERSITY_SITE_TOLERANCE,
+    coordinate_units_per_mm=1.0,
+    overlap_epsilon=1e-12,
+):
+    keepin_centers = np.asarray(
+        constraint.domain.valid_centers, dtype=np.float64
+    )
+    obstacle_free_region_indices = np.asarray(
+        obstacle_free_region_indices, dtype=np.int64
+    )
+    if (
+        keepin_centers.ndim != 2
+        or keepin_centers.shape[1:] != (2,)
+        or not len(keepin_centers)
+        or not np.all(np.isfinite(keepin_centers))
+        or obstacle_free_region_indices.ndim != 1
+        or not len(obstacle_free_region_indices)
+        or len(set(map(int, obstacle_free_region_indices)))
+        != len(obstacle_free_region_indices)
+        or np.any(obstacle_free_region_indices < 0)
+        or np.any(obstacle_free_region_indices >= len(keepin_centers))
+        or not math.isfinite(site_tolerance)
+        or site_tolerance < 0
+        or not math.isfinite(coordinate_units_per_mm)
+        or coordinate_units_per_mm <= 0
+        or not math.isfinite(overlap_epsilon)
+        or overlap_epsilon < 0
+    ):
+        raise ValueError("candidate coverage target domain is invalid")
+    obstacle_refdes = [str(refdes) for refdes, _ in fixed_obstacles]
+    if len(set(obstacle_refdes)) != len(obstacle_refdes):
+        raise ValueError("candidate coverage fixed obstacles must be unique")
+
+    obstacle_free_centers = keepin_centers[obstacle_free_region_indices]
+    rows = []
+    for guide_index, guide in enumerate(guides):
+        if constraint.refdes not in guide:
+            raise ValueError(
+                f"candidate coverage guide {guide_index} is missing "
+                f"{constraint.refdes}"
+            )
+        target = np.asarray(guide[constraint.refdes], dtype=np.float64)
+        if target.shape != (2,) or not np.all(np.isfinite(target)):
+            raise ValueError("candidate coverage targets must be finite 2D")
+
+        keepin_distances = np.linalg.norm(keepin_centers - target, axis=1)
+        keepin_position = int(np.argmin(keepin_distances))
+        keepin_distance = float(keepin_distances[keepin_position])
+        obstacle_free_distances = np.linalg.norm(
+            obstacle_free_centers - target, axis=1
+        )
+        obstacle_free_position = int(np.argmin(obstacle_free_distances))
+        obstacle_free_distance = float(
+            obstacle_free_distances[obstacle_free_position]
+        )
+        obstacle_free_region_index = int(
+            obstacle_free_region_indices[obstacle_free_position]
+        )
+
+        target_footprint = constraint.domain.footprint(target)
+        overlaps = []
+        for refdes, obstacle in fixed_obstacles:
+            if not target_footprint.intersects(obstacle):
+                continue
+            area = float(target_footprint.intersection(obstacle).area)
+            if area <= overlap_epsilon:
+                continue
+            overlaps.append(
+                {
+                    "refdes": str(refdes),
+                    "area": area,
+                    "area_mm2": (
+                        area / coordinate_units_per_mm**2
+                    ),
+                }
+            )
+        overlaps.sort(key=lambda row: row["refdes"])
+
+        rows.append(
+            {
+                "guide_index": guide_index,
+                "target_contained_in_keepin": bool(
+                    constraint.domain.contains(target)
+                ),
+                "keepin_candidate_count": len(keepin_centers),
+                "nearest_keepin_region_index": keepin_position,
+                "nearest_keepin_center": [
+                    float(value) for value in keepin_centers[keepin_position]
+                ],
+                "minimum_keepin_target_distance": keepin_distance,
+                "minimum_keepin_target_distance_mm": (
+                    keepin_distance / coordinate_units_per_mm
+                ),
+                "exact_keepin_target_site_present": (
+                    keepin_distance <= site_tolerance
+                ),
+                "obstacle_free_candidate_count": len(
+                    obstacle_free_region_indices
+                ),
+                "nearest_obstacle_free_region_index": (
+                    obstacle_free_region_index
+                ),
+                "nearest_obstacle_free_center": [
+                    float(value)
+                    for value in keepin_centers[obstacle_free_region_index]
+                ],
+                "minimum_obstacle_free_target_distance": (
+                    obstacle_free_distance
+                ),
+                "minimum_obstacle_free_target_distance_mm": (
+                    obstacle_free_distance / coordinate_units_per_mm
+                ),
+                "exact_obstacle_free_target_site_present": (
+                    obstacle_free_distance <= site_tolerance
+                ),
+                "target_fixed_obstacle_overlap_count": len(overlaps),
+                "target_fixed_obstacle_refdes": [
+                    row["refdes"] for row in overlaps
+                ],
+                "target_fixed_obstacle_overlap_area": sum(
+                    row["area"] for row in overlaps
+                ),
+                "target_fixed_obstacle_overlap_area_mm2": sum(
+                    row["area_mm2"] for row in overlaps
+                ),
+                "target_fixed_obstacle_overlaps": overlaps,
+            }
+        )
+    return rows
+
+
 def _candidate_coverage_component(
     refdes,
     domain_sha256,
@@ -372,6 +508,7 @@ def _candidate_coverage_component(
     guides,
     site_tolerance=DIVERSITY_SITE_TOLERANCE,
     coordinate_units_per_mm=1.0,
+    domain_coverage=None,
 ):
     region_indices = np.asarray(region_indices, dtype=np.int64)
     centers = np.asarray(centers, dtype=np.float64)
@@ -397,6 +534,13 @@ def _candidate_coverage_component(
         attributed_guide_indices >= len(guides)
     ):
         raise ValueError("candidate coverage attribution is out of range")
+    if domain_coverage is not None and (
+        not isinstance(domain_coverage, list)
+        or len(domain_coverage) != len(guides)
+        or [row.get("guide_index") for row in domain_coverage]
+        != list(range(len(guides)))
+    ):
+        raise ValueError("candidate coverage target domains do not align")
 
     guide_coverage = []
     for guide_index, guide in enumerate(guides):
@@ -409,23 +553,28 @@ def _candidate_coverage_component(
             raise ValueError("candidate coverage targets must be finite 2D")
         distances = np.linalg.norm(centers - target, axis=1)
         minimum_distance = float(np.min(distances))
-        guide_coverage.append(
-            {
-                "guide_index": guide_index,
-                "attributed_candidate_count": int(
-                    np.count_nonzero(
-                        attributed_guide_indices == guide_index
-                    )
-                ),
-                "minimum_target_distance": minimum_distance,
-                "minimum_target_distance_mm": (
-                    minimum_distance / coordinate_units_per_mm
-                ),
-                "exact_target_site_present": (
-                    minimum_distance <= site_tolerance
-                ),
-            }
-        )
+        row = {
+            "guide_index": guide_index,
+            "attributed_candidate_count": int(
+                np.count_nonzero(attributed_guide_indices == guide_index)
+            ),
+            "minimum_target_distance": minimum_distance,
+            "minimum_target_distance_mm": (
+                minimum_distance / coordinate_units_per_mm
+            ),
+            "exact_target_site_present": (
+                minimum_distance <= site_tolerance
+            ),
+        }
+        if domain_coverage is not None:
+            extra = dict(domain_coverage[guide_index])
+            extra.pop("guide_index")
+            if set(row) & set(extra):
+                raise ValueError(
+                    "candidate coverage target domain fields conflict"
+                )
+            row.update(extra)
+        guide_coverage.append(row)
 
     candidate_indices = [int(value) for value in region_indices]
     return {
@@ -561,6 +710,15 @@ def _build_candidate_coverage_audit(
             raise ValueError("candidate coverage component identity mismatch")
         if len(component.get("guide_coverage", [])) != guide_count:
             raise ValueError("candidate coverage guide counts do not align")
+    domain_field = "exact_obstacle_free_target_site_present"
+    domain_field_presence = [
+        domain_field in row
+        for component in components.values()
+        for row in component["guide_coverage"]
+    ]
+    if any(domain_field_presence) and not all(domain_field_presence):
+        raise ValueError("candidate target domain coverage is incomplete")
+    target_domain_coverage_enabled = all(domain_field_presence)
 
     guides = []
     for guide_index, guide_path in enumerate(guide_paths):
@@ -575,27 +733,75 @@ def _build_candidate_coverage_audit(
         attributed = [
             row["attributed_candidate_count"] for row in coverage_rows
         ]
-        guides.append(
-            {
-                "guide_index": guide_index,
-                "guide_json": str(guide_path),
-                "attributed_candidate_count": sum(attributed),
-                "component_count_with_attribution": sum(
-                    value > 0 for value in attributed
-                ),
-                "exact_target_component_count": sum(
-                    row["exact_target_site_present"] for row in coverage_rows
-                ),
-                "minimum_target_distance": min(distances),
-                "maximum_target_distance": max(distances),
-                "mean_target_distance": sum(distances) / len(distances),
-                "minimum_target_distance_mm": min(distances_mm),
-                "maximum_target_distance_mm": max(distances_mm),
-                "mean_target_distance_mm": (
-                    sum(distances_mm) / len(distances_mm)
-                ),
-            }
-        )
+        summary = {
+            "guide_index": guide_index,
+            "guide_json": str(guide_path),
+            "attributed_candidate_count": sum(attributed),
+            "component_count_with_attribution": sum(
+                value > 0 for value in attributed
+            ),
+            "exact_target_component_count": sum(
+                row["exact_target_site_present"] for row in coverage_rows
+            ),
+            "minimum_target_distance": min(distances),
+            "maximum_target_distance": max(distances),
+            "mean_target_distance": sum(distances) / len(distances),
+            "minimum_target_distance_mm": min(distances_mm),
+            "maximum_target_distance_mm": max(distances_mm),
+            "mean_target_distance_mm": (
+                sum(distances_mm) / len(distances_mm)
+            ),
+        }
+        if target_domain_coverage_enabled:
+            obstacle_free_distances = [
+                row["minimum_obstacle_free_target_distance"]
+                for row in coverage_rows
+            ]
+            obstacle_free_distances_mm = [
+                row["minimum_obstacle_free_target_distance_mm"]
+                for row in coverage_rows
+            ]
+            summary.update(
+                {
+                    "continuous_keepin_target_component_count": sum(
+                        row["target_contained_in_keepin"]
+                        for row in coverage_rows
+                    ),
+                    "exact_keepin_target_component_count": sum(
+                        row["exact_keepin_target_site_present"]
+                        for row in coverage_rows
+                    ),
+                    "exact_obstacle_free_target_component_count": sum(
+                        row["exact_obstacle_free_target_site_present"]
+                        for row in coverage_rows
+                    ),
+                    "fixed_obstacle_target_component_count": sum(
+                        row["target_fixed_obstacle_overlap_count"] > 0
+                        for row in coverage_rows
+                    ),
+                    "minimum_obstacle_free_target_distance": min(
+                        obstacle_free_distances
+                    ),
+                    "maximum_obstacle_free_target_distance": max(
+                        obstacle_free_distances
+                    ),
+                    "mean_obstacle_free_target_distance": (
+                        sum(obstacle_free_distances)
+                        / len(obstacle_free_distances)
+                    ),
+                    "minimum_obstacle_free_target_distance_mm": min(
+                        obstacle_free_distances_mm
+                    ),
+                    "maximum_obstacle_free_target_distance_mm": max(
+                        obstacle_free_distances_mm
+                    ),
+                    "mean_obstacle_free_target_distance_mm": (
+                        sum(obstacle_free_distances_mm)
+                        / len(obstacle_free_distances_mm)
+                    ),
+                }
+            )
+        guides.append(summary)
 
     net_coverage = []
     for net_name, endpoints in endpoint_refdes_by_net.items():
@@ -615,22 +821,67 @@ def _build_candidate_coverage_audit(
             distances_mm = [
                 row["minimum_target_distance_mm"] for row in rows
             ]
-            guide_rows.append(
-                {
-                    "guide_index": guide_index,
-                    "exact_target_endpoint_count": sum(
-                        row["exact_target_site_present"] for row in rows
-                    ),
-                    "minimum_target_distance": min(distances),
-                    "maximum_target_distance": max(distances),
-                    "mean_target_distance": sum(distances) / len(distances),
-                    "minimum_target_distance_mm": min(distances_mm),
-                    "maximum_target_distance_mm": max(distances_mm),
-                    "mean_target_distance_mm": (
-                        sum(distances_mm) / len(distances_mm)
-                    ),
-                }
-            )
+            summary = {
+                "guide_index": guide_index,
+                "exact_target_endpoint_count": sum(
+                    row["exact_target_site_present"] for row in rows
+                ),
+                "minimum_target_distance": min(distances),
+                "maximum_target_distance": max(distances),
+                "mean_target_distance": sum(distances) / len(distances),
+                "minimum_target_distance_mm": min(distances_mm),
+                "maximum_target_distance_mm": max(distances_mm),
+                "mean_target_distance_mm": (
+                    sum(distances_mm) / len(distances_mm)
+                ),
+            }
+            if target_domain_coverage_enabled:
+                obstacle_free_distances = [
+                    row["minimum_obstacle_free_target_distance"]
+                    for row in rows
+                ]
+                obstacle_free_distances_mm = [
+                    row["minimum_obstacle_free_target_distance_mm"]
+                    for row in rows
+                ]
+                summary.update(
+                    {
+                        "continuous_keepin_target_endpoint_count": sum(
+                            row["target_contained_in_keepin"] for row in rows
+                        ),
+                        "exact_keepin_target_endpoint_count": sum(
+                            row["exact_keepin_target_site_present"]
+                            for row in rows
+                        ),
+                        "exact_obstacle_free_target_endpoint_count": sum(
+                            row["exact_obstacle_free_target_site_present"]
+                            for row in rows
+                        ),
+                        "fixed_obstacle_target_endpoint_count": sum(
+                            row["target_fixed_obstacle_overlap_count"] > 0
+                            for row in rows
+                        ),
+                        "minimum_obstacle_free_target_distance": min(
+                            obstacle_free_distances
+                        ),
+                        "maximum_obstacle_free_target_distance": max(
+                            obstacle_free_distances
+                        ),
+                        "mean_obstacle_free_target_distance": (
+                            sum(obstacle_free_distances) / len(rows)
+                        ),
+                        "minimum_obstacle_free_target_distance_mm": min(
+                            obstacle_free_distances_mm
+                        ),
+                        "maximum_obstacle_free_target_distance_mm": max(
+                            obstacle_free_distances_mm
+                        ),
+                        "mean_obstacle_free_target_distance_mm": (
+                            sum(obstacle_free_distances_mm) / len(rows)
+                        ),
+                    }
+                )
+            guide_rows.append(summary)
         net_coverage.append(
             {
                 "net_name": net_name,
@@ -650,6 +901,9 @@ def _build_candidate_coverage_audit(
         "enabled": True,
         "site_tolerance": site_tolerance,
         "coordinate_units_per_mm": coordinate_units_per_mm,
+        "target_domain_coverage_enabled": (
+            target_domain_coverage_enabled
+        ),
         "scope_count": len(components),
         "scope_refdes": sorted(components),
         "candidate_count": sum(
@@ -1417,6 +1671,7 @@ def main() -> int:
     packing_sides = _packing_sides(packing_side)
     controlled_ids = {constraint.node_id for constraint in context.constraints}
     obstacles_by_side = {side: [] for side in PLACEMENT_SIDES}
+    fixed_obstacles_by_side = {side: [] for side in PLACEMENT_SIDES}
     for node_id in range(placedb.num_physical_nodes):
         node_side = (
             "TOP" if bool(placedb.node_side_flag[node_id]) else "BOTTOM"
@@ -1428,12 +1683,14 @@ def main() -> int:
         footprint = _fixed_footprint_local(
             context, placedb, node_id, "decomposed"
         )
-        obstacles_by_side[node_side].append(
-            affinity.translate(
-                footprint,
-                xoff=float(fixed_x[node_id]) + width / 2,
-                yoff=float(fixed_y[node_id]) + height / 2,
-            )
+        obstacle = affinity.translate(
+            footprint,
+            xoff=float(fixed_x[node_id]) + width / 2,
+            yoff=float(fixed_y[node_id]) + height / 2,
+        )
+        obstacles_by_side[node_side].append(obstacle)
+        fixed_obstacles_by_side[node_side].append(
+            (_decode(placedb.node_names[node_id]), obstacle)
         )
 
     constraints = sorted(
@@ -1709,12 +1966,22 @@ def main() -> int:
         )
         centers = constraint.domain.valid_centers[eligible]
         coverage_domain_sha256 = None
+        coverage_target_domains = None
         if (
             candidate_coverage_enabled
             and constraint.refdes in candidate_coverage_scope
         ):
             coverage_domain_sha256 = _candidate_domain_fingerprint(
                 eligible, centers
+            )
+            coverage_target_domains = _candidate_target_domain_coverage(
+                constraint,
+                eligible,
+                guides,
+                fixed_obstacles_by_side[constraint.side],
+                coordinate_units_per_mm=abs(
+                    float(context.alignment.scale)
+                ),
             )
         orders = []
         for guide in guides:
@@ -1820,6 +2087,7 @@ def main() -> int:
                     coordinate_units_per_mm=abs(
                         float(context.alignment.scale)
                     ),
+                    domain_coverage=coverage_target_domains,
                 )
             )
 

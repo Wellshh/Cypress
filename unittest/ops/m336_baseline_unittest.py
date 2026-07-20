@@ -82,6 +82,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _build_candidate_coverage_audit,
     _candidate_coverage_component,
     _candidate_coverage_net_endpoints,
+    _candidate_target_domain_coverage,
     _candidate_coordinate_mismatches,
     _candidate_domain_fingerprint,
     _candidate_guide_support_audit,
@@ -1012,6 +1013,87 @@ class M336BaselineTest(unittest.TestCase):
             _candidate_coverage_net_endpoints(
                 placedb, constraints, ["N1", "N1"], ["A"]
             )
+
+    def test_candidate_target_domain_coverage_classifies_obstacles(self):
+        domain = FeasibleDomain.build(
+            box(0.0, 0.0, 4.0, 4.0),
+            width=1.0,
+            height=1.0,
+            grid=1.0,
+        )
+        constraint = SimpleNamespace(refdes="A", domain=domain)
+        exact_target = np.asarray([2.0, 2.0])
+        blocked_index = int(
+            np.flatnonzero(
+                np.all(domain.valid_centers == exact_target, axis=1)
+            )[0]
+        )
+        obstacle_free = np.delete(
+            np.arange(len(domain.valid_centers)), blocked_index
+        )
+        guides = [{"A": exact_target}, {"A": [2.4, 2.0]}]
+        rows = _candidate_target_domain_coverage(
+            constraint,
+            obstacle_free,
+            guides,
+            [("BLOCK", box(1.5, 1.5, 2.5, 2.5))],
+            coordinate_units_per_mm=2.0,
+        )
+
+        self.assertTrue(rows[0]["target_contained_in_keepin"])
+        self.assertTrue(rows[0]["exact_keepin_target_site_present"])
+        self.assertFalse(
+            rows[0]["exact_obstacle_free_target_site_present"]
+        )
+        self.assertEqual(
+            rows[0]["target_fixed_obstacle_refdes"], ["BLOCK"]
+        )
+        self.assertEqual(rows[0]["minimum_obstacle_free_target_distance"], 1.0)
+        self.assertEqual(
+            rows[0]["minimum_obstacle_free_target_distance_mm"], 0.5
+        )
+        self.assertAlmostEqual(
+            rows[1]["minimum_keepin_target_distance"], 0.4
+        )
+        self.assertAlmostEqual(
+            rows[1]["minimum_obstacle_free_target_distance"], 0.6
+        )
+
+        component = _candidate_coverage_component(
+            "A",
+            _candidate_domain_fingerprint(
+                obstacle_free, domain.valid_centers[obstacle_free]
+            ),
+            obstacle_free,
+            domain.valid_centers[obstacle_free],
+            np.arange(len(obstacle_free)) % 2,
+            guides,
+            coordinate_units_per_mm=2.0,
+            domain_coverage=rows,
+        )
+        audit = _build_candidate_coverage_audit(
+            {"A": component},
+            ["exact.json", "offset.json"],
+            {"N": ["A"]},
+            coordinate_units_per_mm=2.0,
+        )
+        self.assertTrue(audit["target_domain_coverage_enabled"])
+        self.assertEqual(
+            audit["guides"][0]["exact_keepin_target_component_count"],
+            1,
+        )
+        self.assertEqual(
+            audit["guides"][0][
+                "exact_obstacle_free_target_component_count"
+            ],
+            0,
+        )
+        self.assertEqual(
+            audit["net_endpoint_coverage"][0]["guides"][0][
+                "fixed_obstacle_target_endpoint_count"
+            ],
+            1,
+        )
 
     def test_candidate_coverage_values_are_strict(self):
         self.assertEqual(
