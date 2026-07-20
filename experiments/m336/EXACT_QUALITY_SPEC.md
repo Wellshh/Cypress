@@ -1,7 +1,7 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-133`
+证据范围：`M336-105` 至 `M336-134`
 
 上位合同：[`SPEC.md`](SPEC.md)
 
@@ -79,6 +79,10 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
 - `M336-133` 对首个 rank-11 d6 tuple 加 exact no-good 后，再次于 rank 11
   `OPTIMAL`，说明该层存在退化多解。两个不同 d6 topology 经 one-opt 后 placement
   SHA 完全一致，随后均回到 M336-129 swap plateau；尚不能视为 rank-11 层穷尽。
+- `M336-134` 同时排除前两个 tuple 后找到第三个 rank-11 `OPTIMAL`。三个解实现
+  `FV705/FV710/R708` 的全部两两组合，但 one-opt 后再次得到同一 placement SHA；
+  rank-11 层至少有三个解，仍未证明穷尽。只有输入 placement 字节、候选域合同与
+  closure 实现均相同时，才可按 SHA 复用已认证的 pair closure。
 
 当前六个主要乐观 residual 均集中在 page 7：
 
