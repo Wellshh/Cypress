@@ -193,6 +193,23 @@ def _require_objective_replay_audit(source) -> None:
         )
 
 
+def _native_evaluation_config(base_config, aux_path, native_dir):
+    """Build a float-preserving evaluate-only native placement config."""
+    config = dict(base_config)
+    config.update(
+        {
+            "aux_input": str(aux_path.resolve()),
+            "deterministic_flag": 1,
+            "dtype": "float64",
+            "evaluate_pl": 0,
+            "global_place_flag": 0,
+            "plot_flag": 0,
+            "result_dir": str(native_dir.resolve()),
+        }
+    )
+    return config
+
+
 def score(args) -> dict:
     source = json.loads(args.result.read_text())
     if source.get("status") not in {"FEASIBLE", "OPTIMAL"}:
@@ -270,17 +287,9 @@ def score(args) -> dict:
 
     baseline = json.loads(args.baseline_result.read_text())
     baseline_config = ROOT / baseline["artifacts"]["config"]
-    config = json.loads(baseline_config.read_text())
     native_dir = args.output_dir / "native"
-    config.update(
-        {
-            "aux_input": str(aux_path.resolve()),
-            "deterministic_flag": 1,
-            "evaluate_pl": 0,
-            "global_place_flag": 0,
-            "plot_flag": 0,
-            "result_dir": str(native_dir.resolve()),
-        }
+    config = _native_evaluation_config(
+        json.loads(baseline_config.read_text()), aux_path, native_dir
     )
     config_path = args.output_dir / "placement.json"
     _write_json_atomic(config_path, config)

@@ -1492,7 +1492,7 @@ row height = %g, site width = %g
         str_node_names = np.array(self.node_names).astype(str)
         str_node_orient = np.array(self.node_orient).astype(str)
         for i in range(self.num_movable_nodes):
-            content += "\n%s %g %g : %s" % (
+            content += "\n%s %.17g %.17g : %s" % (
                 str_node_names[i],
                 node_x[i],
                 node_y[i],
@@ -1503,7 +1503,7 @@ row height = %g, site width = %g
         for i, node_id in enumerate(fixed_node_indices):
             orient = str(self.rawdb.node(node_id).orient())
             orient = orient.split('.')[-1]
-            content += "\n%s %g %g : %s /FIXED" % (
+            content += "\n%s %.17g %.17g : %s /FIXED" % (
                 str(self.rawdb.nodeName(node_id)),
                 float(self.rawdb.node(node_id).xl()),
                 float(self.rawdb.node(node_id).yl()),
@@ -1513,7 +1513,7 @@ row height = %g, site width = %g
             self.num_movable_nodes + self.num_terminals,
             self.num_movable_nodes + self.num_terminals + self.num_terminal_NIs,
         ):
-            content += "\n%s %g %g : %s /FIXED_NI" % (
+            content += "\n%s %.17g %.17g : %s /FIXED_NI" % (
                 str_node_names[i],
                 node_x[i],
                 node_y[i],

@@ -113,6 +113,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
 )
 from score_exact_site_result import (  # noqa: E402
     _manual_baseline_endpoints,
+    _native_evaluation_config,
     _require_objective_replay_audit,
 )
 from exact_site_checkpoint import (  # noqa: E402
@@ -127,6 +128,7 @@ from dreamplace.constraints.region_projection import (  # noqa: E402
     FeasibleDomain,
     NodeConstraint,
 )
+from dreamplace import PlaceDB  # noqa: E402
 
 
 def make_symbol(refdes, center, side, pin_delta):
@@ -183,6 +185,44 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_native_evaluation_config_is_float_preserving(self):
+        base = {"dtype": "float32", "global_place_flag": 1}
+        config = _native_evaluation_config(
+            base, Path("/tmp/input.aux"), Path("/tmp/native")
+        )
+
+        self.assertEqual(base["dtype"], "float32")
+        self.assertEqual(config["dtype"], "float64")
+        self.assertEqual(config["global_place_flag"], 0)
+        self.assertEqual(config["evaluate_pl"], 0)
+
+    def test_bookshelf_placement_serialization_preserves_float64(self):
+        rawdb = SimpleNamespace(fixedNodeIndices=lambda: [])
+        placedb = SimpleNamespace(
+            node_names=np.asarray(["A"]),
+            node_orient=np.asarray(["N"]),
+            num_movable_nodes=1,
+            num_terminals=0,
+            num_terminal_NIs=0,
+            rawdb=rawdb,
+        )
+        expected_x = np.float64(1085.7262634541055)
+        expected_y = np.float64(56.11610041961012)
+
+        with tempfile.TemporaryDirectory() as directory:
+            placement = Path(directory) / "roundtrip.pl"
+            PlaceDB.PlaceDB.write_pl(
+                placedb,
+                None,
+                str(placement),
+                np.asarray([expected_x]),
+                np.asarray([expected_y]),
+            )
+            fields = placement.read_text().splitlines()[2].split()
+
+        self.assertEqual(float(fields[1]), expected_x)
+        self.assertEqual(float(fields[2]), expected_y)
+
     def test_hybrid_guide_replaces_only_selected_components(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
