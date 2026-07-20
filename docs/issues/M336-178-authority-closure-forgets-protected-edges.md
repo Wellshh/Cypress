@@ -229,3 +229,59 @@ pushed and pulled.
 - The synthetic cycle and the real M336 closure terminate without weakening
   exact legality or bounds.
 - The complete D1 conjunction passes before any larger native run.
+
+## Scale-1 D1 Replay and Stop
+
+The implementation was signed, committed, pushed, and pulled at
+`f56fb09eb42fb7efcaeb26f6783ae8556e69a06a` before the only authorized effect
+run. It used checkpoint-warm E2/E3, seed `1000`, ten iterations, LR scale `1`,
+deterministic CuBLAS, physical GPU 2, and explicit run-local paths. No D2, D3,
+E4, repair, fallback, CP-SAT, or parameter ladder ran.
+
+```text
+results/m336/native-cypress/
+  m336-178-protected-authority-d1-warm-10-scale1/
+summary SHA-256
+ce275a8b3a315e04cfb90936c2a373be35dd505ea1252eabd8931cbb6ca933c2
+report SHA-256
+4c2797a81724660c5343f31409531db21f8dc9ea8184730f33db42fcc10df53c
+E2/E3 exact-guard SHA-256
+7e79d4073aace712865d716d93b724c62bdccfdb4e33c0c5ca5a814f58fd0569
+e7d8a2f61e4e2cb3b87268f9dd6dc764b06164dc549abb7dc84d0f308ba7e97f
+```
+
+Both arms prove the complete native CUDA chain with 13 backward calls and ten
+changing Adam steps. All `20/20` attempts are accepted on retry zero, every
+accepted step is exact legal, and final plus serialized replay are 100/100
+contained with zero keep-in violations, overlaps, or coordinate drift. Input
+and replay placement hashes match.
+
+The protected closure itself passes. No attempt reports
+`protected_edge_reopened`, `iteration_limit`, a repeated current edge, or any
+bound failure. Six real closures per arm expand through
+`C8608/C8619/U8601`, validate `C8608/C8619` and `C8619/U8601` together, and
+finish legal. Maximum component/state scope is `5/16` and `256/4096`.
+
+| Gate | E2 | E3 | Result |
+| --- | ---: | ---: | :---: |
+| Accepted / rejected | `10 / 0` | `10 / 0` | pass |
+| Writes vs matching rigid | `155 / 166` | `158 / 166` | pass |
+| Writes vs M336-174 ceiling | `155 / 181` | `158 / 184` | pass |
+| Maximum corrected IDs | `20 / 32` | `24 / 32` | pass |
+| Maximum correction | `0.003264203 mm` | `0.003264203 mm` | pass; byte-identical to M336-174 maximum |
+| Native HPWL | `15632.829467` | `15632.912493` | pass |
+| FLUTE RSMT | `17328.847` | `17327.768` | **E2 fail** |
+| Normalized score | `0.9280109609` | `0.9280376473` | reported |
+| GPU ratio vs feature-off | **`2.414253x`** | `1.938453x` | **E2 fail** |
+| End-to-end ratio | `1.197140x` | `1.167840x` | pass |
+
+Against M336-174, HPWL improves by `0.280323/0.106598` and E3 RSMT improves
+by `0.439`; E2 RSMT regresses by `0.547`. E3 remains strictly better than E2
+in anchor mean/p90 by `0.001307%/0.000473%`. The exact correction maximum is
+the same raw value and coordinate scale as M336-174; its displayed value is
+not a new overrun of the rounded `0.00326420 mm` contract.
+
+The conjunction fails on E2 RSMT and GPU runtime. M336-179 records exhaustive
+authority-search cost, while M336-180 records the FLUTE topology regression.
+N6 remains blocked. No larger run is authorized until both successors have a
+reviewed implementation and pass one combined scale-1 D1.

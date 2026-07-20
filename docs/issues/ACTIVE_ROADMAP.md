@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-178`
+**Evidence through:** `M336-180`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (M336-178 implementation verified; D1 pending) | Prevent native optimizer steps from crossing same-side footprint contacts | Commit/push/pull the protected-edge closure, then requalify scale-1 D1 before any larger run |
+| N6 (M336-178 closure proven; blocked by M336-179/180) | Prevent native optimizer steps from crossing same-side footprint contacts | Reduce exact enumeration cost and prevent E2 FLUTE regression, then pass one combined scale-1 D1 |
 
 ## Paused Exact-Site Priorities
 
@@ -526,6 +526,27 @@ source/install parity. The aggregate entrypoint repeats TEST-001's ten known
 errors across `267` tests and is not green. This remains implementation-only
 evidence: commit, push, and pull it before the one authorized D1; all larger
 runs and tuning remain prohibited.
+
+The only authorized M336-178 D1 at `f56fb09` proves the closure correction but
+fails the conjunctive promotion gate. E2/E3 each accept all ten first attempts,
+remain exact legal through zero-drift serialization, and never reopen or repeat
+a protected edge. Six closures per arm jointly validate the real
+`C8608/C8619/U8601` chain. Writes are `155/158`, below matching rigid
+`166/166` and M336-174 `181/184`; HPWL improves in both arms and E3 retains a
+positive anchor direction. E2 nevertheless regresses M336-174 RSMT by `0.547`
+and takes `2.414253x` the M336-171 feature-off GPU time. E3 passes those two
+gates. Therefore no D2, D3, E4, fallback, CP-SAT, cap change, or parameter
+ladder is authorized.
+
+M336-179 isolates the runtime blocker. Protected search exactly tests 2,051 E2
+authority states and consumes `1.257221 s` in contact projection, versus
+`0.529680 s` for M336-174 rigid projection. Any optimization must preserve the
+exhaustive winner byte-for-byte and distinguish logical, evaluated, and proven
+pruned states. M336-180 isolates the quality blocker: offline native per-net
+replay exactly reproduces the aggregate and attributes `+1.127` RSMT to the
+84-pin `GND` net while its HPWL is unchanged. A reviewed native-Cypress design
+must address this discrete topology signal without checkpoint fallback or
+exact-site optimization. Wait for both candidates, then run one combined D1.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
