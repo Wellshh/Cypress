@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-177`
+**Evidence through:** `M336-178`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (blocked; M336-177 D1 failed) | Prevent native optimizer steps from crossing same-side footprint contacts | Replace the costly eight-pass authority closure under a separately reviewed contract, then requalify scale-1 D1 before any larger run |
+| N6 (M336-178 contract defined; implementation pending) | Prevent native optimizer steps from crossing same-side footprint contacts | Make authority closure monotonic over affected protected-edge components, then requalify scale-1 D1 before any larger run |
 
 ## Paused Exact-Site Priorities
 
@@ -501,6 +501,18 @@ strictly lower than E2, but only by `0.0001312%/0.0000286%`. The conjunctive D1
 gate therefore fails. Do not run D2, D3, E4, fallback, CP-SAT, cap changes, or
 parameter ladders; a successor must first address bounded closure convergence,
 runtime, and quality under a new reviewed contract.
+
+M336-178 isolates the closure failure exactly. All `18/18` rejected M336-177
+attempts alternate `C8608/C8619` and `C8619/U8601` until the eight-pass limit,
+then retain `C8619/U8601` as the sole residual overlap. The implementation
+records both edges in `protected_edges` but plans and validates only
+`current_edges`, so restoring `C8619` to its zero-correction native proposal
+deterministically reopens the prior inactive contact. The next default-off mode
+must replan only protected components touched by a current edge while validating
+all historical edges in that closure. The observed three-node expansion has at
+most nine assignments and needs no cap increase. Commit/push/pull the issue and
+implementation separately, preserve all old modes, and then run only the
+predeclared scale-1 D1. No parameter ladder or larger experiment is authorized.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

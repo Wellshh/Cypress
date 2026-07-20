@@ -188,6 +188,7 @@ append-only audit ledger.
 | [M336-175](M336-175-output-dir-does-not-scope-summary.md) | High | Open | Native matrix output-dir leaves summary/report at mutable global defaults unless both paths are repeated explicitly |
 | [M336-176](M336-176-rigid-contact-consensus-exceeds-minimum-rollback-cover.md) | Critical | Open | Minimum-cover D1 is exact legal but fails RSMT and E3 anchor gates; D2/D3 remain blocked |
 | [M336-177](M336-177-origin-rollback-recaptures-contact-scope.md) | Critical | Open | Proposal-authority D1 reduces correction writes but fails native quality and GPU-runtime gates |
+| [M336-178](M336-178-authority-closure-forgets-protected-edges.md) | Critical | Open | Current-edge authority closure deterministically reopens a protected contact in all rejected D1 attempts |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |

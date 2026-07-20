@@ -310,6 +310,13 @@ run and remain prohibited. Any successor needs a separately reviewed contract
 that addresses closure convergence and cost while retaining the demonstrated
 multi-authority write reduction and exact safety.
 
+## Successor
+
+M336-178 identifies the deterministic closure cycle: authority planning records
+but does not validate previously protected edges. Its separately gated
+`protected_proposal_authority_search` contract must be implemented and
+qualified before another effect run.
+
 ## Acceptance Criteria
 
 - Search consumes only displacements produced by the current native optimizer
