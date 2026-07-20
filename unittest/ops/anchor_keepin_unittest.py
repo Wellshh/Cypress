@@ -1171,14 +1171,53 @@ class AnchorKeepInTest(unittest.TestCase):
         self.assertTrue(first["gradient_refreshed"])
         self.assertEqual(first["raw_weight"], 10.0)
         self.assertEqual(first["effective_weight"], 0.0)
+        self.assertEqual(first["gradient_age"], 0)
+        self.assertTrue(first["effective_ratio_is_current"])
         self.assertFalse(ramped["gradient_refreshed"])
         self.assertEqual(ramped["effective_weight"], 5.0)
+        self.assertEqual(ramped["gradient_age"], 1)
+        self.assertEqual(
+            ramped["effective_ratio_basis"], "last_refreshed_gradients"
+        )
         self.assertEqual(refreshed["bounded_weight"], 0.1)
         self.assertEqual(refreshed["ema_weight"], 5.05)
         self.assertEqual(refreshed["controlled_weight"], 0.1)
         self.assertEqual(refreshed["effective_weight"], 0.1)
         self.assertAlmostEqual(refreshed["effective_ratio"], 0.1)
+        self.assertEqual(refreshed["gradient_age"], 0)
+        self.assertTrue(refreshed["effective_ratio_is_current"])
         self.assertLessEqual(refreshed["effective_weight"], 10.0)
+
+    def test_interval_one_tracks_sharp_wirelength_drop_during_ramp(self):
+        arguments = {
+            "target_ratio": 0.1,
+            "ema_decay": 0.8,
+            "min_weight": 0.0,
+            "max_weight": 5000.0,
+            "warmup_iterations": 2,
+            "ramp_iterations": 10,
+        }
+        stale = AdaptiveAnchorWeight(update_interval=5, **arguments)
+        current = AdaptiveAnchorWeight(update_interval=1, **arguments)
+
+        stale.step(0, 150.0, 1.0)
+        stale.step(1)
+        stale_ramp = stale.step(2)
+        current.step(0, 150.0, 1.0)
+        current.step(1, 10.0, 1.0)
+        current_ramp = current.step(2, 10.0, 1.0)
+
+        self.assertEqual(stale_ramp["gradient_age"], 2)
+        self.assertFalse(stale_ramp["effective_ratio_is_current"])
+        self.assertAlmostEqual(
+            stale_ramp["effective_weight"] / 10.0, 0.15
+        )
+        self.assertEqual(current_ramp["gradient_age"], 0)
+        self.assertTrue(current_ramp["effective_ratio_is_current"])
+        self.assertAlmostEqual(current_ramp["effective_ratio"], 0.01)
+        self.assertAlmostEqual(
+            current_ramp["effective_weight"] / 10.0, 0.01
+        )
 
     def test_adaptive_anchor_weight_rejects_nonfinite_configuration(self):
         with self.assertRaisesRegex(ValueError, "must be finite"):

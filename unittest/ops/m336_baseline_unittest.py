@@ -295,6 +295,33 @@ class M336BaselineTest(unittest.TestCase):
 
         self.assertEqual(differing_fields, {"name", "anchor_loss"})
 
+    def test_native_runner_serializes_fresh_anchor_schedule(self):
+        arguments = (
+            Path("/tmp/m336-run"),
+            Path("/tmp/m336-constraints.json"),
+            EXPERIMENTS["E3"],
+            1000,
+            10,
+            True,
+            0.1,
+            0.05,
+            0.0,
+            0.1,
+            0.05,
+            Path("/tmp/m336.aux"),
+        )
+
+        config = placement_config(
+            *arguments, source_placement=Path("/tmp/m336.pl")
+        )
+
+        self.assertEqual(config["anchor_weight_update_interval"], 1)
+        self.assertEqual(config["anchor_weight_ema_decay"], 0.8)
+        self.assertEqual(config["anchor_weight_min"], 0.0)
+        self.assertEqual(config["anchor_weight_max"], 5000.0)
+        self.assertEqual(config["anchor_weight_warmup_iterations"], 2)
+        self.assertEqual(config["anchor_weight_ramp_iterations"], 10)
+
     def test_irregular_density_ablation_is_explicit(self):
         arguments = (
             Path("/tmp/m336-run"),
@@ -729,6 +756,10 @@ class M336BaselineTest(unittest.TestCase):
             "ramp": 0.0,
             "effective_weight": 0.0,
             "effective_ratio": 0.0,
+            "gradient_refresh_iteration": 0,
+            "gradient_age": 0,
+            "effective_ratio_basis": "current_gradients",
+            "effective_ratio_is_current": True,
         }
         second = dict(
             first,
@@ -736,6 +767,7 @@ class M336BaselineTest(unittest.TestCase):
             ramp=0.5,
             effective_weight=0.5,
             effective_ratio=0.05,
+            gradient_refresh_iteration=1,
         )
         log_text = "\n".join(
             "anchor weight update: %s" % json.dumps(update, sort_keys=True)
@@ -749,6 +781,12 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(diagnostics["configured_target_ratio"], 0.1)
         self.assertEqual(diagnostics["matched_weight"], 0.5)
         self.assertEqual(diagnostics["effective_ratio"], 0.05)
+        self.assertEqual(diagnostics["gradient_refresh_iteration"], 1)
+        self.assertEqual(diagnostics["gradient_age"], 0)
+        self.assertEqual(
+            diagnostics["effective_ratio_basis"], "current_gradients"
+        )
+        self.assertTrue(diagnostics["effective_ratio_is_current"])
         self.assertEqual(diagnostics["update_count"], 2)
 
     def test_native_execution_summary_is_fail_closed(self):

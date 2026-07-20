@@ -148,6 +148,7 @@ class AdaptiveAnchorWeight:
         self.last_anchor_gradient_l1 = None
         self.last_raw_weight = None
         self.last_bounded_weight = None
+        self.last_refresh_iteration = None
 
     def needs_gradient_refresh(self, iteration):
         return self.ema_weight is None or iteration % self.update_interval == 0
@@ -204,6 +205,7 @@ class AdaptiveAnchorWeight:
             self.last_anchor_gradient_l1 = anchor_gradient_l1
             self.last_raw_weight = raw_weight
             self.last_bounded_weight = bounded_weight
+            self.last_refresh_iteration = iteration
 
         # EMA should delay an upward weight change, not preserve stale pressure
         # after the freshly matched weight drops.
@@ -220,9 +222,12 @@ class AdaptiveAnchorWeight:
             )
         else:
             effective_ratio = 0.0
+        gradient_age = iteration - self.last_refresh_iteration
         return {
             "iteration": iteration,
             "gradient_refreshed": refreshed,
+            "gradient_refresh_iteration": self.last_refresh_iteration,
+            "gradient_age": gradient_age,
             "target_ratio": self.target_ratio,
             "wirelength_gradient_l1": self.last_wirelength_gradient_l1,
             "anchor_gradient_l1": self.last_anchor_gradient_l1,
@@ -233,6 +238,12 @@ class AdaptiveAnchorWeight:
             "ramp": ramp,
             "effective_weight": effective_weight,
             "effective_ratio": effective_ratio,
+            "effective_ratio_basis": (
+                "current_gradients"
+                if gradient_age == 0
+                else "last_refreshed_gradients"
+            ),
+            "effective_ratio_is_current": gradient_age == 0,
             "min_weight": self.min_weight,
             "max_weight": self.max_weight,
         }

@@ -350,6 +350,15 @@ ladders; first make the M336 schedule explicit, refresh every accepted short-run
 iteration, report gradient age honestly, and validate the controller before
 requesting one further D2 replay.
 
+The M336-173 implementation candidate keeps the generic interval-5 default but
+explicitly serializes interval `1`, EMA `0.8`, warm-up `2`, ramp `10`, and the
+existing bounds for M336 E1-E4. Controller evidence now carries gradient age
+and an explicit current-versus-last-refresh ratio basis. A synthetic 15x norm
+drop and installed-module anchor/config/reproducibility/contact/guard suites all
+pass. This is not a promotion result: do not run another D2 until its gates are
+authorized, and do not use the schedule fix to relax the genuine 32-active-node
+boundary found by M336-172.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

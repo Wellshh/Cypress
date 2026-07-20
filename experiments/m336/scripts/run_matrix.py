@@ -35,6 +35,12 @@ DEFAULT_M336_CHECKPOINT_PL = (
 DEFAULT_M336_CONSTRAINT_GRID_MM = 0.05
 DEFAULT_M336_TARGET_DENSITY = 0.85
 DEFAULT_M336_LEARNING_RATE = 0.01
+M336_ANCHOR_WEIGHT_UPDATE_INTERVAL = 1
+M336_ANCHOR_WEIGHT_EMA_DECAY = 0.8
+M336_ANCHOR_WEIGHT_MIN = 0.0
+M336_ANCHOR_WEIGHT_MAX = 5000.0
+M336_ANCHOR_WEIGHT_WARMUP_ITERATIONS = 2
+M336_ANCHOR_WEIGHT_RAMP_ITERATIONS = 10
 MIN_M336_LEARNING_RATE_SCALE = 1.0
 MAX_M336_LEARNING_RATE_SCALE = 32.0
 DEFAULT_CUBLAS_WORKSPACE_CONFIG = ":4096:8"
@@ -545,6 +551,18 @@ def placement_config(
                 "anchor_keepin_flag": True,
                 "anchor_loss_flag": spec["anchor_loss"],
                 "anchor_gradient_ratio": anchor_gradient_ratio,
+                "anchor_weight_update_interval": (
+                    M336_ANCHOR_WEIGHT_UPDATE_INTERVAL
+                ),
+                "anchor_weight_ema_decay": M336_ANCHOR_WEIGHT_EMA_DECAY,
+                "anchor_weight_min": M336_ANCHOR_WEIGHT_MIN,
+                "anchor_weight_max": M336_ANCHOR_WEIGHT_MAX,
+                "anchor_weight_warmup_iterations": (
+                    M336_ANCHOR_WEIGHT_WARMUP_ITERATIONS
+                ),
+                "anchor_weight_ramp_iterations": (
+                    M336_ANCHOR_WEIGHT_RAMP_ITERATIONS
+                ),
                 "keepin_soft_loss_flag": spec["soft_loss"],
                 "irregular_density_flag": bool(
                     spec["irregular_density"] and irregular_density
@@ -927,6 +945,16 @@ def parse_weight_diagnostics(log_text, label, configured_scale):
                 "bounded_weight": latest["bounded_weight"],
                 "ema_weight": latest["ema_weight"],
                 "ramp": latest["ramp"],
+                "gradient_refresh_iteration": latest.get(
+                    "gradient_refresh_iteration"
+                ),
+                "gradient_age": latest.get("gradient_age"),
+                "effective_ratio_basis": latest.get(
+                    "effective_ratio_basis"
+                ),
+                "effective_ratio_is_current": latest.get(
+                    "effective_ratio_is_current"
+                ),
                 "update_count": len(updates),
             }
     if label == "footprint collision loss":

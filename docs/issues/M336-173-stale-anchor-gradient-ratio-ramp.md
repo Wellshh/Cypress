@@ -120,3 +120,56 @@ appears correctly bounded.
   pass from the installed tree.
 - A further D2 run occurs only after explicit authorization and predeclared
   scope, anchor-direction, quality, and runtime gates.
+
+## Implementation Candidate
+
+The M336 runner now serializes the complete fixed anchor schedule in every
+integrated E1-E4 config:
+
+```text
+anchor_weight_update_interval  1
+anchor_weight_ema_decay         0.8
+anchor_weight_min               0.0
+anchor_weight_max               5000.0
+anchor_weight_warmup_iterations 2
+anchor_weight_ramp_iterations   10
+```
+
+The generic Cypress default remains interval `5`; feature-off and unrelated
+flows therefore retain their existing behavior. Target ratio, LR, collision
+settings, contact budget, exact guard, and projection lifecycle are unchanged.
+
+`AdaptiveAnchorWeight` now records `gradient_refresh_iteration`,
+`gradient_age`, `effective_ratio_basis`, and
+`effective_ratio_is_current`. The existing `effective_ratio` field remains for
+compatibility, but a consumer can no longer mistake a value based on stored
+norms for a current-gradient measurement. The M336 summary parser preserves
+these fields in `anchor_loss_diagnostics`.
+
+A focused test reproduces a wirelength norm drop from `150` to `10`. The
+interval-5 controller identifies age `2` and a stale current-ratio proxy of
+`0.15`; the interval-1 M336 controller reports age `0` and the intended ramped
+ratio `0.01`. A config test verifies every fixed schedule value.
+
+Validation after installation:
+
+```text
+anchor/keep-in/collision  52/52
+M336 baseline/config     105/105
+reproducibility           17/17
+exact contact projector    8/8
+exact accepted-step guard  6/6
+source/install anchor op  byte-identical
+Python compile/diff check pass
+```
+
+Directly executing two files copied under `install/unittest/` failed because
+those tests derive the repository root from their own path and consequently
+look for `install/experiments/`; one also cannot import the non-installed M336
+runner scripts. Running the canonical source test paths with
+`PYTHONPATH="$PWD/install:$PWD:/tmp/m336-ortools-py311"` exercises the installed
+modules and passes. These were unsupported-entry command errors, not assertion
+failures.
+
+This is implementation evidence only. M336-173 remains open and no post-change
+D2 run has been authorized.
