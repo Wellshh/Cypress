@@ -140,6 +140,7 @@ append-only audit ledger.
 | [M336-126](M336-126-expanded-guide-single-move-barrier.md) | Critical | Open | Expanded-guided single-component escape reproduces only the three existing page-7 families |
 | [M336-127](M336-127-expanded-guide-rank-envelope-barrier.md) | Critical | Open | Joint exact rank optimization retains seed 3001 through a 200-HPWL escape envelope |
 | [M336-128](M336-128-unbounded-rank-incumbent-exclusion-gap.md) | Critical | Resolved | Exact Hamming exclusion and tuple no-goods now force and replay distinct legal topologies |
+| [M336-129](M336-129-incumbent-exclusion-swap-plateau.md) | Critical | Mitigated | Explicit exclusion produces a certified distinct swap plateau at incumbent HPWL |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

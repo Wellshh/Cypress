@@ -1,7 +1,8 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-128`  
+证据范围：`M336-105` 至 `M336-129`
+
 上位合同：[`SPEC.md`](SPEC.md)
 
 本文只规定当前 exact-site 质量优化阶段。原始 `SPEC.md` 仍是几何、
@@ -61,6 +62,9 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
   仍只复现已有 family。
 - `M336-128` 去除 HPWL 模型后，四次全局 rank solve 均 `OPTIMAL` 于 rank
   `72`，并逐字节复现 seed 3001。guide rank 本身不能强制拓扑多样性。
+- `M336-129` 用显式 exclusion 在 M336-122 域中生成并认证了不同于 incumbent
+  的 `C703/FV707` swap plateau；其 HPWL 与 M336-118 相同，但独立 closure
+  尚未产生严格改善。
 
 当前六个主要乐观 residual 均集中在 page 7：
 

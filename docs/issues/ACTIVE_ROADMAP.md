@@ -1,7 +1,8 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-128`  
+**Evidence through:** `M336-129`
+
 **Active specification:**
 [`experiments/m336/EXACT_QUALITY_SPEC.md`](../../experiments/m336/EXACT_QUALITY_SPEC.md)
 
@@ -34,7 +35,7 @@ zero overlaps. Its placement SHA-256 is
 | Input and geometry correctness | Parsing, coordinates, footprints, collision quantization, exact replay | Retained prerequisites | Original `SPEC.md` and resolved issue evidence |
 | Historical Q601/two-anchor policy | `M336-012/014/016/018/022/028/030-045` and their declared finite domains | Historical; not an active score blocker | Current EMI601-only policy revalidated by `M336-105` |
 | Current endpoint legality | Manual EMI601, runtime Q601, fixed assignment, 0.05 mm | Stable | M336-118 portable checkpoint and `M336-119` |
-| Exact-site quality optimization | `M336-105` through `M336-128` | **Active** | `EXACT_QUALITY_SPEC.md` |
+| Exact-site quality optimization | `M336-105` through `M336-129` | **Active** | `EXACT_QUALITY_SPEC.md` |
 | Cypress production integration | Soft margin gradient, warm-start cost, E3/E4 anchor/runtime gates | Open, deferred | Resume after a score-1 exact-site reference exists |
 
 Old infeasibility and lower-bound documents remain valid only for their exact
@@ -54,9 +55,9 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 
 ## Current Boundary
 
-M336-128 now provides independent Hamming exclusion and exact tuple no-goods;
-two K16 integration probes forced and replayed distinct legal topologies. That
-small-domain smoke does not answer the quality question. The next evidence must
-come from the M336-122 18-component K4096 domain with M336-118 as diversity
-reference, the specified `d/Delta` ladder, and independent HPWL closure. Another
+M336-129 applied exclusion to the exact M336-122 18-component K4096 domain and
+found a certified `C703/FV707` site-swap topology at exactly the M336-118 HPWL.
+A 300-DT closure retained that distinct plateau but found no strict
+improvement; the score-permitting bound remains open. Continue exact no-good
+enumeration at d4, then d6/d8, using only feasible certified hints. Another
 seed, guide-weight, or runtime ladder without exclusion remains out of scope.
