@@ -155,6 +155,61 @@ counterfactual rigid scope, validator time, and exact failure reason.
 9. Adam and Nesterov guard rejection restores position and optimizer state;
    legal/no-op, old modes, and feature-off behavior remain unchanged.
 
+## Implementation Candidate
+
+The default-off `proposal_authority_search` mode now implements the bounded
+contract without introducing an exact-site placement path. For each current
+exact contact component it freezes the post-keep-in native proposal, deduplicates
+proposal displacements by dtype-preserving bytes, and enumerates only those
+authorities. Every scratch assignment is quantized to the runtime dtype, passed
+through the same `RegionProjector` feasible domains without changing projector
+state, and checked with exact footprint geometry before it can be selected.
+
+Selection minimizes newly corrected IDs, squared final correction, and stable
+node/authority IDs in that order. The existing 32-ID cumulative cap is checked
+before a real write; component size remains capped at 16 and authority states at
+4,096. A second runtime hard projection and full exact validator remain
+mandatory. Any disagreement between scratch and runtime projection restores the
+candidate byte-for-byte and returns `authority_projection_mismatch` rather than
+silently expanding correction scope. Diagnostics now preserve current/protected
+edges, authority assignments, exact state counts and time, scratch projection,
+counterfactual rigid scope, cumulative IDs, and the final exact reason.
+
+The runner, params schema, resume contract, reproduction command, and summaries
+carry the state bound only in authority mode. `component_consensus` and
+`minimum_cover_rollback` were compared against the pre-change module on paired
+fixtures; coordinates and every non-timing result field are identical.
+
+Installed-tree verification on physical GPU 2 completed as follows:
+
+```text
+exact contact projection   38/38
+anchor / keep-in           54/54
+exact accepted-step guard   6/6
+reproducibility            19/19
+irregular density           9/9
+M336 baseline/config      105/105
+focused total             231/231
+```
+
+Source and installed hashes match for all runtime files:
+
+```text
+NonLinearPlace.py                 0698b83e281bfc5e9908828c2645de22f68d56027c56c0e041b50428e2c3d05a
+anchor_keepin.py                  040dd54d8af6eaeb16b711714b199f6796b7fc4bbfceca701f87f0928376a1aa
+exact_contact_projection.py      4491a213e0c4c43021d19fd4e89cbc1ac3ef3824e39fbc83eba7d72f7a790e22
+region_projection.py             822b2427504445ccef1689b76cf9a7b98e842de59b10244e204b985c629df6cb
+params.json                      d7c8c3ca2ac8879b8707376acf2f73f23f9c1f31f3c10982c1e69bb96abce99e
+```
+
+The aggregate runner still reports TEST-001's same 10 unrelated API-drift
+errors across 260 tests while returning status zero; it is not a passing suite.
+No native C/CUDA source changed, so `clang-format` is not applicable. The
+protected M336-141 aggregate remains
+`4091eb8e0611a8042bbc0bf5bed6d15843909d2168a21a4a34655653607ff77d`.
+This is implementation evidence only: D1 remains unauthorized until this
+candidate is signed, committed, pushed, and pulled.
+
 ## Experiment Gates
 
 No M336 effect run is authorized until this issue and implementation are

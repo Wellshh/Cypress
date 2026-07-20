@@ -2677,6 +2677,96 @@ class AnchorKeepInContext:
             "overlap_pairs": overlap_pairs,
         }
 
+    def exact_contact_component_report(
+        self, lower_left_by_node_id, edges, placedb
+    ):
+        """Validate one translated contact component without scanning the board."""
+        lower_left_by_node_id = {
+            int(node_id): (float(value[0]), float(value[1]))
+            for node_id, value in lower_left_by_node_id.items()
+        }
+        edges = tuple(
+            sorted(tuple(sorted((int(edge[0]), int(edge[1])))) for edge in edges)
+        )
+        required_node_ids = {
+            node_id for edge in edges for node_id in edge
+        }
+        missing = sorted(required_node_ids - lower_left_by_node_id.keys())
+        if missing:
+            raise ValueError(
+                "contact component coordinates are missing node ids: %s"
+                % missing
+            )
+        constraints_by_id = {
+            constraint.node_id: constraint for constraint in self.constraints
+        }
+        epsilon = float(
+            self.config.get("reporting", {}).get("area_epsilon_mm2", 1e-5)
+        ) * abs(self.alignment.scale) ** 2
+        scale_squared = abs(self.alignment.scale) ** 2
+        footprint_cache = {}
+
+        def footprint(node_id):
+            if node_id in footprint_cache:
+                return footprint_cache[node_id]
+            lower_left = lower_left_by_node_id[node_id]
+            constraint = constraints_by_id.get(node_id)
+            if constraint is not None:
+                center = (
+                    lower_left[0] + constraint.node_width / 2,
+                    lower_left[1] + constraint.node_height / 2,
+                )
+                shape = constraint.domain.footprint(center)
+            else:
+                center = (
+                    lower_left[0]
+                    + float(placedb.node_size_x[node_id]) / 2,
+                    lower_left[1]
+                    + float(placedb.node_size_y[node_id]) / 2,
+                )
+                shape = affinity.translate(
+                    self._physical_footprint_local(placedb, node_id),
+                    xoff=center[0],
+                    yoff=center[1],
+                )
+            footprint_cache[node_id] = shape
+            return shape
+
+        keepin_violation_node_ids = []
+        for node_id in sorted(lower_left_by_node_id):
+            constraint = constraints_by_id.get(node_id)
+            if constraint is None:
+                continue
+            shape = footprint(node_id)
+            if shape.difference(self.regions[constraint.region_id]).area > epsilon:
+                keepin_violation_node_ids.append(node_id)
+
+        overlap_edges = []
+        overlap_area = 0.0
+        for first_node_id, second_node_id in edges:
+            area = footprint(first_node_id).intersection(
+                footprint(second_node_id)
+            ).area
+            if area <= epsilon:
+                continue
+            overlap_edges.append((first_node_id, second_node_id))
+            overlap_area += area
+        return {
+            "keepin_violation_count": len(keepin_violation_node_ids),
+            "keepin_violation_node_ids": keepin_violation_node_ids,
+            "overlap_pair_count": len(overlap_edges),
+            "overlap_edges": overlap_edges,
+            "overlap_area_mm2": overlap_area / scale_squared,
+        }
+
+    def project_contact_component(
+        self, lower_left_by_node_id, active_node_ids
+    ):
+        """Apply the normal footprint-aware hard projector to scratch nodes."""
+        return self.projector.project_lower_left_subset(
+            lower_left_by_node_id, active_node_ids
+        )
+
     def _pack_constraint_subset(
         self,
         position,

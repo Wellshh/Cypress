@@ -240,6 +240,67 @@ class RegionProjector:
         self.total_projected += self.last_stats.count
         return self.last_stats
 
+    def project_lower_left_subset(self, lower_left_by_node_id, node_ids):
+        """Project scratch lower-left coordinates without changing runtime state."""
+        coordinates = {
+            int(node_id): (float(value[0]), float(value[1]))
+            for node_id, value in lower_left_by_node_id.items()
+        }
+        node_ids = tuple(sorted(set(int(node_id) for node_id in node_ids)))
+        constraints_by_id = {
+            constraint.node_id: constraint for constraint in self.constraints
+        }
+        missing = sorted(set(node_ids) - coordinates.keys())
+        if missing:
+            raise ValueError(
+                "scratch projection coordinates are missing node ids: %s"
+                % missing
+            )
+        unsupported = sorted(set(node_ids) - constraints_by_id.keys())
+        if unsupported:
+            raise ValueError(
+                "scratch projection nodes lack feasible domains: %s"
+                % unsupported
+            )
+        frozen = sorted(set(node_ids).intersection(self.frozen_lower_left))
+        if frozen:
+            raise ValueError(
+                "scratch projection cannot move frozen node ids: %s" % frozen
+            )
+
+        projected_node_ids = []
+        projected_distances = []
+        if self.enabled:
+            for node_id in node_ids:
+                constraint = constraints_by_id[node_id]
+                lower_left = coordinates[node_id]
+                center = (
+                    lower_left[0] + constraint.node_width / 2,
+                    lower_left[1] + constraint.node_height / 2,
+                )
+                projected_center, distance = constraint.domain.project(center)
+                projected_lower_left = (
+                    projected_center[0] - constraint.node_width / 2,
+                    projected_center[1] - constraint.node_height / 2,
+                )
+                coordinates[node_id] = projected_lower_left
+                if projected_lower_left == lower_left:
+                    continue
+                projected_node_ids.append(node_id)
+                projected_distances.append(distance)
+
+        total_distance = math.fsum(projected_distances)
+        return {
+            "coordinates": coordinates,
+            "projected_node_ids": projected_node_ids,
+            "mean_distance": (
+                total_distance / len(projected_distances)
+                if projected_distances
+                else 0.0
+            ),
+            "max_distance": max(projected_distances, default=0.0),
+        }
+
 
 def zero_optimizer_state(optimizer, parameter, node_ids: Iterable[int], num_nodes: int):
     """Clear momentum/history entries for coordinates changed by projection."""

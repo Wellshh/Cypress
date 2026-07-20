@@ -880,6 +880,47 @@ class AnchorKeepInTest(unittest.TestCase):
         self.assertAlmostEqual(report["overlap_area_mm2"], 1.5)
         self.assertEqual(report["conflict_closure_count"], 3)
 
+    def test_exact_contact_component_report_checks_only_requested_edges(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, _ = self._initialization_context(directory)
+            overlapping = context.exact_contact_component_report(
+                {0: (0.0, 0.0), 1: (0.5, 0.0)},
+                ((0, 1),),
+                placedb,
+            )
+            legal = context.exact_contact_component_report(
+                {0: (0.0, 0.0), 1: (1.0, 0.0)},
+                ((0, 1),),
+                placedb,
+            )
+            outside = context.exact_contact_component_report(
+                {0: (3.5, 0.0), 1: (1.0, 0.0)},
+                ((0, 1),),
+                placedb,
+            )
+
+        self.assertEqual(overlapping["overlap_edges"], [(0, 1)])
+        self.assertAlmostEqual(overlapping["overlap_area_mm2"], 0.5)
+        self.assertEqual(legal["overlap_pair_count"], 0)
+        self.assertEqual(outside["keepin_violation_node_ids"], [0])
+
+    def test_contact_component_projection_uses_feasible_domain_without_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, _ = self._initialization_context(directory)
+            coordinates = {0: (3.5, 0.0), 1: (1.0, 0.0)}
+            before = dict(coordinates)
+
+            projection = context.project_contact_component(coordinates, (0,))
+            report = context.exact_contact_component_report(
+                projection["coordinates"], (), placedb
+            )
+
+        self.assertEqual(coordinates, before)
+        self.assertEqual(projection["projected_node_ids"], [0])
+        self.assertGreater(projection["max_distance"], 0.0)
+        self.assertEqual(report["keepin_violation_count"], 0)
+        self.assertEqual(projection["coordinates"][1], coordinates[1])
+
     def test_preserve_legal_repairs_only_overlap_closure(self):
         with tempfile.TemporaryDirectory() as directory:
             context, placedb, position = self._initialization_context(

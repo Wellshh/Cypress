@@ -50,6 +50,7 @@ from dreamplace.constraints.exact_step_guard import (
 )
 from dreamplace.constraints.exact_contact_projection import (
     CONTACT_PROJECTION_MODES,
+    PROPOSAL_AUTHORITY_SEARCH,
     ExactContactProjector,
 )
 
@@ -596,6 +597,13 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 16,
             )
         )
+        exact_contact_projection_max_authority_states = int(
+            getattr(
+                params,
+                "exact_contact_projection_max_authority_states",
+                4096,
+            )
+        )
         if exact_overlap_interval < 0:
             raise ValueError("exact overlap diagnostic interval must be non-negative")
         if exact_overlap_interval and self.anchor_keepin_context is None:
@@ -654,6 +662,13 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 "exact contact projection cover component limit must be at "
                 "least two"
             )
+        if (
+            exact_contact_projection_mode == PROPOSAL_AUTHORITY_SEARCH
+            and exact_contact_projection_max_authority_states <= 0
+        ):
+            raise ValueError(
+                "exact contact projection authority state limit must be positive"
+            )
         if exact_contact_projection_enabled:
             native_execution.update(
                 {
@@ -675,6 +690,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     ),
                 }
             )
+            if exact_contact_projection_mode == PROPOSAL_AUTHORITY_SEARCH:
+                native_execution[
+                    "exact_contact_projection_max_authority_states"
+                ] = exact_contact_projection_max_authority_states
         if exact_overlap_interval:
             native_execution.update(
                 {
@@ -787,8 +806,28 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     collision_op = (
                         self.op_collections.footprint_collision_loss_op
                     )
+                    component_validator = None
+                    component_projector = None
+                    if (
+                        exact_contact_projection_mode
+                        == PROPOSAL_AUTHORITY_SEARCH
+                    ):
+                        constraint_context = self.anchor_keepin_context
+
+                        def component_validator(coordinates, edges):
+                            return constraint_context.exact_contact_component_report(
+                                coordinates, edges, placedb
+                            )
+
+                        def component_projector(coordinates, active_node_ids):
+                            return constraint_context.project_contact_component(
+                                coordinates, active_node_ids
+                            )
+
                     contact_projector = ExactContactProjector(
                         validator=guard_validator,
+                        component_validator=component_validator,
+                        component_projector=component_projector,
                         refdes_to_node_id={
                             refdes: node_id
                             for node_id, refdes in enumerate(node_names)
@@ -804,6 +843,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         mode=exact_contact_projection_mode,
                         max_cover_component_nodes=(
                             exact_contact_projection_max_cover_component_nodes
+                        ),
+                        max_authority_states=(
+                            exact_contact_projection_max_authority_states
                         ),
                     )
 

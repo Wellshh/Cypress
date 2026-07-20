@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (proposal-authority candidate pending; D2/D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-177 proves origin rollback recaptures every first-pass saving; implement bounded exact proposal-authority projection and requalify D1 before any larger run |
+| N6 (implementation ready; D1 pending, D2/D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | Commit/push/pull the tested M336-177 proposal-authority projection, then requalify scale-1 D1 before any larger run |
 
 ## Paused Exact-Site Priorities
 
@@ -469,6 +469,22 @@ of those current proposal authorities, exact-check each small component, retain
 the cumulative 32-ID cap, and fail closed on component or state limits. No M336
 effect run is authorized before issue/implementation push-pull and installed
 tests; afterward run only the predeclared scale-1 D1.
+
+The M336-177 implementation candidate now searches only dtype-preserved
+displacements produced by the current native proposal. Each bounded component
+assignment passes through the same footprint-aware `RegionProjector` domains on
+scratch coordinates and exact pair geometry before selection; a runtime
+projection mismatch restores the candidate and fails closed. Component and
+state limits remain 16 and 4,096, the cumulative correction cap remains 32, and
+the new state parameter is absent from old-mode configs and summaries. Paired
+pre-change fixtures prove stable non-timing output and coordinate identity for
+both historical modes. Installed projector, guard, M336 config,
+reproducibility, anchor/collision, and density suites pass 231 focused tests
+with source/install hash parity. The aggregate runner independently repeats
+TEST-001's ten errors across 260 tests and is not green. This is implementation
+evidence only: sign, commit, push, and pull it before running exactly the
+predeclared scale-1 E2/E3 D1; D2, D3, E4, fallback, CP-SAT, and parameter
+ladders remain prohibited.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

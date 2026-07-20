@@ -47,6 +47,7 @@ DEFAULT_CUBLAS_WORKSPACE_CONFIG = ":4096:8"
 CONTACT_PROJECTION_MODES = (
     "component_consensus",
     "minimum_cover_rollback",
+    "proposal_authority_search",
 )
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
 IMPLEMENTATION_FILES = (
@@ -408,6 +409,7 @@ def placement_config(
     exact_contact_projection_max_iterations=8,
     exact_contact_projection_max_nodes=32,
     exact_contact_projection_max_cover_component_nodes=16,
+    exact_contact_projection_max_authority_states=4096,
 ):
     learning_rate_scale = float(learning_rate_scale)
     if (
@@ -457,6 +459,9 @@ def placement_config(
     exact_contact_projection_max_cover_component_nodes = int(
         exact_contact_projection_max_cover_component_nodes
     )
+    exact_contact_projection_max_authority_states = int(
+        exact_contact_projection_max_authority_states
+    )
     if (
         not math.isfinite(exact_step_guard_backoff)
         or not 0 < exact_step_guard_backoff < 1
@@ -485,6 +490,13 @@ def placement_config(
         raise ValueError(
             "exact contact projection cover component limit must be at least "
             "two"
+        )
+    if (
+        exact_contact_projection_mode == "proposal_authority_search"
+        and exact_contact_projection_max_authority_states <= 0
+    ):
+        raise ValueError(
+            "exact contact projection authority state limit must be positive"
         )
     initialization_modes = {
         "cold_source": "preserve_legal",
@@ -644,6 +656,10 @@ def placement_config(
                 ],
             }
         )
+        if exact_contact_projection_mode == "proposal_authority_search":
+            config["exact_contact_projection_max_authority_states"] = (
+                exact_contact_projection_max_authority_states
+            )
     return config
 
 
@@ -1371,6 +1387,28 @@ def _require_collision_contract(config, args, spec, result_path, action):
                 ),
             ),
         )
+        if (
+            actual_contact_projection_mode == "proposal_authority_search"
+            or expected_contact_projection_mode == "proposal_authority_search"
+        ):
+            checks += (
+                (
+                    "contact projection authority states",
+                    float(
+                        config.get(
+                            "exact_contact_projection_max_authority_states",
+                            4096,
+                        )
+                    ),
+                    float(
+                        getattr(
+                            args,
+                            "exact_contact_projection_max_authority_states",
+                            4096,
+                        )
+                    ),
+                ),
+            )
     mismatches = [
         label
         for label, actual, expected in checks
@@ -1570,6 +1608,18 @@ def run_one(
                 16,
             )
         )
+        if (
+            result["exact_contact_projection_mode"]
+            == "proposal_authority_search"
+        ):
+            result[
+                "exact_contact_projection_max_authority_states"
+            ] = int(
+                config.get(
+                    "exact_contact_projection_max_authority_states",
+                    4096,
+                )
+            )
         result["irregular_density_enabled"] = bool(
             config.get("irregular_density_flag", False)
         )
@@ -1746,6 +1796,9 @@ def run_one(
         ),
         exact_contact_projection_max_cover_component_nodes=(
             args.exact_contact_projection_max_cover_component_nodes
+        ),
+        exact_contact_projection_max_authority_states=(
+            args.exact_contact_projection_max_authority_states
         ),
     )
     write_json(config_path, config)
@@ -1966,6 +2019,16 @@ def run_one(
             args.manual_baseline,
         ),
     }
+    if (
+        result["exact_contact_projection_mode"]
+        == "proposal_authority_search"
+    ):
+        result["exact_contact_projection_max_authority_states"] = int(
+            config.get(
+                "exact_contact_projection_max_authority_states",
+                4096,
+            )
+        )
     initialization_path = run_dir / "constraints" / "initialization.json"
     if initialization_path.exists():
         result["initialization"] = json.loads(initialization_path.read_text())
@@ -2727,6 +2790,13 @@ def reproduction_command(args, weights=None):
         "--placer",
         repo_path(args.placer),
     ]
+    if args.exact_contact_projection_mode == "proposal_authority_search":
+        command.extend(
+            [
+                "--exact-contact-projection-max-authority-states",
+                str(args.exact_contact_projection_max_authority_states),
+            ]
+        )
     if weights:
         command.extend(
             [
@@ -2819,7 +2889,7 @@ def main():
         type=int,
         default=32,
         help=(
-            "maximum cumulative active nodes selected for contact-consensus "
+            "maximum cumulative active nodes selected for contact "
             "correction per native proposal"
         ),
     )
@@ -2827,7 +2897,13 @@ def main():
         "--exact-contact-projection-max-cover-component-nodes",
         type=int,
         default=16,
-        help="maximum component size for exact minimum-cover enumeration",
+        help="maximum component size for bounded exact contact enumeration",
+    )
+    parser.add_argument(
+        "--exact-contact-projection-max-authority-states",
+        type=int,
+        default=4096,
+        help="maximum proposal-authority assignments per contact component",
     )
     parser.add_argument(
         "--initialization-track",
@@ -2941,6 +3017,10 @@ def main():
         or args.exact_contact_projection_max_iterations <= 0
         or args.exact_contact_projection_max_nodes < 2
         or args.exact_contact_projection_max_cover_component_nodes < 2
+        or (
+            args.exact_contact_projection_mode == "proposal_authority_search"
+            and args.exact_contact_projection_max_authority_states <= 0
+        )
         or not math.isfinite(args.learning_rate_scale)
         or args.learning_rate_scale < MIN_M336_LEARNING_RATE_SCALE
         or args.learning_rate_scale > MAX_M336_LEARNING_RATE_SCALE
@@ -2954,7 +3034,8 @@ def main():
             "anchor/collision ratios, grid, margin taus, and site size must be positive; "
             "guard backoff must be in (0, 1) and retries non-negative; "
             "contact projection iterations must be positive and its node "
-            "and cover-component limits at least two; "
+            "and cover-component limits at least two, and authority state "
+            "limit positive; "
             "learning-rate scale must be within [%g, %g]; clearance and "
             "margin must be non-negative"
             % (MIN_M336_LEARNING_RATE_SCALE, MAX_M336_LEARNING_RATE_SCALE)
@@ -3056,6 +3137,10 @@ def main():
             "runs": results,
             "aggregate": aggregate_weight_sweep(results),
         }
+        if args.exact_contact_projection_mode == "proposal_authority_search":
+            summary["exact_contact_projection_max_authority_states"] = (
+                args.exact_contact_projection_max_authority_states
+            )
         summary_path = args.summary_path or (
             REPO_ROOT / "results/m336/weight_sweep/summary.json"
         )
@@ -3132,6 +3217,10 @@ def main():
                 results, aggregate_rows, comparisons, validation
             ),
         }
+        if args.exact_contact_projection_mode == "proposal_authority_search":
+            summary["exact_contact_projection_max_authority_states"] = (
+                args.exact_contact_projection_max_authority_states
+            )
         if sweep_summary:
             summary["weight_sweep"] = {
                 "artifact": repo_path(sweep_path),

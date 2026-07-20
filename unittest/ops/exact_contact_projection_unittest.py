@@ -2,6 +2,8 @@ import json
 import unittest
 
 import torch
+from shapely import affinity
+from shapely.geometry import Polygon, box
 
 from dreamplace.constraints.exact_contact_projection import ExactContactProjector
 
@@ -50,6 +52,45 @@ def _aabb_validator(names, widths, heights, pairs):
     return validator
 
 
+def _aabb_component_validator(widths, heights):
+    def validator(lower_left_by_node_id, edges):
+        overlap_edges = []
+        total_area = 0.0
+        for first_node_id, second_node_id in edges:
+            first_x, first_y = lower_left_by_node_id[first_node_id]
+            second_x, second_y = lower_left_by_node_id[second_node_id]
+            overlap_x = min(
+                first_x + widths[first_node_id],
+                second_x + widths[second_node_id],
+            ) - max(first_x, second_x)
+            overlap_y = min(
+                first_y + heights[first_node_id],
+                second_y + heights[second_node_id],
+            ) - max(first_y, second_y)
+            area = max(overlap_x, 0.0) * max(overlap_y, 0.0)
+            if area <= 1e-12:
+                continue
+            overlap_edges.append((first_node_id, second_node_id))
+            total_area += area
+        return {
+            "keepin_violation_count": 0,
+            "overlap_pair_count": len(overlap_edges),
+            "overlap_edges": overlap_edges,
+            "overlap_area_mm2": total_area,
+        }
+
+    return validator
+
+
+def _identity_component_projector(lower_left_by_node_id, active_node_ids):
+    return {
+        "coordinates": dict(lower_left_by_node_id),
+        "projected_node_ids": [],
+        "mean_distance": 0.0,
+        "max_distance": 0.0,
+    }
+
+
 def _projector(
     names,
     widths,
@@ -60,6 +101,8 @@ def _projector(
     max_contact_nodes=32,
     mode="component_consensus",
     max_cover_component_nodes=16,
+    max_authority_states=4096,
+    component_projector=_identity_component_projector,
 ):
     if active_node_ids is None:
         active_node_ids = range(len(names))
@@ -72,6 +115,9 @@ def _projector(
         max_contact_nodes=max_contact_nodes,
         mode=mode,
         max_cover_component_nodes=max_cover_component_nodes,
+        component_validator=_aabb_component_validator(widths, heights),
+        component_projector=component_projector,
+        max_authority_states=max_authority_states,
     )
 
 
@@ -93,6 +139,520 @@ class ExactContactProjectionTest(unittest.TestCase):
                 ((0, 1),),
                 max_cover_component_nodes=1,
             )
+        with self.assertRaisesRegex(ValueError, "authority state"):
+            _projector(
+                ("A", "B"),
+                (1.0, 1.0),
+                (1.0, 1.0),
+                ((0, 1),),
+                mode="proposal_authority_search",
+                max_authority_states=0,
+            )
+        with self.assertRaisesRegex(ValueError, "component validator"):
+            ExactContactProjector(
+                validator=_aabb_validator(
+                    ("A", "B"), (1.0, 1.0), (1.0, 1.0), ((0, 1),)
+                ),
+                refdes_to_node_id={"A": 0, "B": 1},
+                active_node_ids=(0, 1),
+                num_nodes=2,
+                mode="proposal_authority_search",
+            )
+        with self.assertRaisesRegex(ValueError, "component projector"):
+            ExactContactProjector(
+                validator=_aabb_validator(
+                    ("A", "B"), (1.0, 1.0), (1.0, 1.0), ((0, 1),)
+                ),
+                component_validator=_aabb_component_validator(
+                    (1.0, 1.0), (1.0, 1.0)
+                ),
+                refdes_to_node_id={"A": 0, "B": 1},
+                active_node_ids=(0, 1),
+                num_nodes=2,
+                mode="proposal_authority_search",
+            )
+
+    def test_authority_search_preserves_one_native_two_body_motion(self):
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+        origin_rollback = candidate.clone()
+        origin_rollback[1] = origin[1]
+
+        self.assertEqual(
+            _aabb_validator(
+                ("A", "B"),
+                (1.0, 1.0),
+                (1.0, 1.0),
+                ((0, 1),),
+            )(origin_rollback)["overlap_pair_count"],
+            1,
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor(
+                [0.375, 1.625, 0.0, 0.0], dtype=torch.float64
+            ),
+            rtol=0,
+            atol=1e-15,
+        )
+        self.assertEqual(result["corrected_contact_node_ids"], [1])
+        component = result["contact_components"][0]
+        self.assertEqual(component["authority_state_count"], 4)
+        self.assertEqual(component["authority_exact_test_count"], 4)
+        self.assertEqual(
+            component["authority_assignments"],
+            [
+                {
+                    "node_id": 0,
+                    "refdes": "A",
+                    "authority_node_id": 0,
+                    "authority_refdes": "A",
+                },
+                {
+                    "node_id": 1,
+                    "refdes": "B",
+                    "authority_node_id": 0,
+                    "authority_refdes": "A",
+                },
+            ],
+        )
+
+    def test_authority_search_leaves_legal_candidate_byte_identical(self):
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor([-0.1, 1.1, 0.0, 0.0], dtype=torch.float64)
+        before = candidate.clone()
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertEqual(result["reason"], "legal")
+        self.assertEqual(result["authority_exact_test_count"], 0)
+        self.assertTrue(torch.equal(candidate, before))
+
+    def test_authority_search_uses_mixed_exact_legal_authorities(self):
+        projector = _projector(
+            ("CENTER", "RIGHT", "TOP"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1), (0, 2)),
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.2, 1.0, 0.0, 0.2, 0.0, 1.1], dtype=torch.float64
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor(
+                [0.0, 1.0, 0.0, 0.1, 0.0, 1.1], dtype=torch.float64
+            ),
+            rtol=0,
+            atol=1e-15,
+        )
+        self.assertEqual(result["corrected_contact_node_ids"], [0])
+        iteration = result["iterations"][0]
+        self.assertEqual(
+            iteration["component_consensus_selected_contact_node_count"], 2
+        )
+        component = iteration["contact_components"][0]
+        self.assertEqual(component["authority_state_count"], 27)
+        self.assertEqual(
+            {
+                row["authority_node_id"]
+                for row in component["authority_assignments"]
+            },
+            {1, 2},
+        )
+
+    def test_authority_state_limit_fails_before_mutation(self):
+        projector = _projector(
+            ("CENTER", "RIGHT", "TOP"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1), (0, 2)),
+            mode="proposal_authority_search",
+            max_authority_states=26,
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.2, 1.0, 0.0, 0.2, 0.0, 1.1], dtype=torch.float64
+        )
+        before = candidate.clone()
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["reason"], "authority_state_limit")
+        self.assertEqual(result["corrected_contact_node_count"], 0)
+        self.assertEqual(
+            result["maximum_authority_component_state_count"], 27
+        )
+        self.assertTrue(torch.equal(candidate, before))
+
+    def test_authority_search_uses_inactive_motion_without_moving_it(self):
+        projector = _projector(
+            ("ACTIVE", "FIXED"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            active_node_ids=(0,),
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor([0.2, 1.0, 0.0, 0.0], dtype=torch.float64)
+        fixed_before = candidate[1].clone()
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertTrue(torch.equal(candidate[1], fixed_before))
+        self.assertEqual(result["corrected_contact_node_ids"], [0])
+        assignment = result["contact_components"][0][
+            "authority_assignments"
+        ][0]
+        self.assertEqual(assignment["authority_node_id"], 1)
+
+    def test_authority_component_limit_fails_without_mutation(self):
+        projector = _projector(
+            ("CENTER", "RIGHT", "TOP"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1), (0, 2)),
+            mode="proposal_authority_search",
+            max_cover_component_nodes=2,
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.2, 1.0, 0.0, 0.2, 0.0, 1.0], dtype=torch.float64
+        )
+        before = candidate.clone()
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["reason"], "authority_component_limit")
+        self.assertEqual(result["corrected_contact_node_count"], 0)
+        self.assertEqual(result["maximum_component_node_count"], 3)
+        self.assertEqual(
+            result["contact_components"][0]["planning_reason"],
+            "authority_component_limit",
+        )
+        self.assertFalse(result["iterations"][0]["applied"])
+        self.assertTrue(torch.equal(candidate, before))
+
+    def test_authority_search_projects_scratch_assignment_before_validation(self):
+        def bounded_projector(coordinates, active_node_ids):
+            projected = dict(coordinates)
+            projected_node_ids = []
+            distances = []
+            for node_id in active_node_ids:
+                x, y = projected[node_id]
+                bounded_x = min(x, 1.5)
+                projected[node_id] = (bounded_x, y)
+                if bounded_x != x:
+                    projected_node_ids.append(node_id)
+                    distances.append(x - bounded_x)
+            return {
+                "coordinates": projected,
+                "projected_node_ids": projected_node_ids,
+                "mean_distance": sum(distances) / len(distances)
+                if distances
+                else 0.0,
+                "max_distance": max(distances, default=0.0),
+            }
+
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="proposal_authority_search",
+            component_projector=bounded_projector,
+        )
+        origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+
+        def hard_projector(position):
+            position[:2].clamp_(max=1.5)
+
+        result = projector(origin, candidate, hard_projector)
+
+        self.assertTrue(result["converged"])
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor([0.375, 1.5, 0.0, 0.0], dtype=torch.float64),
+            rtol=0,
+            atol=0,
+        )
+        iteration = result["iterations"][0]
+        self.assertEqual(iteration["selected_contact_node_ids"], [1])
+        self.assertEqual(iteration["authority_corrected_node_ids"], [1])
+        self.assertEqual(
+            iteration["authority_hard_projected_node_ids"], [1]
+        )
+        self.assertEqual(
+            iteration["hard_projection_correction"]["changed_node_ids"], []
+        )
+        self.assertEqual(result["corrected_contact_node_ids"], [1])
+
+    def test_authority_search_fails_closed_on_runtime_projection_mismatch(self):
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+        before = candidate.clone()
+
+        def mismatched_hard_projector(position):
+            position[0] = 0.25
+
+        result = projector(origin, candidate, mismatched_hard_projector)
+
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["reason"], "authority_projection_mismatch")
+        self.assertEqual(result["corrected_contact_node_count"], 0)
+        self.assertEqual(
+            result["iterations"][0][
+                "authority_projection_mismatch_node_ids"
+            ],
+            [0],
+        )
+        self.assertTrue(torch.equal(candidate, before))
+
+    def test_authority_search_handles_four_approach_directions(self):
+        cases = (
+            ([0.0, 1.25, 0.0, 0.0], [0.375, 1.3125, 0.0, 0.0]),
+            ([0.0, -1.25, 0.0, 0.0], [-0.375, -1.3125, 0.0, 0.0]),
+            ([0.0, 0.0, 0.0, 1.25], [0.0, 0.0, 0.375, 1.3125]),
+            ([0.0, 0.0, 0.0, -1.25], [0.0, 0.0, -0.375, -1.3125]),
+        )
+        for origin_values, candidate_values in cases:
+            projector = _projector(
+                ("A", "B"),
+                (1.0, 1.0),
+                (1.0, 1.0),
+                ((0, 1),),
+                mode="proposal_authority_search",
+            )
+            origin = torch.tensor(origin_values, dtype=torch.float64)
+            candidate = torch.tensor(candidate_values, dtype=torch.float64)
+
+            result = projector(origin, candidate, lambda position: None)
+
+            self.assertTrue(result["converged"])
+            self.assertEqual(result["corrected_contact_node_count"], 1)
+            self.assertEqual(
+                _aabb_validator(
+                    ("A", "B"),
+                    (1.0, 1.0),
+                    (1.0, 1.0),
+                    ((0, 1),),
+                )(candidate)["overlap_pair_count"],
+                0,
+            )
+
+    def test_authority_search_handles_unequal_footprints(self):
+        projector = _projector(
+            ("WIDE", "NARROW"),
+            (2.0, 0.5),
+            (1.0, 0.5),
+            ((0, 1),),
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor([0.0, 2.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor([0.4, 2.3, 0.0, 0.0], dtype=torch.float64)
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertEqual(result["corrected_contact_node_count"], 1)
+        self.assertEqual(
+            _aabb_validator(
+                ("WIDE", "NARROW"),
+                (2.0, 0.5),
+                (1.0, 0.5),
+                ((0, 1),),
+            )(candidate)["overlap_pair_count"],
+            0,
+        )
+
+    def test_authority_search_preserves_concave_corner_tangency(self):
+        names = ("CONCAVE", "SQUARE")
+        local_shapes = (
+            Polygon(
+                ((0, 0), (2, 0), (2, 1), (1, 1), (1, 2), (0, 2))
+            ),
+            box(0, 0, 1, 1),
+        )
+
+        def intersection_area(coordinates):
+            shapes = [
+                affinity.translate(
+                    local_shapes[node_id],
+                    xoff=coordinates[node_id][0],
+                    yoff=coordinates[node_id][1],
+                )
+                for node_id in range(2)
+            ]
+            return shapes[0].intersection(shapes[1]).area
+
+        def validator(position):
+            coordinates = {
+                node_id: (
+                    float(position[node_id]),
+                    float(position[2 + node_id]),
+                )
+                for node_id in range(2)
+            }
+            area = intersection_area(coordinates)
+            rows = (
+                [
+                    {
+                        "kind": "constrained_constrained",
+                        "first_refdes": names[0],
+                        "second_refdes": names[1],
+                        "overlap_area_mm2": area,
+                    }
+                ]
+                if area > 1e-12
+                else []
+            )
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": len(rows),
+                "overlap_area_mm2": area,
+                "overlap_pairs": rows,
+            }
+
+        def component_validator(coordinates, edges):
+            area = intersection_area(coordinates)
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": int(area > 1e-12),
+                "overlap_edges": list(edges) if area > 1e-12 else [],
+                "overlap_area_mm2": area,
+            }
+
+        projector = ExactContactProjector(
+            validator=validator,
+            component_validator=component_validator,
+            component_projector=_identity_component_projector,
+            refdes_to_node_id={"CONCAVE": 0, "SQUARE": 1},
+            active_node_ids=(0, 1),
+            num_nodes=2,
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor([0.0, 1.0, 0.0, 1.0], dtype=torch.float64)
+        candidate = torch.tensor([0.2, 1.0, 0.2, 1.0], dtype=torch.float64)
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertAlmostEqual(
+            intersection_area(
+                {0: (candidate[0].item(), candidate[2].item()),
+                 1: (candidate[1].item(), candidate[3].item())}
+            ),
+            0.0,
+        )
+        self.assertEqual(result["corrected_contact_node_count"], 1)
+
+    def test_authority_new_component_cannot_reset_cumulative_budget(self):
+        names = ("A", "B", "C", "D", "E", "F")
+        full_reports = (((0, 1), (2, 3)), ((4, 5),), ())
+        validator_call_count = 0
+
+        def validator(position):
+            nonlocal validator_call_count
+            pairs = full_reports[
+                min(validator_call_count, len(full_reports) - 1)
+            ]
+            validator_call_count += 1
+            rows = [
+                {
+                    "kind": "constrained_constrained",
+                    "first_refdes": names[first_node_id],
+                    "second_refdes": names[second_node_id],
+                    "overlap_area_mm2": 0.25,
+                }
+                for first_node_id, second_node_id in pairs
+            ]
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": len(rows),
+                "overlap_area_mm2": 0.25 * len(rows),
+                "overlap_pairs": rows,
+            }
+
+        projector = ExactContactProjector(
+            validator=validator,
+            component_validator=_aabb_component_validator(
+                (1.0,) * 6, (1.0,) * 6
+            ),
+            component_projector=_identity_component_projector,
+            refdes_to_node_id={name: index for index, name in enumerate(names)},
+            active_node_ids=range(6),
+            num_nodes=6,
+            max_contact_nodes=2,
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor(
+            [0.0, 1.25, 3.0, 4.25, 6.0, 7.25] + [0.0] * 6,
+            dtype=torch.float64,
+        )
+        candidate = torch.tensor(
+            [0.375, 1.3125, 3.375, 4.3125, 6.375, 7.3125]
+            + [0.0] * 6,
+            dtype=torch.float64,
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["reason"], "contact_node_limit")
+        self.assertEqual(result["corrected_contact_node_count"], 2)
+        self.assertEqual(result["required_corrected_contact_node_count"], 3)
+        self.assertEqual(
+            [row["applied"] for row in result["iterations"]], [True, False]
+        )
 
     def test_minimum_cover_rolls_back_one_center_for_two_crossings(self):
         projector = _projector(
@@ -845,6 +1405,49 @@ class ExactContactProjectionTest(unittest.TestCase):
             self.assertEqual(
                 cpu_result["iterations"][0]["contact_components"],
                 gpu_result["iterations"][0]["contact_components"],
+            )
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
+    def test_authority_search_cpu_gpu_assignment_is_identical(self):
+        for dtype in (torch.float32, torch.float64):
+            cpu_projector = _projector(
+                ("CENTER", "RIGHT", "TOP"),
+                (1.0, 1.0, 1.0),
+                (1.0, 1.0, 1.0),
+                ((0, 1), (0, 2)),
+                mode="proposal_authority_search",
+            )
+            gpu_projector = _projector(
+                ("CENTER", "RIGHT", "TOP"),
+                (1.0, 1.0, 1.0),
+                (1.0, 1.0, 1.0),
+                ((0, 1), (0, 2)),
+                mode="proposal_authority_search",
+            )
+            origin = torch.tensor(
+                [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=dtype
+            )
+            cpu_candidate = torch.tensor(
+                [0.2, 1.0, 0.0, 0.2, 0.0, 1.1], dtype=dtype
+            )
+            gpu_origin = origin.cuda()
+            gpu_candidate = cpu_candidate.cuda()
+
+            cpu_result = cpu_projector(
+                origin, cpu_candidate, lambda position: None
+            )
+            gpu_result = gpu_projector(
+                gpu_origin, gpu_candidate, lambda position: None
+            )
+
+            self.assertTrue(torch.equal(cpu_candidate, gpu_candidate.cpu()))
+            self.assertEqual(
+                cpu_result["corrected_contact_node_ids"],
+                gpu_result["corrected_contact_node_ids"],
+            )
+            self.assertEqual(
+                cpu_result["contact_components"],
+                gpu_result["contact_components"],
             )
 
 

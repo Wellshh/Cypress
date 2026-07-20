@@ -468,7 +468,7 @@
         "default": false
     },
     "exact_contact_projection_mode": {
-        "description": "bounded exact contact correction mode: component_consensus or minimum_cover_rollback",
+        "description": "bounded exact contact correction mode: component_consensus, minimum_cover_rollback, or proposal_authority_search",
         "default": "component_consensus"
     },
     "exact_contact_projection_max_iterations": {
@@ -480,8 +480,12 @@
         "default": 32
     },
     "exact_contact_projection_max_cover_component_nodes": {
-        "description": "maximum current contact-component nodes permitted for exact minimum-cover enumeration",
+        "description": "maximum current contact-component nodes permitted for bounded cover or proposal-authority enumeration",
         "default": 16
+    },
+    "exact_contact_projection_max_authority_states": {
+        "description": "maximum proposal-authority assignments evaluated per current contact component",
+        "default": 4096
     },
     "keepin_projection_flag": {
         "description": "project constrained components into footprint-aware feasible domains",

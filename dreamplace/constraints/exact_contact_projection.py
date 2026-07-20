@@ -1,5 +1,6 @@
 """Bounded candidate-side projection for exact contact crossings."""
 
+import itertools
 import math
 import time
 
@@ -8,9 +9,11 @@ import torch
 
 COMPONENT_CONSENSUS = "component_consensus"
 MINIMUM_COVER_ROLLBACK = "minimum_cover_rollback"
+PROPOSAL_AUTHORITY_SEARCH = "proposal_authority_search"
 CONTACT_PROJECTION_MODES = (
     COMPONENT_CONSENSUS,
     MINIMUM_COVER_ROLLBACK,
+    PROPOSAL_AUTHORITY_SEARCH,
 )
 
 
@@ -102,6 +105,9 @@ class ExactContactProjector:
         max_contact_nodes=32,
         mode=COMPONENT_CONSENSUS,
         max_cover_component_nodes=16,
+        component_validator=None,
+        component_projector=None,
+        max_authority_states=4096,
     ):
         self.validator = validator
         self.refdes_to_node_id = {
@@ -118,6 +124,9 @@ class ExactContactProjector:
         self.max_contact_nodes = int(max_contact_nodes)
         self.mode = str(mode)
         self.max_cover_component_nodes = int(max_cover_component_nodes)
+        self.component_validator = component_validator
+        self.component_projector = component_projector
+        self.max_authority_states = int(max_authority_states)
         if self.num_nodes <= 0:
             raise ValueError("contact projection requires a positive node count")
         if self.max_iterations <= 0:
@@ -129,6 +138,27 @@ class ExactContactProjector:
         if self.max_cover_component_nodes < 2:
             raise ValueError(
                 "contact projection cover component limit must be at least two"
+            )
+        if (
+            self.mode == PROPOSAL_AUTHORITY_SEARCH
+            and self.max_authority_states <= 0
+        ):
+            raise ValueError(
+                "contact projection authority state limit must be positive"
+            )
+        if (
+            self.mode == PROPOSAL_AUTHORITY_SEARCH
+            and self.component_validator is None
+        ):
+            raise ValueError(
+                "proposal authority search requires an exact component validator"
+            )
+        if (
+            self.mode == PROPOSAL_AUTHORITY_SEARCH
+            and self.component_projector is None
+        ):
+            raise ValueError(
+                "proposal authority search requires a hard component projector"
             )
         invalid_active = sorted(
             node_id
@@ -399,6 +429,289 @@ class ExactContactProjector:
                 return tuple(plans), reason
         return tuple(plans), None
 
+    def _proposal_authority_component_plan(
+        self,
+        component,
+        component_edges,
+        origin_coordinate_values,
+        reference_coordinate_values,
+        current_coordinate_values,
+        proposal_displacement_values,
+        proposal_displacement_keys,
+        proposal_coordinate_keys,
+        coordinate_template,
+        corrected_contact_node_ids,
+    ):
+        active = tuple(
+            node_id
+            for node_id in component
+            if node_id in self.active_node_ids
+        )
+        inactive = tuple(
+            node_id
+            for node_id in component
+            if node_id not in self.active_node_ids
+        )
+        plan = {
+            "node_ids": tuple(component),
+            "active_node_ids": active,
+            "inactive_node_ids": inactive,
+            "authority_kind": PROPOSAL_AUTHORITY_SEARCH,
+            "representative_node_id": None,
+            "corrected_node_ids": (),
+            "available_authority_node_ids": (),
+            "authority_assignments": (),
+            "authority_state_count": 0,
+            "authority_exact_test_count": 0,
+            "valid_authority_state_count": 0,
+            "correction_energy": 0.0,
+            "authority_corrected_node_ids": (),
+            "hard_projected_node_ids": (),
+            "hard_projection_max_distance": 0.0,
+            "authority_projection_seconds": 0.0,
+            "authority_validator_seconds": 0.0,
+        }
+        if not active:
+            plan["planning_reason"] = "immutable_overlap"
+            return plan, plan["planning_reason"]
+        if len(component) > self.max_cover_component_nodes:
+            plan["planning_reason"] = "authority_component_limit"
+            return plan, plan["planning_reason"]
+
+        authority_by_key = {}
+        for node_id in component:
+            key = proposal_displacement_keys[node_id]
+            authority_by_key.setdefault(
+                key,
+                {
+                    "node_id": node_id,
+                    "displacement": proposal_displacement_values[node_id],
+                    "key": key,
+                },
+            )
+        authorities = tuple(
+            sorted(authority_by_key.values(), key=lambda row: row["node_id"])
+        )
+        plan["available_authority_node_ids"] = tuple(
+            row["node_id"] for row in authorities
+        )
+        state_count = len(authorities) ** len(active)
+        plan["authority_state_count"] = state_count
+        if state_count > self.max_authority_states:
+            plan["planning_reason"] = "authority_state_limit"
+            return plan, plan["planning_reason"]
+
+        best_key = None
+        best = None
+        exact_test_count = 0
+        valid_state_count = 0
+        projection_seconds = 0.0
+        validator_seconds = 0.0
+        for authority_indices in itertools.product(
+            range(len(authorities)), repeat=len(active)
+        ):
+            assignment = tuple(
+                (node_id, authorities[authority_index])
+                for node_id, authority_index in zip(
+                    active, authority_indices
+                )
+            )
+            raw_coordinate_values = {
+                node_id: current_coordinate_values[node_id]
+                for node_id in component
+            }
+            assignment_key = []
+            for node_id, authority in assignment:
+                displacement = authority["displacement"]
+                assignment_key.append((node_id, authority["node_id"]))
+                if authority["key"] == proposal_displacement_keys[node_id]:
+                    raw_coordinate_values[node_id] = (
+                        reference_coordinate_values[node_id]
+                    )
+                    continue
+                origin_x, origin_y = origin_coordinate_values[node_id]
+                raw_coordinate_values[node_id] = (
+                    origin_x + displacement[0],
+                    origin_y + displacement[1],
+                )
+
+            node_ids = tuple(sorted(raw_coordinate_values))
+            raw_coordinates = coordinate_template.new_tensor(
+                tuple(raw_coordinate_values[node_id] for node_id in node_ids)
+            )
+            raw_coordinate_values = {
+                node_id: (float(row[0]), float(row[1]))
+                for node_id, row in zip(node_ids, raw_coordinates.tolist())
+            }
+            projection_started = time.perf_counter()
+            projection = self.component_projector(raw_coordinate_values, active)
+            projection_seconds += time.perf_counter() - projection_started
+            projected_coordinate_values = {
+                int(node_id): (float(value[0]), float(value[1]))
+                for node_id, value in projection.get("coordinates", {}).items()
+            }
+            if set(projected_coordinate_values) != set(component):
+                raise ValueError(
+                    "hard component projector changed the coordinate scope"
+                )
+            projected_coordinates = coordinate_template.new_tensor(
+                tuple(
+                    projected_coordinate_values[node_id]
+                    for node_id in node_ids
+                )
+            )
+            projected_coordinate_values = {
+                node_id: (float(row[0]), float(row[1]))
+                for node_id, row in zip(
+                    node_ids, projected_coordinates.tolist()
+                )
+            }
+
+            raw_keys = {
+                node_id: row.contiguous().numpy().tobytes()
+                for node_id, row in zip(node_ids, raw_coordinates)
+            }
+            projected_keys = {
+                node_id: row.contiguous().numpy().tobytes()
+                for node_id, row in zip(node_ids, projected_coordinates)
+            }
+            hard_projected_node_ids = tuple(
+                node_id
+                for node_id in active
+                if projected_keys[node_id] != raw_keys[node_id]
+            )
+            reported_projected_node_ids = tuple(
+                sorted(
+                    int(node_id)
+                    for node_id in projection.get("projected_node_ids", ())
+                )
+            )
+            if hard_projected_node_ids != reported_projected_node_ids:
+                raise ValueError(
+                    "hard component projector reported inconsistent node ids"
+                )
+
+            corrected_node_ids = tuple(
+                node_id
+                for node_id in active
+                if projected_keys[node_id]
+                != proposal_coordinate_keys[node_id]
+            )
+            authority_corrected_node_ids = tuple(
+                node_id
+                for node_id in active
+                if raw_keys[node_id] != proposal_coordinate_keys[node_id]
+            )
+            correction_terms = []
+            for node_id in corrected_node_ids:
+                proposal_x, proposal_y = reference_coordinate_values[node_id]
+                selected_x, selected_y = projected_coordinate_values[node_id]
+                correction_terms.append(
+                    (selected_x - proposal_x) ** 2
+                    + (selected_y - proposal_y) ** 2
+                )
+
+            validation_started = time.perf_counter()
+            report = self.component_validator(
+                projected_coordinate_values, component_edges
+            )
+            validator_seconds += time.perf_counter() - validation_started
+            exact_test_count += 1
+            if int(report.get("keepin_violation_count", 0)):
+                continue
+            if int(report.get("overlap_pair_count", 0)):
+                continue
+            valid_state_count += 1
+            correction_energy = math.fsum(correction_terms)
+            if not math.isfinite(correction_energy):
+                raise ValueError(
+                    "contact projection received non-finite correction"
+                )
+            key = (
+                len(
+                    set(corrected_node_ids).difference(
+                        corrected_contact_node_ids
+                    )
+                ),
+                correction_energy,
+                tuple(assignment_key),
+            )
+            if best_key is None or key < best_key:
+                best_key = key
+                best = {
+                    "corrected_node_ids": corrected_node_ids,
+                    "authority_assignments": tuple(
+                        (node_id, authority["node_id"])
+                        for node_id, authority in assignment
+                    ),
+                    "assigned_coordinates": tuple(
+                        (node_id, projected_coordinate_values[node_id])
+                        for node_id, _ in assignment
+                    ),
+                    "correction_energy": correction_energy,
+                    "authority_corrected_node_ids": (
+                        authority_corrected_node_ids
+                    ),
+                    "hard_projected_node_ids": hard_projected_node_ids,
+                    "hard_projection_max_distance": float(
+                        projection.get("max_distance", 0.0)
+                    ),
+                }
+
+        plan["authority_exact_test_count"] = exact_test_count
+        plan["valid_authority_state_count"] = valid_state_count
+        plan["authority_projection_seconds"] = projection_seconds
+        plan["authority_validator_seconds"] = validator_seconds
+        if best is None:
+            plan["planning_reason"] = "unresolvable_authority"
+            return plan, plan["planning_reason"]
+        plan.update(best)
+        plan["newly_selected_node_ids"] = tuple(
+            node_id
+            for node_id in best["corrected_node_ids"]
+            if node_id not in corrected_contact_node_ids
+        )
+        plan["planning_reason"] = None
+        return plan, None
+
+    def _proposal_authority_plans(
+        self,
+        components,
+        current_edges,
+        origin_coordinate_values,
+        reference_coordinate_values,
+        current_coordinate_values,
+        proposal_displacement_values,
+        proposal_displacement_keys,
+        proposal_coordinate_keys,
+        coordinate_template,
+        corrected_contact_node_ids,
+    ):
+        plans = []
+        for component in components:
+            component_set = frozenset(component)
+            component_edges = tuple(
+                edge
+                for edge in sorted(current_edges)
+                if edge[0] in component_set
+            )
+            plan, reason = self._proposal_authority_component_plan(
+                component,
+                component_edges,
+                origin_coordinate_values,
+                reference_coordinate_values,
+                current_coordinate_values,
+                proposal_displacement_values,
+                proposal_displacement_keys,
+                proposal_coordinate_keys,
+                coordinate_template,
+                corrected_contact_node_ids,
+            )
+            plans.append(plan)
+            if reason is not None:
+                return tuple(plans), reason
+        return tuple(plans), None
+
     def _apply_consensus(self, reference, origin, position, plans):
         for plan in plans:
             corrected_node_ids = plan["corrected_node_ids"]
@@ -455,6 +768,32 @@ class ExactContactProjector:
             origin.index_select(0, self.num_nodes + index),
         )
 
+    def _apply_proposal_authorities(self, position, plans):
+        assignments = tuple(
+            assignment
+            for plan in plans
+            for assignment in plan.get("assigned_coordinates", ())
+        )
+        if not assignments:
+            return
+        node_ids = tuple(node_id for node_id, _ in assignments)
+        index = torch.as_tensor(
+            node_ids, dtype=torch.long, device=position.device
+        )
+        coordinates = position.new_tensor(
+            tuple(value for _, value in assignments)
+        )
+        position.index_copy_(
+            0,
+            index,
+            coordinates[:, 0],
+        )
+        position.index_copy_(
+            0,
+            self.num_nodes + index,
+            coordinates[:, 1],
+        )
+
     def _serialize_component_plan(self, plan):
         representative_node_id = plan["representative_node_id"]
         authority_node_ids = (
@@ -509,6 +848,56 @@ class ExactContactProjector:
                     "planning_reason": plan.get("planning_reason"),
                 }
             )
+        if "available_authority_node_ids" in plan:
+            serialized.update(
+                {
+                    "available_authority_node_ids": list(
+                        plan["available_authority_node_ids"]
+                    ),
+                    "available_authority_refdes": [
+                        self.node_id_to_refdes.get(node_id, str(node_id))
+                        for node_id in plan["available_authority_node_ids"]
+                    ],
+                    "authority_assignments": [
+                        {
+                            "node_id": node_id,
+                            "refdes": self.node_id_to_refdes.get(
+                                node_id, str(node_id)
+                            ),
+                            "authority_node_id": authority_node_id,
+                            "authority_refdes": self.node_id_to_refdes.get(
+                                authority_node_id, str(authority_node_id)
+                            ),
+                        }
+                        for node_id, authority_node_id in plan[
+                            "authority_assignments"
+                        ]
+                    ],
+                    "authority_state_count": plan[
+                        "authority_state_count"
+                    ],
+                    "authority_exact_test_count": plan[
+                        "authority_exact_test_count"
+                    ],
+                    "valid_authority_state_count": plan[
+                        "valid_authority_state_count"
+                    ],
+                    "newly_selected_node_ids": list(
+                        plan.get("newly_selected_node_ids", ())
+                    ),
+                    "authority_corrected_node_ids": list(
+                        plan["authority_corrected_node_ids"]
+                    ),
+                    "hard_projected_node_ids": list(
+                        plan["hard_projected_node_ids"]
+                    ),
+                    "hard_projection_max_distance": plan[
+                        "hard_projection_max_distance"
+                    ],
+                    "correction_energy": plan["correction_energy"],
+                    "planning_reason": plan.get("planning_reason"),
+                }
+            )
         return serialized
 
     def __call__(self, origin, position, hard_projector):
@@ -532,10 +921,47 @@ class ExactContactProjector:
             ),
             dim=1,
         )
+        reference_displacement_cpu = (
+            reference_displacement.detach().cpu().contiguous()
+        )
         displacement_values = tuple(
             (float(row[0]), float(row[1]))
-            for row in reference_displacement.detach().cpu().tolist()
+            for row in reference_displacement_cpu.tolist()
         )
+        displacement_keys = None
+        origin_coordinate_values = None
+        reference_coordinate_values = None
+        reference_coordinate_keys = None
+        reference_cpu = None
+        if self.mode == PROPOSAL_AUTHORITY_SEARCH:
+            displacement_keys = tuple(
+                row.contiguous().numpy().tobytes()
+                for row in reference_displacement_cpu
+            )
+            origin_cpu = origin.detach().cpu().contiguous()
+            origin_coordinate_values = tuple(
+                (
+                    float(origin_cpu[node_id]),
+                    float(origin_cpu[self.num_nodes + node_id]),
+                )
+                for node_id in range(self.num_nodes)
+            )
+            reference_cpu = reference.detach().cpu().contiguous()
+            reference_coordinates = torch.stack(
+                (
+                    reference_cpu[: self.num_nodes],
+                    reference_cpu[self.num_nodes : 2 * self.num_nodes],
+                ),
+                dim=1,
+            )
+            reference_coordinate_values = tuple(
+                (float(row[0]), float(row[1]))
+                for row in reference_coordinates.tolist()
+            )
+            reference_coordinate_keys = tuple(
+                row.contiguous().numpy().tobytes()
+                for row in reference_coordinates
+            )
         protected_edges = set()
         corrected_contact_node_ids = set()
         iterations = []
@@ -547,6 +973,12 @@ class ExactContactProjector:
         maximum_component_consensus_selected_contact_node_count = 0
         cover_search_state_count = 0
         maximum_cover_search_state_count = 0
+        authority_search_state_count = 0
+        authority_exact_test_count = 0
+        valid_authority_state_count = 0
+        maximum_authority_component_state_count = 0
+        authority_projection_seconds = 0.0
+        authority_validator_seconds = 0.0
         reason = "iteration_limit"
         converged = False
 
@@ -608,6 +1040,11 @@ class ExactContactProjector:
                 ]
                 planning_reason = None
                 component_consensus_selected_contact_node_ids = []
+                iteration_authority_state_count = 0
+                iteration_authority_exact_test_count = 0
+                iteration_valid_authority_state_count = 0
+                iteration_authority_projection_seconds = 0.0
+                iteration_authority_validator_seconds = 0.0
                 if self.mode == COMPONENT_CONSENSUS:
                     components = _contact_components(protected_edges)
                     component_plans = self._component_plans(
@@ -617,7 +1054,7 @@ class ExactContactProjector:
                         displacement_values,
                         components,
                     )
-                else:
+                elif self.mode == MINIMUM_COVER_ROLLBACK:
                     components = _contact_components(current_edges)
                     current_displacement = torch.stack(
                         (
@@ -667,12 +1104,115 @@ class ExactContactProjector:
                         maximum_cover_search_state_count,
                         iteration_search_state_count,
                     )
+                else:
+                    components = _contact_components(current_edges)
+                    position_cpu = position.detach().cpu()
+                    current_coordinate_values = tuple(
+                        (
+                            float(position_cpu[node_id]),
+                            float(position_cpu[self.num_nodes + node_id]),
+                        )
+                        for node_id in range(self.num_nodes)
+                    )
+                    component_plans, planning_reason = (
+                        self._proposal_authority_plans(
+                            components,
+                            current_edges,
+                            origin_coordinate_values,
+                            reference_coordinate_values,
+                            current_coordinate_values,
+                            displacement_values,
+                            displacement_keys,
+                            reference_coordinate_keys,
+                            reference_cpu,
+                            corrected_contact_node_ids,
+                        )
+                    )
+                    comparison_plans = self._component_plans(
+                        reference,
+                        position,
+                        reference_displacement,
+                        displacement_values,
+                        components,
+                    )
+                    component_consensus_selected_contact_node_ids = sorted(
+                        {
+                            node_id
+                            for plan in comparison_plans
+                            for node_id in plan["corrected_node_ids"]
+                        }
+                    )
+                    maximum_component_consensus_selected_contact_node_count = max(
+                        maximum_component_consensus_selected_contact_node_count,
+                        len(component_consensus_selected_contact_node_ids),
+                    )
+                    iteration_authority_state_count = sum(
+                        plan["authority_state_count"]
+                        for plan in component_plans
+                    )
+                    iteration_authority_exact_test_count = sum(
+                        plan["authority_exact_test_count"]
+                        for plan in component_plans
+                    )
+                    iteration_valid_authority_state_count = sum(
+                        plan["valid_authority_state_count"]
+                        for plan in component_plans
+                    )
+                    iteration_authority_projection_seconds = math.fsum(
+                        plan["authority_projection_seconds"]
+                        for plan in component_plans
+                    )
+                    iteration_authority_validator_seconds = math.fsum(
+                        plan["authority_validator_seconds"]
+                        for plan in component_plans
+                    )
+                    authority_search_state_count += (
+                        iteration_authority_state_count
+                    )
+                    authority_exact_test_count += (
+                        iteration_authority_exact_test_count
+                    )
+                    valid_authority_state_count += (
+                        iteration_valid_authority_state_count
+                    )
+                    authority_projection_seconds += (
+                        iteration_authority_projection_seconds
+                    )
+                    authority_validator_seconds += (
+                        iteration_authority_validator_seconds
+                    )
+                    maximum_authority_component_state_count = max(
+                        maximum_authority_component_state_count,
+                        max(
+                            (
+                                plan["authority_state_count"]
+                                for plan in component_plans
+                            ),
+                            default=0,
+                        ),
+                    )
                 last_component_plans = component_plans
                 selected_contact_node_ids = sorted(
                     {
                         node_id
                         for plan in component_plans
                         for node_id in plan["corrected_node_ids"]
+                    }
+                )
+                authority_corrected_node_ids = sorted(
+                    {
+                        node_id
+                        for plan in component_plans
+                        for node_id in plan.get(
+                            "authority_corrected_node_ids", ()
+                        )
+                    }
+                )
+                authority_hard_projected_node_ids = sorted(
+                    {
+                        node_id
+                        for plan in component_plans
+                        for node_id in plan.get("hard_projected_node_ids", ())
                     }
                 )
                 required_contact_node_ids = corrected_contact_node_ids.union(
@@ -738,6 +1278,56 @@ class ExactContactProjector:
                     ),
                     "applied": False,
                 }
+                if self.mode == PROPOSAL_AUTHORITY_SEARCH:
+                    iteration_record.update(
+                        {
+                            "authority_state_count": (
+                                iteration_authority_state_count
+                            ),
+                            "authority_exact_test_count": (
+                                iteration_authority_exact_test_count
+                            ),
+                            "valid_authority_state_count": (
+                                iteration_valid_authority_state_count
+                            ),
+                            "authority_corrected_node_ids": (
+                                authority_corrected_node_ids
+                            ),
+                            "authority_hard_projected_node_ids": (
+                                authority_hard_projected_node_ids
+                            ),
+                            "authority_projection_seconds": (
+                                iteration_authority_projection_seconds
+                            ),
+                            "authority_validator_seconds": (
+                                iteration_authority_validator_seconds
+                            ),
+                            "current_contact_edges": [
+                                {
+                                    "node_ids": list(edge),
+                                    "refdes": [
+                                        self.node_id_to_refdes.get(
+                                            node_id, str(node_id)
+                                        )
+                                        for node_id in edge
+                                    ],
+                                }
+                                for edge in sorted(current_edges)
+                            ],
+                            "protected_contact_edges": [
+                                {
+                                    "node_ids": list(edge),
+                                    "refdes": [
+                                        self.node_id_to_refdes.get(
+                                            node_id, str(node_id)
+                                        )
+                                        for node_id in edge
+                                    ],
+                                }
+                                for edge in sorted(protected_edges)
+                            ],
+                        }
+                    )
                 if planning_reason is not None:
                     reason = planning_reason
                     iterations.append(iteration_record)
@@ -752,9 +1342,13 @@ class ExactContactProjector:
                     self._apply_consensus(
                         reference, origin, position, component_plans
                     )
-                else:
+                elif self.mode == MINIMUM_COVER_ROLLBACK:
                     self._apply_origin_rollback(
                         origin, position, component_plans
+                    )
+                else:
+                    self._apply_proposal_authorities(
+                        position, component_plans
                     )
                 after_contact_correction = position.detach().clone()
                 contact_correction = _correction_statistics(
@@ -769,6 +1363,26 @@ class ExactContactProjector:
                 correction = _correction_statistics(
                     candidate_before, position, self.num_nodes
                 )
+                if (
+                    self.mode == PROPOSAL_AUTHORITY_SEARCH
+                    and hard_projection_correction["changed_node_count"]
+                ):
+                    position.copy_(candidate_before)
+                    reason = "authority_projection_mismatch"
+                    iteration_record.update(
+                        {
+                            "contact_correction": contact_correction,
+                            "hard_projection_correction": (
+                                hard_projection_correction
+                            ),
+                            "correction": correction,
+                            "authority_projection_mismatch_node_ids": (
+                                hard_projection_correction["changed_node_ids"]
+                            ),
+                        }
+                    )
+                    iterations.append(iteration_record)
+                    break
                 corrected_contact_node_ids.update(selected_contact_node_ids)
                 iteration_record.update(
                     {
@@ -787,8 +1401,12 @@ class ExactContactProjector:
                     iteration_record["consensus_correction"] = (
                         contact_correction
                     )
-                else:
+                elif self.mode == MINIMUM_COVER_ROLLBACK:
                     iteration_record["rollback_correction"] = contact_correction
+                else:
+                    iteration_record["authority_correction"] = (
+                        contact_correction
+                    )
                 iterations.append(iteration_record)
                 if not new_edges and torch.equal(candidate_before, position):
                     reason = "stalled"
@@ -809,7 +1427,7 @@ class ExactContactProjector:
             sum(node_id in self.active_node_ids for node_id in component)
             for component in components
         ]
-        return {
+        result = {
             "enabled": True,
             "mode": self.mode,
             "converged": converged,
@@ -869,3 +1487,38 @@ class ExactContactProjector:
             "correction": correction,
             "iterations": iterations,
         }
+        if self.mode == PROPOSAL_AUTHORITY_SEARCH:
+            result.update(
+                {
+                    "max_authority_states": self.max_authority_states,
+                    "authority_search_state_count": (
+                        authority_search_state_count
+                    ),
+                    "authority_exact_test_count": authority_exact_test_count,
+                    "valid_authority_state_count": (
+                        valid_authority_state_count
+                    ),
+                    "authority_projection_seconds": (
+                        authority_projection_seconds
+                    ),
+                    "authority_validator_seconds": (
+                        authority_validator_seconds
+                    ),
+                    "maximum_authority_component_state_count": (
+                        maximum_authority_component_state_count
+                    ),
+                    "protected_contact_edges": [
+                        {
+                            "node_ids": list(edge),
+                            "refdes": [
+                                self.node_id_to_refdes.get(
+                                    node_id, str(node_id)
+                                )
+                                for node_id in edge
+                            ],
+                        }
+                        for edge in sorted(protected_edges)
+                    ],
+                }
+            )
+        return result
