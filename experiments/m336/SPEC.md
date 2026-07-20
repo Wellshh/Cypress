@@ -6,6 +6,11 @@
 主实验板：`M336`  
 第一阶段原则：**保持旋转关闭；先证明“同组器件在指定异形区域内且更靠近锚点”**。
 
+> 当前 `0.05 mm` exact-site score 优化阶段由
+> [`EXACT_QUALITY_SPEC.md`](EXACT_QUALITY_SPEC.md) 约束。该补充规格只冻结当前
+> endpoint、checkpoint 与搜索/promotion 流程，不替代或削弱本文的几何、合法性、
+> E0-E4 和 feature-gate 验收要求。
+
 ---
 
 ## 1. 目标陈述

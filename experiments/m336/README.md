@@ -3,6 +3,7 @@
 See:
 
 - `SPEC.md`
+- `EXACT_QUALITY_SPEC.md`
 - `CODEX_GOAL.md`
 - `CODEX_PROMPT.md`
 

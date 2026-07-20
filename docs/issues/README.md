@@ -6,6 +6,10 @@ GitHub Issues API returned `410 Issues has been disabled in this repository` on
 commits. Each milestone must pull first, inspect updates to these files, then
 append evidence rather than replacing prior observations.
 
+See [`ACTIVE_ROADMAP.md`](ACTIVE_ROADMAP.md) for the current contract, active
+track, and policy-scoped supersession map. The table below remains the complete
+append-only audit ledger.
+
 | ID | Severity | Status | Summary |
 | --- | --- | --- | --- |
 | [M336-001](M336-001-manual-baseline-score-gate.md) | Critical | Mitigated | Manual baseline is scored, but E4 remains below its quality gate |
@@ -135,6 +139,7 @@ append evidence rather than replacing prior observations.
 | [M336-125](M336-125-grid005-page7-blocker-release-stall.md) | Critical | Open | Releasing the exact B402/L401 blocker boundary changes the K4096 bound but retains M336-118 |
 | [M336-126](M336-126-expanded-guide-single-move-barrier.md) | Critical | Open | Expanded-guided single-component escape reproduces only the three existing page-7 families |
 | [M336-127](M336-127-expanded-guide-rank-envelope-barrier.md) | Critical | Open | Joint exact rank optimization retains seed 3001 through a 200-HPWL escape envelope |
+| [M336-128](M336-128-unbounded-rank-incumbent-exclusion-gap.md) | Critical | Open | Unbounded exact rank still returns seed 3001 and exposes the missing incumbent exclusion |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
