@@ -173,6 +173,11 @@ append-only audit ledger.
 | [M336-160](M336-160-cold-runtime-misclassified-as-warm-gate.md) | Medium | Resolved | Cold runtime remains diagnostic while only warm-cache summaries evaluate the 2x gate |
 | [M336-161](M336-161-feature-off-overflow-filler-regression.md) | Critical | Resolved | Side overflow restores the legacy zero-filler contract and exact feature-off metric parity |
 | [M336-162](M336-162-feature-off-nesterov-state-regression.md) | Critical | Resolved | Nesterov bootstrap projection and state cleanup are confined to active constraint contexts |
+| [M336-163](M336-163-native-density-overlap-growth.md) | Critical | Open | A legal warm start grows to 66/71 overlaps despite zero keep-in projection pressure |
+| [M336-164](M336-164-warm-repair-quality-runtime-collapse.md) | Critical | Open | An 83-component warm fallback restores legality but destroys score and the 2x runtime gate |
+| [M336-165](M336-165-cold-e4-bounded-repair-infeasible.md) | Critical | Open | Cold E4 fails closed when every bounded packing strategy rejects MHC8602 |
+| [M336-166](M336-166-cublas-determinism-workspace-missing.md) | High | Open | Deterministic CUDA runs omit the required CuBLAS workspace contract |
+| [M336-167](M336-167-anchor-signal-misses-50-step-gate.md) | High | Open | Dynamic ratio 0.1 changes the objective but improves anchor mean/p90 by only 0.05%/0.02% |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

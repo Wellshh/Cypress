@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-162`
+**Evidence through:** `M336-167`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -74,7 +74,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N2 (complete) | Add a differentiable interior keep-in margin and bounded adaptive subgroup-balanced anchor control | M336-144 through M336-146 prove finite inward gradients, bounded serialized control, and an isolated E2/E3 contract; anchor quality remains below the final gate |
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
-| N5 (active) | Run 50-step diagnostics, then the final cold/warm E0-E4 matrix for seeds 1000, 1001, and 1002 | Exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |
+| N5 (active) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-167 acceptance evidence, then exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |
 
 ## Paused Exact-Site Priorities
 
@@ -169,6 +169,22 @@ has byte-identical metric records after timing removal and identical placement
 SHA-256 on both revisions. Both revisions retain the benchmark's pre-existing
 high-overflow failure; this evidence proves no regression rather than a
 successful tuned placement.
+
+The first N5 seed-1000 50-step checkpoint-warm matrix exposes four active
+algorithm gaps. E2/E3 remain fully contained with zero keep-in projections but
+grow to 66/71 exact overlap pairs (M336-163). E3 improves anchor mean/p90 only
+`0.0508%/0.0215%` over E2 despite 50 changing Adam steps and a controlled ratio
+of `0.1` (M336-167). E4's 83-component closure exceeds the restore bound and
+falls back to broad packing: HPWL rises by `1485.5859`, normalized score falls
+to `0.850668`, and runtime reaches `3.3963x` E0 (M336-164).
+
+The matching cold/source run completes E0/E2/E3, with E2/E3 scores near
+`0.745`, but E4 fails closed before serialization when every deterministic
+bounded-packing strategy rejects `MHC8602` (M336-165). Its CUDA logs also prove
+that `deterministic_flag=1` is incomplete without an explicit
+`CUBLAS_WORKSPACE_CONFIG` contract (M336-166). The final three-seed matrix is
+blocked on these active findings; no checkpoint fallback or broad repair output
+may be promoted as native Cypress evidence.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
