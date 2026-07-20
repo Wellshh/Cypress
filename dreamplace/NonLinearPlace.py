@@ -133,6 +133,181 @@ def _scale_distance_summary(summary, scale):
     }
 
 
+def _serialize_collision_pair_diagnostics(data, placedb, units_per_mm):
+    """Convert bounded tensor contact diagnostics into stable JSON rows."""
+    units_per_mm = float(units_per_mm)
+    if units_per_mm <= 0:
+        raise ValueError("collision diagnostic scale must be positive")
+    host = {
+        key: value.detach().cpu().tolist() if torch.is_tensor(value) else value
+        for key, value in data.items()
+    }
+
+    def node_name(node_id):
+        value = placedb.node_names[int(node_id)]
+        return value.decode() if isinstance(value, bytes) else str(value)
+
+    def optional_value(key, index):
+        values = host[key]
+        return float(values[index]) if values else None
+
+    def optional_vector(key, index):
+        values = host[key]
+        return [float(value) for value in values[index]] if values else None
+
+    rows = []
+    for index, pair_index in enumerate(host["pair_indices"]):
+        first_node_id = int(host["first_node_ids"][index])
+        second_node_id = int(host["second_node_ids"][index])
+        proposal_displacement = optional_value(
+            "proposal_normal_displacement", index
+        )
+        accepted_displacement = optional_value(
+            "accepted_normal_displacement", index
+        )
+        proposal_clearance = optional_value("proposal_clearances", index)
+        accepted_clearance = optional_value("accepted_clearances", index)
+        clearance = float(host["clearances"][index])
+        rows.append(
+            {
+                "pair_index": int(pair_index),
+                "first_node_id": first_node_id,
+                "first_refdes": node_name(first_node_id),
+                "first_active": bool(host["first_active"][index]),
+                "second_node_id": second_node_id,
+                "second_refdes": node_name(second_node_id),
+                "second_active": bool(host["second_active"][index]),
+                "clearance": clearance,
+                "clearance_mm": clearance / units_per_mm,
+                "clearance_gradient": [
+                    float(value)
+                    for value in host["clearance_gradients"][index]
+                ],
+                "normal": [float(value) for value in host["normals"][index]],
+                "normal_valid": bool(host["normal_valid"][index]),
+                "base_raw_normal_descent": optional_value(
+                    "base_raw_normal_descent", index
+                ),
+                "collision_raw_normal_descent": optional_value(
+                    "collision_raw_normal_descent", index
+                ),
+                "total_raw_normal_descent": optional_value(
+                    "total_raw_normal_descent", index
+                ),
+                "optimizer_gradient_normal_descent": optional_value(
+                    "optimizer_gradient_normal_descent", index
+                ),
+                "proposal_normal_displacement": proposal_displacement,
+                "proposal_normal_displacement_mm": (
+                    proposal_displacement / units_per_mm
+                    if proposal_displacement is not None
+                    else None
+                ),
+                "proposal_relative_displacement": optional_vector(
+                    "proposal_relative_displacement", index
+                ),
+                "proposal_relative_displacement_mm": (
+                    [
+                        value / units_per_mm
+                        for value in host["proposal_relative_displacement"][
+                            index
+                        ]
+                    ]
+                    if host["proposal_relative_displacement"]
+                    else None
+                ),
+                "proposal_clearance": proposal_clearance,
+                "proposal_clearance_mm": (
+                    proposal_clearance / units_per_mm
+                    if proposal_clearance is not None
+                    else None
+                ),
+                "proposal_normal": optional_vector(
+                    "proposal_normals", index
+                ),
+                "proposal_normal_valid": (
+                    bool(host["proposal_normal_valid"][index])
+                    if host["proposal_normal_valid"]
+                    else None
+                ),
+                "accepted_normal_displacement": accepted_displacement,
+                "accepted_normal_displacement_mm": (
+                    accepted_displacement / units_per_mm
+                    if accepted_displacement is not None
+                    else None
+                ),
+                "accepted_relative_displacement": optional_vector(
+                    "accepted_relative_displacement", index
+                ),
+                "accepted_relative_displacement_mm": (
+                    [
+                        value / units_per_mm
+                        for value in host["accepted_relative_displacement"][
+                            index
+                        ]
+                    ]
+                    if host["accepted_relative_displacement"]
+                    else None
+                ),
+                "accepted_clearance": accepted_clearance,
+                "accepted_clearance_mm": (
+                    accepted_clearance / units_per_mm
+                    if accepted_clearance is not None
+                    else None
+                ),
+                "accepted_normal": optional_vector(
+                    "accepted_normals", index
+                ),
+                "accepted_normal_valid": (
+                    bool(host["accepted_normal_valid"][index])
+                    if host["accepted_normal_valid"]
+                    else None
+                ),
+            }
+        )
+    rows.sort(
+        key=lambda row: (
+            row["proposal_normal_displacement"] is None,
+            row["proposal_normal_displacement"] or 0.0,
+            row["first_refdes"],
+            row["second_refdes"],
+        )
+    )
+    proposal_values = [
+        row["proposal_normal_displacement"]
+        for row in rows
+        if row["proposal_normal_displacement"] is not None
+    ]
+    accepted_values = [
+        row["accepted_normal_displacement"]
+        for row in rows
+        if row["accepted_normal_displacement"] is not None
+    ]
+    return {
+        "active_pair_count": len(rows),
+        "valid_normal_count": sum(row["normal_valid"] for row in rows),
+        "inward_proposal_pair_count": sum(
+            value < 0 for value in proposal_values
+        ),
+        "minimum_proposal_normal_displacement": (
+            min(proposal_values) if proposal_values else None
+        ),
+        "minimum_proposal_normal_displacement_mm": (
+            min(proposal_values) / units_per_mm if proposal_values else None
+        ),
+        "inward_accepted_pair_count": sum(
+            value < 0 for value in accepted_values
+        ),
+        "minimum_accepted_normal_displacement": (
+            min(accepted_values) if accepted_values else None
+        ),
+        "minimum_accepted_normal_displacement_mm": (
+            min(accepted_values) / units_per_mm if accepted_values else None
+        ),
+        "pairs": rows,
+    }
+
+
 class _NativeDisplacementTracker:
     """Accumulate optimizer proposal paths and accepted net displacement."""
 
@@ -373,6 +548,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         exact_step_guard_max_retries = int(
             getattr(params, "exact_step_guard_max_retries", 4)
         )
+        collision_pair_diagnostics_enabled = bool(
+            getattr(params, "collision_pair_diagnostics_flag", False)
+        )
         if exact_overlap_interval < 0:
             raise ValueError("exact overlap diagnostic interval must be non-negative")
         if exact_overlap_interval and self.anchor_keepin_context is None:
@@ -404,6 +582,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     "exact_step_guard_overhead_seconds": 0.0,
                     "exact_step_guard_optimizer_attempt_seconds": 0.0,
                 }
+            )
+        if collision_pair_diagnostics_enabled and not exact_step_guard_enabled:
+            raise ValueError(
+                "collision pair diagnostics require the exact step guard"
             )
         if exact_overlap_interval:
             native_execution.update(
@@ -576,7 +758,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                                 if key != "node_ids"
                             }
 
-                        return {
+                        metadata = {
                             "proposal_displacement": without_node_ids(
                                 _placement_displacement_stats(
                                     origin,
@@ -606,6 +788,28 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                                 ],
                             },
                         }
+                        if collision_pair_diagnostics_enabled:
+                            gradient_components = (
+                                model.collision_pair_gradient_components
+                            )
+                            if gradient_components is None:
+                                raise RuntimeError(
+                                    "exact guard lacks collision gradient components"
+                                )
+                            pair_data = self.op_collections.footprint_collision_loss_op.pairwise_diagnostics(
+                                origin,
+                                proposal=proposal_position,
+                                accepted=accepted_position,
+                                **gradient_components,
+                            )
+                            metadata["pair_contacts"] = (
+                                _serialize_collision_pair_diagnostics(
+                                    pair_data,
+                                    placedb,
+                                    self.op_collections.footprint_collision_loss_op.units_per_mm,
+                                )
+                            )
+                        return metadata
 
                     exact_step_guard = ExactAcceptedStepGuard(
                         validator=guard_validator,

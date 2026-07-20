@@ -77,6 +77,67 @@ env CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES=2 \
   --output-dir results/m336/native-cypress/m336-170-guard-ratio-<tag>-1
 ```
 
+## Pair-Local Diagnostic Evidence
+
+A separate, default-off guard diagnostic now samples the pair field at the
+accepted origin and the actual Adam proposal. It records both endpoints'
+movable roles, clearance and SDF normal, base/collision/total raw normal drive,
+preconditioned optimizer drive, actual relative displacement, and
+proposal-side clearance/normal. Geometry remains outside autograd; the
+diagnostic is tensor-only and runs only after a guarded proposal.
+
+The checkpoint-warm E3 seed-`1000` ratio-`0.10` one-step replay examined 200
+near pairs per retry, with 199 valid origin normals. Retry 0 crossed ten exact
+pairs. Nine were driven into the origin SDF normal by approximately
+`0.002307-0.002309 mm`; representative local drives are:
+
+| Pair | Base raw | Collision raw | Adam proposal normal (`mm`) |
+| --- | ---: | ---: | ---: |
+| `C501/R704` | `-0.182024` | `+0.031130` | `-0.002307` |
+| `C605/C606` | `-0.294550` | `+0.020458` | `-0.002307` |
+| `C611/C612` | `-0.293086` | `+0.006562` | `-0.002307` |
+| `FV703/R707` | `-0.311060` | `+0.039653` | `-0.002309` |
+
+Positive collision drive is separating; negative base drive is penetrating.
+The base objective therefore exceeds the local barrier by about `6x-45x` on
+the observed crossing contacts, even though the global L1 ratio is satisfied.
+
+`C8605/C8621` exposes a second, independent limitation. Its origin and proposal
+SDF values are both `-0.025 mm` with normal `[1, 0]`; Adam moves the pair
+`[0, +0.002309] mm`, so origin-normal displacement is exactly zero. The exact
+validator nevertheless reports `0.000115445 mm2` positive overlap. A single
+nearest-face SDF normal therefore cannot protect a nonsmooth edge/corner from
+tangential entry. Per-pair scalar reweighting alone cannot solve this case.
+
+The run fails closed after `10/10/10/10/9` overlap pairs across the five
+backoffs; every position and optimizer rollback is exact. Evidence artifact:
+
+```text
+results/m336/native-cypress/m336-171-pair-diagnostics-v3-ratio-01-1/
+  checkpoint_warm_start/E3/seed_1000/constraints/
+  exact_step_guard_failure.json
+SHA-256 0a8031e0f79d283c7c8706dcf5b9fdebe3cfcc30f4361897adf7b61b99e4d006
+canonical pair-contact SHA-256
+75eda9fb7fc389c9e1142e29ac70f36a0fa39fc747091ce6181921dc5d302ab6
+```
+
+The same run with `--no-collision-pair-diagnostics` produces no pair rows and
+a `48,081`-byte artifact instead of `2,084,299` bytes. Its canonical exact
+proposal/rollback SHA-256 is identical to the diagnostic run:
+`1e2b94ab16a225be1f3fd3f0c1b54ffdc1f3eb73626f29adcbc96c89b4284354`.
+Thus normal guard execution does not pay the extra autograd, SDF sampling, or
+serialization cost.
+
+Reproduce the diagnostic by adding the following flag to the bounded command
+contract above:
+
+```text
+--collision-pair-diagnostics
+```
+
+This completes observability only. N6 remains open; no step was accepted and
+no placement or quality improvement is claimed.
+
 ## Root Cause
 
 The controller matches only the aggregate collision-gradient L1 norm to the
@@ -118,6 +179,11 @@ accepted-step boundaries:
 5. Preserve full optimizer rollback, hard keep-in projection, default-off
    parity, and fail-closed behavior. Do not introduce packing, CP-SAT, or a
    checkpoint fallback.
+
+The control must use more than one origin SDF normal at nonsmooth contacts. A
+candidate-side active set, conservative contact cone, or exact-validator-derived
+local separating cut is required for tangent-entry cases such as
+`C8605/C8621`; blind pair-weight escalation is prohibited.
 
 ## Acceptance Criteria
 

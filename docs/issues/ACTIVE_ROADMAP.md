@@ -263,6 +263,21 @@ now closed. N6 must instrument and control each local contact's predicted Adam
 motion before repeating D1; LR, seed, scalar-ratio, and broad-repair ladders
 remain prohibited.
 
+M336-171 now has pair-local observability for the actual Adam proposal. At
+ratio `0.1`, nine of ten retry-0 exact crossings move inward along the sampled
+origin contact normal because the base objective exceeds local collision drive
+by roughly `6x-45x`. `C8605/C8621` instead crosses under a tangential proposal:
+its origin and proposal SDF clearance are unchanged and its origin-normal
+displacement is zero. The next control must therefore handle shared-node
+direction conflicts and nonsmooth contact cones; per-pair scalar escalation on
+one nearest-face normal is insufficient. This diagnostic accepted no step and
+does not close N6.
+
+The pair trace is independently default-off. Disabling it preserves the exact
+proposal/rollback canonical hash while reducing the one-step failure artifact
+from `2,084,299` to `48,081` bytes; normal exact-guard runs therefore avoid the
+extra gradient decomposition, field sampling, and pair JSON cost.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

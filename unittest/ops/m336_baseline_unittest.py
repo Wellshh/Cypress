@@ -409,6 +409,13 @@ class M336BaselineTest(unittest.TestCase):
             exact_step_guard_backoff=0.5,
             exact_step_guard_max_retries=4,
         )
+        diagnosed = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            footprint_collision=True,
+            exact_step_guard=True,
+            collision_pair_diagnostics=True,
+        )
 
         self.assertFalse(disabled["footprint_collision_loss_flag"])
         self.assertTrue(enabled["footprint_collision_loss_flag"])
@@ -418,6 +425,8 @@ class M336BaselineTest(unittest.TestCase):
         self.assertTrue(guarded["exact_step_guard_flag"])
         self.assertEqual(guarded["exact_step_guard_backoff"], 0.5)
         self.assertEqual(guarded["exact_step_guard_max_retries"], 4)
+        self.assertFalse(guarded["collision_pair_diagnostics_flag"])
+        self.assertTrue(diagnosed["collision_pair_diagnostics_flag"])
         converted = placement_config(
             *arguments,
             source_placement=Path("/tmp/m336.pl"),
@@ -448,6 +457,13 @@ class M336BaselineTest(unittest.TestCase):
                 exact_step_guard=True,
                 exact_step_guard_backoff=1.0,
             )
+        with self.assertRaisesRegex(ValueError, "diagnostics require"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                footprint_collision=True,
+                collision_pair_diagnostics=True,
+            )
 
     def test_collision_contract_rejects_changed_resume_settings(self):
         config = {
@@ -458,6 +474,7 @@ class M336BaselineTest(unittest.TestCase):
             "exact_step_guard_flag": True,
             "exact_step_guard_backoff": 0.5,
             "exact_step_guard_max_retries": 4,
+            "collision_pair_diagnostics_flag": False,
         }
         args = SimpleNamespace(
             footprint_collision=True,
@@ -467,6 +484,7 @@ class M336BaselineTest(unittest.TestCase):
             exact_step_guard=True,
             exact_step_guard_backoff=0.5,
             exact_step_guard_max_retries=4,
+            collision_pair_diagnostics=False,
         )
 
         _require_collision_contract(
@@ -482,6 +500,16 @@ class M336BaselineTest(unittest.TestCase):
                 "resume",
             )
         args.collision_gradient_ratio = 0.1
+        args.collision_pair_diagnostics = True
+        with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
+            _require_collision_contract(
+                config,
+                args,
+                EXPERIMENTS["E3"],
+                Path("/tmp/result.json"),
+                "resume",
+            )
+        args.collision_pair_diagnostics = False
         args.exact_step_guard_backoff = 0.25
         with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
             _require_collision_contract(
@@ -511,6 +539,7 @@ class M336BaselineTest(unittest.TestCase):
         self.assertFalse(score_config["anchor_keepin_flag"])
         self.assertFalse(score_config["footprint_collision_loss_flag"])
         self.assertFalse(score_config["exact_step_guard_flag"])
+        self.assertFalse(score_config["collision_pair_diagnostics_flag"])
         self.assertFalse(score_config["keepin_projection_flag"])
         self.assertFalse(score_config["exact_repair_flag"])
         self.assertEqual(score_config["exact_overlap_diagnostic_interval"], 0)

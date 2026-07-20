@@ -389,6 +389,7 @@ def placement_config(
     exact_step_guard=False,
     exact_step_guard_backoff=0.5,
     exact_step_guard_max_retries=4,
+    collision_pair_diagnostics=False,
 ):
     learning_rate_scale = float(learning_rate_scale)
     if (
@@ -437,6 +438,8 @@ def placement_config(
         raise ValueError("exact-step guard retries must be non-negative")
     if exact_step_guard and not footprint_collision:
         raise ValueError("exact-step guard requires footprint collision")
+    if collision_pair_diagnostics and not exact_step_guard:
+        raise ValueError("collision pair diagnostics require exact-step guard")
     initialization_modes = {
         "cold_source": "preserve_legal",
         "checkpoint_warm_start": "checkpoint_warm_start",
@@ -545,6 +548,12 @@ def placement_config(
                 ),
                 "exact_step_guard_backoff": exact_step_guard_backoff,
                 "exact_step_guard_max_retries": exact_step_guard_max_retries,
+                "collision_pair_diagnostics_flag": bool(
+                    collision_pair_diagnostics
+                    and exact_step_guard
+                    and footprint_collision
+                    and spec["projection"]
+                ),
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
                 "constraint_grid_mm": grid_mm,
@@ -596,6 +605,7 @@ def evaluate_feature_off(
     params.keepin_soft_loss_flag = False
     params.footprint_collision_loss_flag = False
     params.exact_step_guard_flag = False
+    params.collision_pair_diagnostics_flag = False
     params.keepin_projection_flag = False
     params.exact_repair_flag = False
     params.freeze_anchor_nodes = False
@@ -655,6 +665,7 @@ def _serialized_native_score_config(config, replay_aux, native_dir):
             "keepin_soft_loss_flag": False,
             "footprint_collision_loss_flag": False,
             "exact_step_guard_flag": False,
+            "collision_pair_diagnostics_flag": False,
             "irregular_density_flag": False,
             "keepin_projection_flag": False,
             "exact_repair_flag": False,
@@ -1169,6 +1180,12 @@ def _require_collision_contract(config, args, spec, result_path, action):
         getattr(args, "exact_step_guard", False) and expected_enabled
     )
     actual_guard = bool(config.get("exact_step_guard_flag", False))
+    expected_pair_diagnostics = bool(
+        getattr(args, "collision_pair_diagnostics", False) and expected_guard
+    )
+    actual_pair_diagnostics = bool(
+        config.get("collision_pair_diagnostics_flag", False)
+    )
     checks = (
         ("enabled", float(actual_enabled), float(expected_enabled)),
         (
@@ -1187,6 +1204,11 @@ def _require_collision_contract(config, args, spec, result_path, action):
             float(args.collision_tau_mm),
         ),
         ("guard enabled", float(actual_guard), float(expected_guard)),
+        (
+            "pair diagnostics enabled",
+            float(actual_pair_diagnostics),
+            float(expected_pair_diagnostics),
+        ),
         (
             "guard backoff",
             float(config.get("exact_step_guard_backoff", 0.5)),
@@ -1367,6 +1389,9 @@ def run_one(
                 args.exact_step_guard_max_retries,
             )
         )
+        result["collision_pair_diagnostics_enabled"] = bool(
+            config.get("collision_pair_diagnostics_flag", False)
+        )
         result["irregular_density_enabled"] = bool(
             config.get("irregular_density_flag", False)
         )
@@ -1532,6 +1557,7 @@ def run_one(
         exact_step_guard=args.exact_step_guard,
         exact_step_guard_backoff=args.exact_step_guard_backoff,
         exact_step_guard_max_retries=args.exact_step_guard_max_retries,
+        collision_pair_diagnostics=args.collision_pair_diagnostics,
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -1638,6 +1664,9 @@ def run_one(
         "exact_step_guard_backoff": float(args.exact_step_guard_backoff),
         "exact_step_guard_max_retries": int(
             args.exact_step_guard_max_retries
+        ),
+        "collision_pair_diagnostics_enabled": bool(
+            config.get("collision_pair_diagnostics_flag", False)
         ),
         "irregular_density_enabled": bool(
             config.get("irregular_density_flag", False)
@@ -2434,6 +2463,11 @@ def reproduction_command(args, weights=None):
         format(args.exact_step_guard_backoff, "g"),
         "--exact-step-guard-max-retries",
         str(args.exact_step_guard_max_retries),
+        (
+            "--collision-pair-diagnostics"
+            if args.collision_pair_diagnostics
+            else "--no-collision-pair-diagnostics"
+        ),
         "--initialization-track",
         args.initialization_track,
         "--checkpoint-placement",
@@ -2527,6 +2561,12 @@ def main():
     parser.add_argument("--exact-step-guard-backoff", type=float, default=0.5)
     parser.add_argument(
         "--exact-step-guard-max-retries", type=int, default=4
+    )
+    parser.add_argument(
+        "--collision-pair-diagnostics",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="record pair-local gradients and actual guarded proposal motion",
     )
     parser.add_argument(
         "--initialization-track",
@@ -2655,6 +2695,10 @@ def main():
         )
     if args.exact_step_guard and not args.footprint_collision:
         parser.error("exact-step guard requires --footprint-collision")
+    if args.collision_pair_diagnostics and not args.exact_step_guard:
+        parser.error(
+            "--collision-pair-diagnostics requires --exact-step-guard"
+        )
     if args.anchor_gradient_ratio_sweep and any(
         ratio <= 0 for ratio in args.anchor_gradient_ratio_sweep
     ):
@@ -2717,6 +2761,7 @@ def main():
             "exact_step_guard_max_retries": (
                 args.exact_step_guard_max_retries
             ),
+            "collision_pair_diagnostics": args.collision_pair_diagnostics,
             "anchor_gradient_ratios": ratios,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
@@ -2772,6 +2817,7 @@ def main():
             "exact_step_guard_max_retries": (
                 args.exact_step_guard_max_retries
             ),
+            "collision_pair_diagnostics": args.collision_pair_diagnostics,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
             "keepin_margin_mm": args.keepin_margin_mm,

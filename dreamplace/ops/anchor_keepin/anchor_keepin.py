@@ -382,6 +382,9 @@ class FootprintCollisionLoss(nn.Module):
         self.register_buffer("node_size_y", node_size_y.detach().clone())
         active_node_ids = torch.as_tensor(active_node_ids, dtype=torch.long)
         self.register_buffer("active_node_ids", active_node_ids)
+        active_node_mask = torch.zeros(int(num_nodes), dtype=torch.bool)
+        active_node_mask[active_node_ids] = True
+        self.register_buffer("active_node_mask", active_node_mask)
         self.register_buffer(
             "coordinate_ids",
             torch.cat((active_node_ids, int(num_nodes) + active_node_ids)),
@@ -428,9 +431,10 @@ class FootprintCollisionLoss(nn.Module):
             dim=1,
         )
 
-    def sampled_clearances(self, pos):
+    def _sampled_clearance_data(self, pos, include_normals=True):
         if not len(self.first_node_ids):
-            return pos.new_empty(0)
+            empty = pos.new_empty(0)
+            return empty, pos.new_empty((0, 2)), pos.new_empty((0, 2)), empty.bool()
         relative = self._centers(pos, self.second_node_ids) - self._centers(
             pos, self.first_node_ids
         )
@@ -465,7 +469,161 @@ class FootprintCollisionLoss(nn.Module):
         lower = value01 + fraction_x * (value11 - value01)
         sampled = upper + fraction_y * (lower - upper)
         far_clearance = self.margin + 20 * self.tau
-        return torch.where(inside, sampled, sampled.new_full((), far_clearance))
+        clearances = torch.where(
+            inside, sampled, sampled.new_full((), far_clearance)
+        )
+        if not include_normals:
+            return clearances, None, None, None
+        gradient_x = (
+            value10
+            - value00
+            + fraction_y * (value11 - value01 - value10 + value00)
+        ) / self.grid
+        gradient_y = (lower - upper) / self.grid
+        clearance_gradients = (
+            torch.stack((gradient_x, gradient_y), dim=1)
+            * self.relative_signs[:, None]
+        )
+        gradient_norms = torch.linalg.vector_norm(clearance_gradients, dim=1)
+        normal_valid = inside & (gradient_norms > torch.finfo(pos.dtype).eps)
+        normals = clearance_gradients / gradient_norms.clamp_min(
+            torch.finfo(pos.dtype).eps
+        )[:, None]
+        normals = torch.where(normal_valid[:, None], normals, torch.zeros_like(normals))
+        clearance_gradients = torch.where(
+            inside[:, None], clearance_gradients, torch.zeros_like(clearance_gradients)
+        )
+        return clearances, clearance_gradients, normals, normal_valid
+
+    def sampled_clearances(self, pos):
+        return self._sampled_clearance_data(pos, include_normals=False)[0]
+
+    def sampled_clearances_and_normals(self, pos):
+        """Return clearance, its relative gradient, and unit contact normal."""
+        return self._sampled_clearance_data(pos)
+
+    def pairwise_diagnostics(
+        self,
+        pos,
+        base_raw_gradient=None,
+        collision_raw_gradient=None,
+        total_raw_gradient=None,
+        optimizer_gradient=None,
+        proposal=None,
+        accepted=None,
+    ):
+        """Build tensor-only local contact diagnostics outside optimization."""
+        with torch.no_grad():
+            clearances, clearance_gradients, normals, normal_valid = (
+                self._sampled_clearance_data(pos)
+            )
+            active = clearances < self.margin + 12 * self.tau
+            pair_indices = torch.nonzero(active, as_tuple=False).flatten()
+            first_node_ids = self.first_node_ids.index_select(0, pair_indices)
+            second_node_ids = self.second_node_ids.index_select(0, pair_indices)
+            selected_normals = normals.index_select(0, pair_indices)
+
+            def normal_descent(gradient):
+                if gradient is None:
+                    return pos.new_empty(0)
+                relative_descent = torch.stack(
+                    (
+                        gradient[first_node_ids]
+                        - gradient[second_node_ids],
+                        gradient[self.num_nodes + first_node_ids]
+                        - gradient[self.num_nodes + second_node_ids],
+                    ),
+                    dim=1,
+                )
+                return (relative_descent * selected_normals).sum(dim=1)
+
+            def normal_displacement(candidate):
+                if candidate is None:
+                    return pos.new_empty(0), pos.new_empty((0, 2))
+                displacement = torch.stack(
+                    (
+                        candidate[second_node_ids]
+                        - pos[second_node_ids]
+                        - candidate[first_node_ids]
+                        + pos[first_node_ids],
+                        candidate[self.num_nodes + second_node_ids]
+                        - pos[self.num_nodes + second_node_ids]
+                        - candidate[self.num_nodes + first_node_ids]
+                        + pos[self.num_nodes + first_node_ids],
+                    ),
+                    dim=1,
+                )
+                return (displacement * selected_normals).sum(dim=1), displacement
+
+            proposal_normal_displacement, proposal_relative_displacement = (
+                normal_displacement(proposal)
+            )
+            accepted_normal_displacement, accepted_relative_displacement = (
+                normal_displacement(accepted)
+            )
+
+            def candidate_field(candidate):
+                if candidate is None:
+                    return (
+                        pos.new_empty(0),
+                        pos.new_empty((0, 2)),
+                        pos.new_empty(0, dtype=torch.bool),
+                    )
+                candidate_clearance, _, candidate_normals, candidate_valid = (
+                    self._sampled_clearance_data(candidate)
+                )
+                return (
+                    candidate_clearance.index_select(0, pair_indices),
+                    candidate_normals.index_select(0, pair_indices),
+                    candidate_valid.index_select(0, pair_indices),
+                )
+
+            (
+                proposal_clearances,
+                proposal_normals,
+                proposal_normal_valid,
+            ) = candidate_field(proposal)
+            (
+                accepted_clearances,
+                accepted_normals,
+                accepted_normal_valid,
+            ) = candidate_field(accepted)
+
+            return {
+                "pair_indices": pair_indices,
+                "first_node_ids": first_node_ids,
+                "second_node_ids": second_node_ids,
+                "first_active": self.active_node_mask.index_select(
+                    0, first_node_ids
+                ),
+                "second_active": self.active_node_mask.index_select(
+                    0, second_node_ids
+                ),
+                "clearances": clearances.index_select(0, pair_indices),
+                "clearance_gradients": clearance_gradients.index_select(
+                    0, pair_indices
+                ),
+                "normals": selected_normals,
+                "normal_valid": normal_valid.index_select(0, pair_indices),
+                "base_raw_normal_descent": normal_descent(base_raw_gradient),
+                "collision_raw_normal_descent": normal_descent(
+                    collision_raw_gradient
+                ),
+                "total_raw_normal_descent": normal_descent(total_raw_gradient),
+                "optimizer_gradient_normal_descent": normal_descent(
+                    optimizer_gradient
+                ),
+                "proposal_relative_displacement": proposal_relative_displacement,
+                "proposal_normal_displacement": proposal_normal_displacement,
+                "proposal_clearances": proposal_clearances,
+                "proposal_normals": proposal_normals,
+                "proposal_normal_valid": proposal_normal_valid,
+                "accepted_relative_displacement": accepted_relative_displacement,
+                "accepted_normal_displacement": accepted_normal_displacement,
+                "accepted_clearances": accepted_clearances,
+                "accepted_normals": accepted_normals,
+                "accepted_normal_valid": accepted_normal_valid,
+            }
 
     def forward(self, pos):
         clearances = self.sampled_clearances(pos)

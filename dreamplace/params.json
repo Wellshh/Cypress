@@ -459,6 +459,10 @@
         "description": "maximum native optimizer retries after exact-illegal proposals",
         "default": 4
     },
+    "collision_pair_diagnostics_flag": {
+        "description": "record bounded pair-local collision gradients and proposal motion for guarded steps",
+        "default": false
+    },
     "keepin_projection_flag": {
         "description": "project constrained components into footprint-aware feasible domains",
         "default": false

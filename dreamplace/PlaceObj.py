@@ -258,6 +258,7 @@ class PlaceObj(nn.Module):
         self.collision_weight_controller = None
         self.collision_weight_updates = []
         self._collision_last_losses = None
+        self.collision_pair_gradient_components = None
         if getattr(params, "footprint_collision_loss_flag", False):
             self.register_buffer(
                 "footprint_collision_loss_weight",
@@ -903,6 +904,21 @@ class PlaceObj(nn.Module):
 
         obj = self.obj_fn(pos, orient_logits)
 
+        collision_raw_gradient = None
+        if (
+            orient_logits is None
+            and getattr(
+                self.params, "collision_pair_diagnostics_flag", False
+            )
+            and getattr(self.params, "footprint_collision_loss_flag", False)
+        ):
+            collision_raw_gradient = torch.autograd.grad(
+                self.footprint_collision_loss_weight
+                * self.footprint_collision_loss,
+                pos,
+                retain_graph=True,
+            )[0].detach()
+
         obj.backward(retain_graph=True)
         self.backward_call_count += 1
         if not self._backward_evidence_logged:
@@ -921,16 +937,44 @@ class PlaceObj(nn.Module):
         ret_grad = None
         num_movable_nodes = self.placedb.num_movable_nodes
         num_physical_nodes = self.placedb.num_physical_nodes
-        if orient_logits is None: 
+        if orient_logits is None:
             num_nodes = self.placedb.num_nodes
             pos.grad[num_movable_nodes:num_physical_nodes] = 0.0
             pos.grad[num_nodes+num_movable_nodes:num_nodes+num_physical_nodes] = 0.0
+            if collision_raw_gradient is not None:
+                total_raw_gradient = pos.grad.detach().clone()
+                collision_raw_gradient = collision_raw_gradient.clone()
+                collision_raw_gradient[
+                    num_movable_nodes:num_physical_nodes
+                ] = 0.0
+                collision_raw_gradient[
+                    num_nodes
+                    + num_movable_nodes : num_nodes
+                    + num_physical_nodes
+                ] = 0.0
+                base_raw_gradient = total_raw_gradient - collision_raw_gradient
+                context = getattr(
+                    self.op_collections, "anchor_keepin_context", None
+                )
+                if context is not None:
+                    context.zero_frozen_gradients(total_raw_gradient)
+                    context.zero_frozen_gradients(base_raw_gradient)
+                    context.zero_frozen_gradients(collision_raw_gradient)
+                self.collision_pair_gradient_components = {
+                    "base_raw_gradient": base_raw_gradient,
+                    "collision_raw_gradient": collision_raw_gradient,
+                    "total_raw_gradient": total_raw_gradient,
+                }
             self.op_collections.precondition_op(
                     pos.grad, self.density_weight, self.update_mask, freeze_pos=self.freeze_pos
                 )
             context = getattr(self.op_collections, "anchor_keepin_context", None)
             if context is not None:
                 context.zero_frozen_gradients(pos.grad)
+            if self.collision_pair_gradient_components is not None:
+                self.collision_pair_gradient_components[
+                    "optimizer_gradient"
+                ] = pos.grad.detach().clone()
             ret_grad = pos.grad
         else:
             orient_logits.grad[num_movable_nodes:, :] = 0.0

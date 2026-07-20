@@ -515,6 +515,84 @@ class AnchorKeepInTest(unittest.TestCase):
         self.assertLess(diagnostics["minimum_clearance"], 0.0)
         self.assertGreater(diagnostics["loss"], 0.0)
 
+    def test_collision_contact_normals_match_finite_difference(self):
+        loss_op, _ = self._collision_loss()
+        for second_x, second_y, expected in (
+            (1.0, 0.0, (1.0, 0.0)),
+            (-1.0, 0.0, (-1.0, 0.0)),
+            (0.0, 1.0, (0.0, 1.0)),
+            (0.0, -1.0, (0.0, -1.0)),
+        ):
+            pos = torch.tensor(
+                [0.0, second_x, 0.0, second_y], dtype=torch.float64
+            )
+            _, gradients, normals, valid = (
+                loss_op.sampled_clearances_and_normals(pos)
+            )
+            self.assertTrue(valid.item())
+            np.testing.assert_allclose(
+                normals.numpy(), [expected], atol=1e-12, rtol=0
+            )
+
+        pos = torch.tensor([0.0, 1.075, 0.0, 0.0], dtype=torch.float64)
+        _, gradients, _, _ = loss_op.sampled_clearances_and_normals(pos)
+        epsilon = 1e-6
+        offset = torch.tensor([0.0, epsilon, 0.0, 0.0], dtype=pos.dtype)
+        finite_difference = (
+            loss_op.sampled_clearances(pos + offset)
+            - loss_op.sampled_clearances(pos - offset)
+        ) / (2 * epsilon)
+        self.assertAlmostEqual(
+            gradients[0, 0].item(), finite_difference.item(), places=7
+        )
+
+    def test_pairwise_diagnostics_measure_local_gradient_and_proposal_drive(self):
+        loss_op, _ = self._collision_loss()
+        pos = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float64)
+        base_gradient = torch.tensor([-1.0, 0.0, 0.0, 0.0], dtype=pos.dtype)
+        collision_gradient = -base_gradient
+        proposal = torch.tensor([0.01, 1.0, 0.0, 0.0], dtype=pos.dtype)
+        accepted = torch.tensor([-0.01, 1.0, 0.0, 0.0], dtype=pos.dtype)
+
+        diagnostics = loss_op.pairwise_diagnostics(
+            pos,
+            base_raw_gradient=base_gradient,
+            collision_raw_gradient=collision_gradient,
+            total_raw_gradient=base_gradient + collision_gradient,
+            optimizer_gradient=base_gradient,
+            proposal=proposal,
+            accepted=accepted,
+        )
+
+        self.assertEqual(diagnostics["pair_indices"].tolist(), [0])
+        self.assertEqual(diagnostics["first_active"].tolist(), [True])
+        self.assertEqual(diagnostics["second_active"].tolist(), [False])
+        self.assertLess(diagnostics["base_raw_normal_descent"].item(), 0.0)
+        self.assertGreater(
+            diagnostics["collision_raw_normal_descent"].item(), 0.0
+        )
+        self.assertLess(
+            diagnostics["proposal_normal_displacement"].item(), 0.0
+        )
+        np.testing.assert_allclose(
+            diagnostics["proposal_relative_displacement"].numpy(),
+            [[-0.01, 0.0]],
+            atol=1e-12,
+            rtol=0,
+        )
+        self.assertLess(
+            diagnostics["proposal_clearances"].item(),
+            diagnostics["clearances"].item(),
+        )
+        self.assertTrue(diagnostics["proposal_normal_valid"].item())
+        self.assertGreater(
+            diagnostics["accepted_normal_displacement"].item(), 0.0
+        )
+        self.assertGreater(
+            diagnostics["accepted_clearances"].item(),
+            diagnostics["clearances"].item(),
+        )
+
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
     def test_collision_barrier_cpu_gpu_consistency(self):
         cpu_loss, _ = self._collision_loss()
@@ -533,6 +611,10 @@ class AnchorKeepInTest(unittest.TestCase):
         np.testing.assert_allclose(
             cpu_pos.grad.numpy(), gpu_pos.grad.cpu().numpy(), atol=1e-10, rtol=1e-10
         )
+        cpu_field = cpu_loss.sampled_clearances_and_normals(cpu_pos)
+        gpu_field = gpu_loss.sampled_clearances_and_normals(gpu_pos)
+        for cpu_value, gpu_value in zip(cpu_field, gpu_field):
+            self.assertTrue(torch.equal(cpu_value, gpu_value.cpu()))
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
     def test_collision_barrier_cuda_repeat_is_byte_identical(self):
