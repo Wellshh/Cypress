@@ -143,3 +143,15 @@ cannot repair a direction that crosses at every positive scale. A bounded
 one-step ratio check at `0.25`, then at most `0.5`, is justified. If neither
 produces an exact-legal direction, further scalar-weight sweeps must stop in
 favor of pair-local contact-normal control.
+
+## Bounded Ratio Closure
+
+M336-171 executes the complete authorized ratio check. Ratio `0.25` retains the
+same 10 first-attempt and 9 final-attempt pairs as ratio `0.1`; its final area is
+also exactly `0.000501145416 mm2`. Ratio `0.5` improves the first/final counts to
+7/6 and areas to `0.005071385/0.000314339 mm2`, but every positive retry remains
+illegal. All position and optimizer-state rollbacks are exact.
+
+The scalar collision-ratio sweep is therefore closed. The M336-169 mitigation
+remains limited to aggregate signal reduction; M336-171 is the authority for
+the active pair-local contact-direction defect.

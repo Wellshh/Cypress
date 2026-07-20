@@ -119,3 +119,14 @@ The durable failure artifact is
 `results/m336/native-cypress/m336-170-guard-smoke-1/checkpoint_warm_start/E3/seed_1000/constraints/exact_step_guard_failure.json`.
 M336-170 remains open until the preventive objective supplies a legal native
 direction and the 10-step gate passes.
+
+## Guard Confirmation Under Bounded Ratios
+
+M336-171 repeats the one-step guard at collision ratios `0.25` and `0.5`. All
+ten additional candidates are rejected with zero keep-in violations and exact
+position/optimizer rollback. The ratio-`0.5` signal removes four final crossing
+pairs relative to ratio `0.1`, but six remain and the run still fails closed.
+
+This confirms that M336-170 now enforces its safety invariant; it does not claim
+the D1 acceptance gate. The active blocker has moved to M336-171's pair-local
+contact direction, while the guard remains required for every subsequent run.

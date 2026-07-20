@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-170`
+**Evidence through:** `M336-171`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (active) | Prevent native optimizer steps from crossing same-side footprint contacts | Differentiable pre-contact barrier plus exact transactional step guard pass D1-D4 with zero accepted overlaps before any final matrix |
+| N6 (active) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-171 pair-local contact control plus the exact transactional step guard pass D1-D4 with zero accepted overlaps before any final matrix |
 
 ## Paused Exact-Site Priorities
 
@@ -255,6 +255,13 @@ first ratio-`0.1` probe rejects all five step-1 attempts: overlap area falls fro
 the guard works and isolates the remaining N6 defect to local collision-force
 direction. Only bounded ratio checks at `0.25` and `0.5` are authorized before
 replacing scalar global matching with pair-local contact-normal control.
+
+M336-171 closes those bounded checks. Ratio `0.25` is effectively unchanged;
+ratio `0.5` reduces the first/final crossing sets from 10/9 pairs to 7/6, but
+all retries remain illegal and exactly rolled back. Global scalar matching is
+now closed. N6 must instrument and control each local contact's predicted Adam
+motion before repeating D1; LR, seed, scalar-ratio, and broad-repair ladders
+remain prohibited.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
