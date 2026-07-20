@@ -47,6 +47,7 @@ IMPLEMENTATION_FILES = (
     "dreamplace/Placer.py",
     "dreamplace/params.json",
     "dreamplace/constraints/anchor_keepin.py",
+    "dreamplace/constraints/exact_contact_projection.py",
     "dreamplace/constraints/exact_step_guard.py",
     "dreamplace/constraints/irregular_density.py",
     "dreamplace/constraints/pcb_geometry.py",
@@ -72,6 +73,7 @@ IMPLEMENTATION_FILES = (
     "install/dreamplace/PlaceObj.py",
     "install/dreamplace/Placer.py",
     "install/dreamplace/constraints/anchor_keepin.py",
+    "install/dreamplace/constraints/exact_contact_projection.py",
     "install/dreamplace/constraints/exact_step_guard.py",
     "install/dreamplace/constraints/irregular_density.py",
     "install/dreamplace/constraints/pcb_geometry.py",
@@ -390,6 +392,9 @@ def placement_config(
     exact_step_guard_backoff=0.5,
     exact_step_guard_max_retries=4,
     collision_pair_diagnostics=False,
+    exact_contact_projection=False,
+    exact_contact_projection_max_iterations=8,
+    exact_contact_projection_max_nodes=32,
 ):
     learning_rate_scale = float(learning_rate_scale)
     if (
@@ -429,6 +434,12 @@ def placement_config(
         )
     exact_step_guard_backoff = float(exact_step_guard_backoff)
     exact_step_guard_max_retries = int(exact_step_guard_max_retries)
+    exact_contact_projection_max_iterations = int(
+        exact_contact_projection_max_iterations
+    )
+    exact_contact_projection_max_nodes = int(
+        exact_contact_projection_max_nodes
+    )
     if (
         not math.isfinite(exact_step_guard_backoff)
         or not 0 < exact_step_guard_backoff < 1
@@ -440,6 +451,14 @@ def placement_config(
         raise ValueError("exact-step guard requires footprint collision")
     if collision_pair_diagnostics and not exact_step_guard:
         raise ValueError("collision pair diagnostics require exact-step guard")
+    if exact_contact_projection and not exact_step_guard:
+        raise ValueError("exact contact projection requires exact-step guard")
+    if exact_contact_projection_max_iterations <= 0:
+        raise ValueError("exact contact projection iterations must be positive")
+    if exact_contact_projection_max_nodes < 2:
+        raise ValueError(
+            "exact contact projection node limit must be at least two"
+        )
     initialization_modes = {
         "cold_source": "preserve_legal",
         "checkpoint_warm_start": "checkpoint_warm_start",
@@ -554,6 +573,18 @@ def placement_config(
                     and footprint_collision
                     and spec["projection"]
                 ),
+                "exact_contact_projection_flag": bool(
+                    exact_contact_projection
+                    and exact_step_guard
+                    and footprint_collision
+                    and spec["projection"]
+                ),
+                "exact_contact_projection_max_iterations": (
+                    exact_contact_projection_max_iterations
+                ),
+                "exact_contact_projection_max_nodes": (
+                    exact_contact_projection_max_nodes
+                ),
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
                 "constraint_grid_mm": grid_mm,
@@ -606,6 +637,7 @@ def evaluate_feature_off(
     params.footprint_collision_loss_flag = False
     params.exact_step_guard_flag = False
     params.collision_pair_diagnostics_flag = False
+    params.exact_contact_projection_flag = False
     params.keepin_projection_flag = False
     params.exact_repair_flag = False
     params.freeze_anchor_nodes = False
@@ -666,6 +698,7 @@ def _serialized_native_score_config(config, replay_aux, native_dir):
             "footprint_collision_loss_flag": False,
             "exact_step_guard_flag": False,
             "collision_pair_diagnostics_flag": False,
+            "exact_contact_projection_flag": False,
             "irregular_density_flag": False,
             "keepin_projection_flag": False,
             "exact_repair_flag": False,
@@ -1186,6 +1219,12 @@ def _require_collision_contract(config, args, spec, result_path, action):
     actual_pair_diagnostics = bool(
         config.get("collision_pair_diagnostics_flag", False)
     )
+    expected_contact_projection = bool(
+        getattr(args, "exact_contact_projection", False) and expected_guard
+    )
+    actual_contact_projection = bool(
+        config.get("exact_contact_projection_flag", False)
+    )
     checks = (
         ("enabled", float(actual_enabled), float(expected_enabled)),
         (
@@ -1210,6 +1249,11 @@ def _require_collision_contract(config, args, spec, result_path, action):
             float(expected_pair_diagnostics),
         ),
         (
+            "contact projection enabled",
+            float(actual_contact_projection),
+            float(expected_contact_projection),
+        ),
+        (
             "guard backoff",
             float(config.get("exact_step_guard_backoff", 0.5)),
             float(getattr(args, "exact_step_guard_backoff", 0.5)),
@@ -1218,6 +1262,18 @@ def _require_collision_contract(config, args, spec, result_path, action):
             "guard retries",
             float(config.get("exact_step_guard_max_retries", 4)),
             float(getattr(args, "exact_step_guard_max_retries", 4)),
+        ),
+        (
+            "contact projection iterations",
+            float(config.get("exact_contact_projection_max_iterations", 8)),
+            float(
+                getattr(args, "exact_contact_projection_max_iterations", 8)
+            ),
+        ),
+        (
+            "contact projection nodes",
+            float(config.get("exact_contact_projection_max_nodes", 32)),
+            float(getattr(args, "exact_contact_projection_max_nodes", 32)),
         ),
     )
     mismatches = [
@@ -1392,6 +1448,15 @@ def run_one(
         result["collision_pair_diagnostics_enabled"] = bool(
             config.get("collision_pair_diagnostics_flag", False)
         )
+        result["exact_contact_projection_enabled"] = bool(
+            config.get("exact_contact_projection_flag", False)
+        )
+        result["exact_contact_projection_max_iterations"] = int(
+            config.get("exact_contact_projection_max_iterations", 8)
+        )
+        result["exact_contact_projection_max_nodes"] = int(
+            config.get("exact_contact_projection_max_nodes", 32)
+        )
         result["irregular_density_enabled"] = bool(
             config.get("irregular_density_flag", False)
         )
@@ -1558,6 +1623,13 @@ def run_one(
         exact_step_guard_backoff=args.exact_step_guard_backoff,
         exact_step_guard_max_retries=args.exact_step_guard_max_retries,
         collision_pair_diagnostics=args.collision_pair_diagnostics,
+        exact_contact_projection=args.exact_contact_projection,
+        exact_contact_projection_max_iterations=(
+            args.exact_contact_projection_max_iterations
+        ),
+        exact_contact_projection_max_nodes=(
+            args.exact_contact_projection_max_nodes
+        ),
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -1667,6 +1739,15 @@ def run_one(
         ),
         "collision_pair_diagnostics_enabled": bool(
             config.get("collision_pair_diagnostics_flag", False)
+        ),
+        "exact_contact_projection_enabled": bool(
+            config.get("exact_contact_projection_flag", False)
+        ),
+        "exact_contact_projection_max_iterations": int(
+            config.get("exact_contact_projection_max_iterations", 8)
+        ),
+        "exact_contact_projection_max_nodes": int(
+            config.get("exact_contact_projection_max_nodes", 32)
         ),
         "irregular_density_enabled": bool(
             config.get("irregular_density_flag", False)
@@ -2468,6 +2549,15 @@ def reproduction_command(args, weights=None):
             if args.collision_pair_diagnostics
             else "--no-collision-pair-diagnostics"
         ),
+        (
+            "--exact-contact-projection"
+            if args.exact_contact_projection
+            else "--no-exact-contact-projection"
+        ),
+        "--exact-contact-projection-max-iterations",
+        str(args.exact_contact_projection_max_iterations),
+        "--exact-contact-projection-max-nodes",
+        str(args.exact_contact_projection_max_nodes),
         "--initialization-track",
         args.initialization_track,
         "--checkpoint-placement",
@@ -2567,6 +2657,18 @@ def main():
         action=argparse.BooleanOptionalAction,
         default=False,
         help="record pair-local gradients and actual guarded proposal motion",
+    )
+    parser.add_argument(
+        "--exact-contact-projection",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="project exact-crossing contact components before guard acceptance",
+    )
+    parser.add_argument(
+        "--exact-contact-projection-max-iterations", type=int, default=8
+    )
+    parser.add_argument(
+        "--exact-contact-projection-max-nodes", type=int, default=32
     )
     parser.add_argument(
         "--initialization-track",
@@ -2677,6 +2779,8 @@ def main():
         or not math.isfinite(args.exact_step_guard_backoff)
         or not 0 < args.exact_step_guard_backoff < 1
         or args.exact_step_guard_max_retries < 0
+        or args.exact_contact_projection_max_iterations <= 0
+        or args.exact_contact_projection_max_nodes < 2
         or not math.isfinite(args.learning_rate_scale)
         or args.learning_rate_scale < MIN_M336_LEARNING_RATE_SCALE
         or args.learning_rate_scale > MAX_M336_LEARNING_RATE_SCALE
@@ -2689,6 +2793,8 @@ def main():
         parser.error(
             "anchor/collision ratios, grid, margin taus, and site size must be positive; "
             "guard backoff must be in (0, 1) and retries non-negative; "
+            "contact projection iterations must be positive and its node "
+            "limit at least two; "
             "learning-rate scale must be within [%g, %g]; clearance and "
             "margin must be non-negative"
             % (MIN_M336_LEARNING_RATE_SCALE, MAX_M336_LEARNING_RATE_SCALE)
@@ -2699,6 +2805,8 @@ def main():
         parser.error(
             "--collision-pair-diagnostics requires --exact-step-guard"
         )
+    if args.exact_contact_projection and not args.exact_step_guard:
+        parser.error("--exact-contact-projection requires --exact-step-guard")
     if args.anchor_gradient_ratio_sweep and any(
         ratio <= 0 for ratio in args.anchor_gradient_ratio_sweep
     ):
@@ -2762,6 +2870,13 @@ def main():
                 args.exact_step_guard_max_retries
             ),
             "collision_pair_diagnostics": args.collision_pair_diagnostics,
+            "exact_contact_projection": args.exact_contact_projection,
+            "exact_contact_projection_max_iterations": (
+                args.exact_contact_projection_max_iterations
+            ),
+            "exact_contact_projection_max_nodes": (
+                args.exact_contact_projection_max_nodes
+            ),
             "anchor_gradient_ratios": ratios,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
@@ -2818,6 +2933,13 @@ def main():
                 args.exact_step_guard_max_retries
             ),
             "collision_pair_diagnostics": args.collision_pair_diagnostics,
+            "exact_contact_projection": args.exact_contact_projection,
+            "exact_contact_projection_max_iterations": (
+                args.exact_contact_projection_max_iterations
+            ),
+            "exact_contact_projection_max_nodes": (
+                args.exact_contact_projection_max_nodes
+            ),
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
             "keepin_margin_mm": args.keepin_margin_mm,

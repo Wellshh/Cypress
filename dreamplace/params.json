@@ -463,6 +463,18 @@
         "description": "record bounded pair-local collision gradients and proposal motion for guarded steps",
         "default": false
     },
+    "exact_contact_projection_flag": {
+        "description": "project exact-crossing contact components onto bounded shared native proposal motion",
+        "default": false
+    },
+    "exact_contact_projection_max_iterations": {
+        "description": "maximum exact contact-closure projection iterations per native proposal",
+        "default": 8
+    },
+    "exact_contact_projection_max_nodes": {
+        "description": "maximum contact-closure nodes projected in one native proposal",
+        "default": 32
+    },
     "keepin_projection_flag": {
         "description": "project constrained components into footprint-aware feasible domains",
         "default": false

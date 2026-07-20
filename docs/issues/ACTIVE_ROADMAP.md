@@ -278,6 +278,17 @@ proposal/rollback canonical hash while reducing the one-step failure artifact
 from `2,084,299` to `48,081` bytes; normal exact-guard runs therefore avoid the
 extra gradient decomposition, field sampling, and pair JSON cost.
 
+M336-171 now has a first bounded control result. A candidate-side exact contact
+projector retains the actual Adam proposal but gives each newly crossing
+contact component one shared displacement before guard acceptance. The first
+checkpoint-warm E3 step closes ten crossings in seven components/17 nodes,
+passes `100/100` containment with zero keep-in and overlap violations, and is
+accepted without backoff. Native HPWL/RSMT improve from the M336-118 repeated
+baseline `15634.450477/17333.037` to `15633.827651/17332.127`; normalized score
+improves from `0.927850154` to `0.927893042`. The contact-off canonical failure
+hash remains unchanged. This passes only the one-step signal: warm E2/E3 D1,
+runtime, and repeated-hash gates remain open before N6 can close.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

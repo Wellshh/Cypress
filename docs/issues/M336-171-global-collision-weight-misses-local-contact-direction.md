@@ -138,6 +138,83 @@ contract above:
 This completes observability only. N6 remains open; no step was accepted and
 no placement or quality improvement is claimed.
 
+## Candidate-Side Contact Control
+
+A default-off exact contact projector now runs between the normal hard
+keep-in projection and guard acceptance. It does not create sites, search a
+placement, or invoke repair. Starting from the actual Adam proposal, it:
+
+1. asks the exact validator for newly crossing pairs;
+2. builds their deterministic contact-component closure;
+3. projects each active component onto one shared displacement, using an
+   inactive endpoint's displacement as authoritative when present;
+4. reapplies the normal hard constraints and repeats exact validation;
+5. returns the candidate to the transactional guard, which remains the final
+   authority and rolls back on any residual violation.
+
+The operation is bounded at eight closure iterations and 32 contact nodes. A
+limit, immutable crossing, or stalled closure remains illegal and is not
+silently repaired. Seven focused tests cover four approach directions,
+movable-to-frozen contact, a shared-node chain, iterative closure, node-limit
+failure, legal no-op behavior, and byte-identical CPU/GPU coordinates.
+
+The checkpoint-warm E3 seed-`1000` one-step run at ratio `0.10` and LR scale
+`1` now accepts retry 0. Its raw Adam proposal has the same ten exact crossings
+and `0.008031909 mm2` area as the prior failure. One bounded projection builds
+seven components containing 17 active nodes, then returns zero overlaps and
+zero keep-in violations. The guard accepts the candidate without backoff:
+
+| Metric | Result |
+| --- | ---: |
+| Native backward calls / changing Adam steps | `4 / 1` |
+| Proposal / accepted constrained movers | `100 / 98` |
+| Contact correction mean / max | `0.025458 / 0.034393` Cypress units |
+| Exact containment / keep-in / overlap | `100/100 / 0 / 0` |
+| Native HPWL / FLUTE RSMT | `15633.827651 / 17332.127` |
+| Normalized native score | `0.9278930424` |
+| End-to-end / GPU optimization | `12.6702 / 1.06365 s` |
+| Guard / contact-control time | `0.14961 / 0.03567 s` |
+
+Relative to repeated M336-118 native scoring, HPWL improves by about `0.623`,
+RSMT by `0.910`, and normalized score by `0.00004289`. E4 is disabled and no
+checkpoint fallback is used. Placement SHA-256 is
+`e7baf248073a5eb010db3c40d5fca6e22bb3a00a28c30aeb92ad9b78fc72c086`.
+
+Evidence:
+
+```text
+results/m336/native-cypress/m336-171-contact-projection-e3-1/
+summary.json
+SHA-256 f238ed4b57c9c8c67f9dae002f96b0f470d345b06ce76a1511d1da735b4ac468
+
+checkpoint_warm_start/E3/seed_1000/constraints/exact_step_guard.json
+SHA-256 6b36507463be8a01aa19ad6a178104a465eea370f30393af808eb931e7d01ea2
+```
+
+```bash
+env CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES=2 \
+  PYTHONPATH="$PWD/install:$PWD:/tmp/m336-ortools-py311" \
+  python3.11 experiments/m336/scripts/run_matrix.py \
+  --experiments E3 --seeds 1000 --iterations 1 \
+  --learning-rate-scale 1 --gpu --irregular-density \
+  --footprint-collision --collision-gradient-ratio 0.1 \
+  --collision-margin-mm 0 --collision-tau-mm 0.025 \
+  --exact-step-guard --exact-step-guard-backoff 0.5 \
+  --exact-step-guard-max-retries 4 --collision-pair-diagnostics \
+  --exact-contact-projection \
+  --exact-contact-projection-max-iterations 8 \
+  --exact-contact-projection-max-nodes 32 \
+  --initialization-track checkpoint_warm_start \
+  --output-dir results/m336/native-cypress/m336-171-contact-projection-e3-1
+```
+
+The matching `--no-exact-contact-projection` run still fails closed with the
+unchanged canonical proposal/rollback SHA-256
+`1e2b94ab16a225be1f3fd3f0c1b54ffdc1f3eb73626f29adcbc96c89b4284354`.
+This is a one-step promotion signal only. N6 and D1 remain open until both warm
+E2 and E3 retain exact legality for ten accepted native steps with bounded
+quality and runtime.
+
 ## Root Cause
 
 The controller matches only the aggregate collision-gradient L1 norm to the

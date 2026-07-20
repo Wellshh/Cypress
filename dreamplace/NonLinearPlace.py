@@ -48,6 +48,9 @@ from dreamplace.constraints.exact_step_guard import (
     ExactAcceptedStepGuard,
     ExactStepGuardFailure,
 )
+from dreamplace.constraints.exact_contact_projection import (
+    ExactContactProjector,
+)
 
 
 def _placement_displacement_stats(
@@ -399,10 +402,17 @@ class _NativeDisplacementTracker:
 class _CompositeProjector:
     """Apply board and footprint constraints at explicit optimizer boundaries."""
 
-    def __init__(self, board_projector, region_projector, num_nodes):
+    def __init__(
+        self,
+        board_projector,
+        region_projector,
+        num_nodes,
+        contact_projector=None,
+    ):
         self.board_projector = board_projector
         self.region_projector = region_projector
         self.num_nodes = int(num_nodes)
+        self.contact_projector = contact_projector
         self._proposal_origin = None
         self.reset_step()
 
@@ -417,6 +427,7 @@ class _CompositeProjector:
             "node_ids": (),
         }
         self._last_correction = dict(self._last_proposal)
+        self._last_contact_projection = None
         self._projected_node_ids = set()
         self._projection_event_count = 0
         self._projection_distance_sum = 0.0
@@ -425,6 +436,12 @@ class _CompositeProjector:
     def begin_step(self, position):
         self.reset_step()
         self._proposal_origin = position.detach().clone()
+
+    def _apply_hard_constraints(self, position):
+        self.board_projector(position)
+        if self.region_projector is not None:
+            return self.region_projector(position)
+        return None
 
     def __call__(self, position):
         track_step = self._proposal_origin is not None
@@ -438,13 +455,16 @@ class _CompositeProjector:
             )
             self._proposal_position = before_projection
 
-        self.board_projector(position)
-        region_stats = None
-        if self.region_projector is not None:
-            region_stats = self.region_projector(position)
+        region_stats = self._apply_hard_constraints(position)
 
         if not track_step:
             return region_stats
+        if self.contact_projector is not None:
+            self._last_contact_projection = self.contact_projector(
+                self._proposal_origin,
+                position,
+                self._apply_hard_constraints,
+            )
         correction = _placement_displacement_stats(
             before_projection, position.detach(), self.num_nodes
         )
@@ -472,6 +492,7 @@ class _CompositeProjector:
                 else 0.0
             ),
             "projection_max_distance": self._projection_max_distance,
+            "contact_projection": self._last_contact_projection,
             "origin_position": self._proposal_origin,
             "proposal_position": self._proposal_position,
             "accepted_position": self._accepted_position,
@@ -551,6 +572,15 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         collision_pair_diagnostics_enabled = bool(
             getattr(params, "collision_pair_diagnostics_flag", False)
         )
+        exact_contact_projection_enabled = bool(
+            getattr(params, "exact_contact_projection_flag", False)
+        )
+        exact_contact_projection_max_iterations = int(
+            getattr(params, "exact_contact_projection_max_iterations", 8)
+        )
+        exact_contact_projection_max_nodes = int(
+            getattr(params, "exact_contact_projection_max_nodes", 32)
+        )
         if exact_overlap_interval < 0:
             raise ValueError("exact overlap diagnostic interval must be non-negative")
         if exact_overlap_interval and self.anchor_keepin_context is None:
@@ -586,6 +616,30 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         if collision_pair_diagnostics_enabled and not exact_step_guard_enabled:
             raise ValueError(
                 "collision pair diagnostics require the exact step guard"
+            )
+        if exact_contact_projection_enabled and not exact_step_guard_enabled:
+            raise ValueError(
+                "exact contact projection requires the exact step guard"
+            )
+        if exact_contact_projection_max_iterations <= 0:
+            raise ValueError(
+                "exact contact projection iterations must be positive"
+            )
+        if exact_contact_projection_max_nodes < 2:
+            raise ValueError(
+                "exact contact projection node limit must be at least two"
+            )
+        if exact_contact_projection_enabled:
+            native_execution.update(
+                {
+                    "exact_contact_projection_enabled": True,
+                    "exact_contact_projection_max_iterations": (
+                        exact_contact_projection_max_iterations
+                    ),
+                    "exact_contact_projection_max_nodes": (
+                        exact_contact_projection_max_nodes
+                    ),
+                }
             )
         if exact_overlap_interval:
             native_execution.update(
@@ -680,6 +734,41 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     else:
                         position.append(param)
 
+                guard_validator = None
+                if exact_step_guard_enabled:
+
+                    def guard_validator(candidate):
+                        return self.anchor_keepin_context.exact_overlap_report(
+                            candidate, placedb
+                        )
+
+                contact_projector = None
+                if exact_contact_projection_enabled:
+                    node_names = [
+                        value.decode() if isinstance(value, bytes) else str(value)
+                        for value in placedb.node_names[
+                            : placedb.num_physical_nodes
+                        ]
+                    ]
+                    collision_op = (
+                        self.op_collections.footprint_collision_loss_op
+                    )
+                    contact_projector = ExactContactProjector(
+                        validator=guard_validator,
+                        refdes_to_node_id={
+                            refdes: node_id
+                            for node_id, refdes in enumerate(node_names)
+                        },
+                        active_node_ids=(
+                            collision_op.active_node_ids.detach().cpu().tolist()
+                        ),
+                        num_nodes=placedb.num_nodes,
+                        max_iterations=(
+                            exact_contact_projection_max_iterations
+                        ),
+                        max_contact_nodes=exact_contact_projection_max_nodes,
+                    )
+
                 constraint_projector = _CompositeProjector(
                     self.op_collections.move_boundary_op,
                     (
@@ -688,6 +777,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         else None
                     ),
                     placedb.num_nodes,
+                    contact_projector=contact_projector,
                 )
 
                 if optimizer_name.lower() == "adam":
@@ -717,11 +807,6 @@ class NonLinearPlace(BasicPlace.BasicPlace):
 
                 exact_step_guard = None
                 if exact_step_guard_enabled:
-
-                    def guard_validator(candidate):
-                        return self.anchor_keepin_context.exact_overlap_report(
-                            candidate, placedb
-                        )
 
                     def guard_barrier_diagnostics(candidate):
                         diagnostics = dict(
@@ -788,6 +873,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                                 ],
                             },
                         }
+                        if evidence["contact_projection"] is not None:
+                            metadata["contact_projection"] = evidence[
+                                "contact_projection"
+                            ]
                         if collision_pair_diagnostics_enabled:
                             gradient_components = (
                                 model.collision_pair_gradient_components
