@@ -121,8 +121,10 @@ from run_matrix import (  # noqa: E402
     DEFAULT_M336_CHECKPOINT_PL,
     DEFAULT_M336_CONSTRAINT_GRID_MM,
     DEFAULT_M336_TARGET_DENSITY,
+    DEFAULT_CUBLAS_WORKSPACE_CONFIG,
     EXPERIMENTS,
     _configured_anchor_control,
+    _native_subprocess_environment,
     _warm_runtime_gate,
     constraint_config,
     parse_anchor_weight_updates,
@@ -203,6 +205,24 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_native_runner_freezes_cublas_workspace_contract(self):
+        environment = _native_subprocess_environment(
+            base_environment={"CUDA_VISIBLE_DEVICES": "2"},
+            overrides={"PYTHONPATH": "/tmp/install"},
+        )
+
+        self.assertEqual(
+            environment["CUBLAS_WORKSPACE_CONFIG"],
+            DEFAULT_CUBLAS_WORKSPACE_CONFIG,
+        )
+        self.assertEqual(environment["CUDA_VISIBLE_DEVICES"], "2")
+        self.assertEqual(environment["PYTHONPATH"], "/tmp/install")
+
+        with self.assertRaisesRegex(ValueError, "deterministic M336 runs"):
+            _native_subprocess_environment(
+                base_environment={"CUBLAS_WORKSPACE_CONFIG": ":16:8"}
+            )
+
     def test_native_runner_defaults_to_frozen_constraint_grid(self):
         self.assertEqual(DEFAULT_M336_CONSTRAINT_GRID_MM, 0.05)
 

@@ -180,11 +180,21 @@ to `0.850668`, and runtime reaches `3.3963x` E0 (M336-164).
 
 The matching cold/source run completes E0/E2/E3, with E2/E3 scores near
 `0.745`, but E4 fails closed before serialization when every deterministic
-bounded-packing strategy rejects `MHC8602` (M336-165). Its CUDA logs also prove
-that `deterministic_flag=1` is incomplete without an explicit
-`CUBLAS_WORKSPACE_CONFIG` contract (M336-166). The final three-seed matrix is
-blocked on these active findings; no checkpoint fallback or broad repair output
-may be promoted as native Cypress evidence.
+bounded-packing strategy rejects `MHC8602` (M336-165). Its CUDA logs also proved
+that `deterministic_flag=1` was incomplete without an explicit
+`CUBLAS_WORKSPACE_CONFIG` contract (M336-166).
+
+M336-166 is resolved by freezing and recording
+`CUBLAS_WORKSPACE_CONFIG=:4096:8` for every native subprocess. Two independent
+10-step checkpoint-warm E3 seed-1000 runs on GPU 2 have identical placement and
+replay SHA-256
+`a6445d6a98180ff4449afdffe37ad313f5215cd336153030c5637aaa10b94c5c`,
+HPWL `15632.686697721481`, FLUTE RSMT `17325.676`, legality metrics, and
+normalized score `0.9281007794550066`; both execute 13 backward calls and 10
+changing Adam steps without a CuBLAS determinism warning. Their 28 overlap pairs
+remain unaccepted M336-163 evidence. The final three-seed matrix remains blocked
+on M336-163 through M336-165 and M336-167; no checkpoint fallback or broad
+repair output may be promoted as native Cypress evidence.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

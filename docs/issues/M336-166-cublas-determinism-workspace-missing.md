@@ -1,7 +1,7 @@
 # M336-166: CUDA Determinism Lacks a CuBLAS Workspace Contract
 
 **Severity:** High
-**Status:** Open
+**Status:** Resolved
 **Found:** 2026-07-20
 **Affected commit:** `cc05a44`
 
@@ -39,3 +39,19 @@ and repeat one E3/E4 seed twice on the same GPU.
   HPWL, and RSMT.
 - Feature-off invocations retain their existing environment unless the
   deterministic native contract requests this setting.
+
+## Resolution
+
+The native runner now freezes `CUBLAS_WORKSPACE_CONFIG=:4096:8` before every
+placement and scoring subprocess, rejects conflicting values, and records the
+contract in result provenance, reports, and reproduction commands. A focused
+runner test covers the default, passthrough, override, and conflict behavior.
+
+Two independent checkpoint-warm E3 seed-1000 runs on GPU 2, each with 10 native
+Adam iterations, produced identical placement and replay SHA-256
+`a6445d6a98180ff4449afdffe37ad313f5215cd336153030c5637aaa10b94c5c`,
+HPWL `15632.686697721481`, FLUTE RSMT `17325.676`, legality metrics, and
+normalized score `0.9281007794550066`. Both logs record 13 `backward()` calls,
+10 changing optimizer steps, and no CuBLAS determinism warning. The repeated
+placement still has 28 exact overlap pairs; this resolves execution
+determinism only and does not promote the result as legal Cypress evidence.

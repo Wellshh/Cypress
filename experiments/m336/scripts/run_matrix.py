@@ -34,6 +34,7 @@ DEFAULT_M336_CHECKPOINT_PL = (
 )
 DEFAULT_M336_CONSTRAINT_GRID_MM = 0.05
 DEFAULT_M336_TARGET_DENSITY = 0.85
+DEFAULT_CUBLAS_WORKSPACE_CONFIG = ":4096:8"
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
 IMPLEMENTATION_FILES = (
     "dreamplace/BasicPlace.py",
@@ -208,7 +209,27 @@ def source_state():
     }
 
 
+def _native_subprocess_environment(base_environment=None, overrides=None):
+    environment = dict(
+        os.environ if base_environment is None else base_environment
+    )
+    if overrides:
+        environment.update(overrides)
+    configured = environment.get("CUBLAS_WORKSPACE_CONFIG")
+    if configured not in (None, DEFAULT_CUBLAS_WORKSPACE_CONFIG):
+        raise ValueError(
+            "deterministic M336 runs require CUBLAS_WORKSPACE_CONFIG=%s; "
+            "found %s"
+            % (DEFAULT_CUBLAS_WORKSPACE_CONFIG, configured)
+        )
+    environment["CUBLAS_WORKSPACE_CONFIG"] = (
+        DEFAULT_CUBLAS_WORKSPACE_CONFIG
+    )
+    return environment
+
+
 def runtime_environment():
+    native_environment = _native_subprocess_environment()
     environment = {
         "python": platform.python_version(),
         "platform": platform.platform(),
@@ -216,6 +237,9 @@ def runtime_environment():
         "torch": torch.__version__,
         "torch_cuda": torch.version.cuda,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+        "cublas_workspace_config": native_environment[
+            "CUBLAS_WORKSPACE_CONFIG"
+        ],
         "cuda_available": torch.cuda.is_available(),
     }
     if torch.cuda.is_available():
@@ -591,16 +615,15 @@ def score_serialized_placement(
     config_path = output_dir / "placement.json"
     write_json(config_path, score_config)
     command = [str(python), str(placer), str(config_path)]
-    environment = os.environ.copy()
-    environment.update(
-        {
+    environment = _native_subprocess_environment(
+        overrides={
             "OMP_NUM_THREADS": "1",
             "OPENBLAS_NUM_THREADS": "1",
             "MKL_NUM_THREADS": "1",
             "NUMEXPR_NUM_THREADS": "1",
             "PYTHONFAULTHANDLER": "1",
             "PYTHONPATH": str(REPO_ROOT / "install"),
-        }
+        },
     )
     completed = subprocess.run(
         command,
@@ -932,9 +955,12 @@ def score_manual_baseline(args):
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
-    environment = os.environ.copy()
-    environment["PYTHONPATH"] = str(REPO_ROOT / "install")
-    environment["PYTHONFAULTHANDLER"] = "1"
+    environment = _native_subprocess_environment(
+        overrides={
+            "PYTHONPATH": str(REPO_ROOT / "install"),
+            "PYTHONFAULTHANDLER": "1",
+        }
+    )
     started = time.perf_counter()
     completed = subprocess.run(
         command,
@@ -970,6 +996,7 @@ def score_manual_baseline(args):
         "name": "manual_pcb_geometry",
         "git_sha": git_sha(),
         "command": command,
+        "environment": args.environment_identity,
         "runtime_seconds": runtime,
         "input_sha256": args.baseline_manifest["sha256"],
         "compatibility": args.baseline_manifest["compatibility"],
@@ -1101,6 +1128,7 @@ def run_one(
         )
         result["input_sha256"] = args.input_identity
         result.setdefault("source_state", args.source_identity)
+        result["environment"] = args.environment_identity
         result["reevaluation"] = {
             "git_sha": git_sha(),
             "source_state": args.source_identity,
@@ -1241,9 +1269,12 @@ def run_one(
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
-    environment = os.environ.copy()
-    environment["PYTHONPATH"] = str(REPO_ROOT / "install")
-    environment["PYTHONFAULTHANDLER"] = "1"
+    environment = _native_subprocess_environment(
+        overrides={
+            "PYTHONPATH": str(REPO_ROOT / "install"),
+            "PYTHONFAULTHANDLER": "1",
+        }
+    )
     started = time.perf_counter()
     completed = subprocess.run(
         command,
@@ -1319,6 +1350,7 @@ def run_one(
         ),
         "command": command,
         "config": config,
+        "environment": args.environment_identity,
         "input_sha256": args.input_identity,
         "source_state": args.source_identity,
         "preflight": preflight_summary(preflight),
@@ -1724,6 +1756,8 @@ def render_report(summary):
         % (summary["device"], "; ".join(environment.get("nvidia_smi", []))),
         "- Python/PyTorch/CUDA: `%s` / `%s` / `%s`."
         % (environment["python"], environment["torch"], environment["torch_cuda"]),
+        "- CuBLAS workspace: `%s`."
+        % environment["cublas_workspace_config"],
         "- Geometry alignment max residual: `0.0332111 mm` (limit `0.05 mm`).",
         "- Manifest: 25 enumerated rows and 125 unique members; the declared count of 27 remains unresolved.",
         "",
@@ -2119,8 +2153,13 @@ def reproduction_command(args, weights=None):
         os.environ.get("CUDA_VISIBLE_DEVICES") or "<physical-gpu>"
     )
     return (
-        "CUDA_VISIBLE_DEVICES=%s PYTHONPATH=\"$PWD/install\" %s"
-        % (visible_devices, shlex.join(command))
+        "CUBLAS_WORKSPACE_CONFIG=%s CUDA_VISIBLE_DEVICES=%s "
+        "PYTHONPATH=\"$PWD/install\" %s"
+        % (
+            shlex.quote(DEFAULT_CUBLAS_WORKSPACE_CONFIG),
+            visible_devices,
+            shlex.join(command),
+        )
     )
 
 
