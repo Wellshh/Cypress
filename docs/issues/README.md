@@ -183,6 +183,7 @@ append-only audit ledger.
 | [M336-170](M336-170-exact-accepted-step-overlap-guard-missing.md) | Critical | Open | Native optimizer records exact overlaps only after accepting the crossing step |
 | [M336-171](M336-171-global-collision-weight-misses-local-contact-direction.md) | Critical | Resolved | Bounded contact-component projection plus exact guard passes warm scale-1 D1; scalar barrier alone remains insufficient |
 | [M336-172](M336-172-scale2-contact-budget-anchor-direction.md) | Critical | Open | Scale-2 remains legal but exceeds the bounded contact scope, collapses LR, and leaves E3 anchor direction negative |
+| [M336-173](M336-173-stale-anchor-gradient-ratio-ramp.md) | Critical | Open | A five-step refresh reuses a 15.3x-stale wirelength norm during the early anchor ramp and misreports effective pressure |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

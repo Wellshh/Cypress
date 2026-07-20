@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-172`
+**Evidence through:** `M336-173`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -338,6 +338,17 @@ E2/E3. D2 therefore still fails active-scope and anchor-direction gates. Keep
 D3 prohibited and do not raise the cap; reduce simultaneous native crossing
 support or add a bounded deterministic local trust region before one further
 D2 authorization.
+
+M336-173 identifies a separate anchor-control defect in the same E3 evidence.
+The default five-iteration refresh stores the iteration-0 wirelength gradient
+of `5.831255`, although the current value falls to about `0.3809` from iteration
+1 onward. When the ramp becomes nonzero at iterations 2-4, reported ratios of
+`0.01/0.02/0.03` correspond to current ratio proxies of
+`0.1531/0.3061/0.4592`; E3 begins its earlier active-scope failures in that
+window. This is correlation, not yet an effect claim. Freeze D3 and all scalar
+ladders; first make the M336 schedule explicit, refresh every accepted short-run
+iteration, report gradient age honestly, and validate the controller before
+requesting one further D2 replay.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
