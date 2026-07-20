@@ -71,58 +71,64 @@ class ReproducibilityTest(unittest.TestCase):
                 ),
             }
 
-        contact_projector = ExactContactProjector(
-            validator=validator,
-            component_validator=component_validator,
-            component_projector=lambda coordinates, active_node_ids: {
-                "coordinates": dict(coordinates),
-                "projected_node_ids": [],
-                "mean_distance": 0.0,
-                "max_distance": 0.0,
-            },
-            refdes_to_node_id={"A": 0, "B": 1},
-            active_node_ids=(0, 1),
-            num_nodes=num_nodes,
-            mode="proposal_authority_search",
-        )
-        projector = _CompositeProjector(
-            lambda position: None,
-            None,
-            num_nodes=num_nodes,
-            contact_projector=contact_projector,
-        )
-        origin = torch.tensor([0.0, 1.25, 0.0, 0.0])
-        position = torch.nn.Parameter(origin.clone())
-        optimizer = torch.optim.Adam([position], lr=0.1)
-        position.grad = torch.ones_like(position)
-        optimizer.step()
-        with torch.no_grad():
-            position.copy_(origin)
-
-        projector.begin_step(position)
-        with torch.no_grad():
-            position[0] = 0.375
-            position[1] = 1.3125
-        projector(position)
-        evidence = projector.finish_step()
-        zero_optimizer_state(
-            optimizer,
-            position,
-            evidence["projected_node_ids"],
-            num_nodes,
-        )
-
-        self.assertEqual(evidence["projected_node_ids"], (1,))
-        self.assertEqual(
-            evidence["contact_projection"]["mode"],
+        for mode in (
             "proposal_authority_search",
-        )
-        for name in ("exp_avg", "exp_avg_sq"):
-            state = optimizer.state[position][name]
-            self.assertNotEqual(state[0].item(), 0.0)
-            self.assertEqual(state[1].item(), 0.0)
-            self.assertNotEqual(state[2].item(), 0.0)
-            self.assertEqual(state[3].item(), 0.0)
+            "protected_proposal_authority_search",
+        ):
+            with self.subTest(mode=mode):
+                contact_projector = ExactContactProjector(
+                    validator=validator,
+                    component_validator=component_validator,
+                    component_projector=(
+                        lambda coordinates, active_node_ids: {
+                            "coordinates": dict(coordinates),
+                            "projected_node_ids": [],
+                            "mean_distance": 0.0,
+                            "max_distance": 0.0,
+                        }
+                    ),
+                    refdes_to_node_id={"A": 0, "B": 1},
+                    active_node_ids=(0, 1),
+                    num_nodes=num_nodes,
+                    mode=mode,
+                )
+                projector = _CompositeProjector(
+                    lambda position: None,
+                    None,
+                    num_nodes=num_nodes,
+                    contact_projector=contact_projector,
+                )
+                origin = torch.tensor([0.0, 1.25, 0.0, 0.0])
+                position = torch.nn.Parameter(origin.clone())
+                optimizer = torch.optim.Adam([position], lr=0.1)
+                position.grad = torch.ones_like(position)
+                optimizer.step()
+                with torch.no_grad():
+                    position.copy_(origin)
+
+                projector.begin_step(position)
+                with torch.no_grad():
+                    position[0] = 0.375
+                    position[1] = 1.3125
+                projector(position)
+                evidence = projector.finish_step()
+                zero_optimizer_state(
+                    optimizer,
+                    position,
+                    evidence["projected_node_ids"],
+                    num_nodes,
+                )
+
+                self.assertEqual(evidence["projected_node_ids"], (1,))
+                self.assertEqual(
+                    evidence["contact_projection"]["mode"], mode
+                )
+                for name in ("exp_avg", "exp_avg_sq"):
+                    state = optimizer.state[position][name]
+                    self.assertNotEqual(state[0].item(), 0.0)
+                    self.assertEqual(state[1].item(), 0.0)
+                    self.assertNotEqual(state[2].item(), 0.0)
+                    self.assertEqual(state[3].item(), 0.0)
 
     def test_minimum_cover_projection_clears_selected_adam_coordinates(self):
         num_nodes = 2

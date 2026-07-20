@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (M336-178 contract defined; implementation pending) | Prevent native optimizer steps from crossing same-side footprint contacts | Make authority closure monotonic over affected protected-edge components, then requalify scale-1 D1 before any larger run |
+| N6 (M336-178 implementation verified; D1 pending) | Prevent native optimizer steps from crossing same-side footprint contacts | Commit/push/pull the protected-edge closure, then requalify scale-1 D1 before any larger run |
 
 ## Paused Exact-Site Priorities
 
@@ -513,6 +513,19 @@ all historical edges in that closure. The observed three-node expansion has at
 most nine assignments and needs no cap increase. Commit/push/pull the issue and
 implementation separately, preserve all old modes, and then run only the
 predeclared scale-1 D1. No parameter ladder or larger experiment is authorized.
+
+The M336-178 implementation candidate adds a separate default-off protected
+authority mode without changing historical modes. Its append-only graph
+replans only protected components touched by current residual contacts and
+validates every historical edge in each affected closure; reopening any such
+edge fails closed. Synthetic coverage now includes the original three-node
+cycle, a bridge that merges two protected components without resetting
+cumulative IDs, unrelated-component isolation, fail-before-write cap checks,
+and CPU/GPU identity. Installed-tree suites pass `238/238` focused tests with
+source/install parity. The aggregate entrypoint repeats TEST-001's ten known
+errors across `267` tests and is not green. This remains implementation-only
+evidence: commit, push, and pull it before the one authorized D1; all larger
+runs and tuning remain prohibited.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

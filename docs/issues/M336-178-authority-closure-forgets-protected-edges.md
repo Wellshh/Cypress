@@ -145,6 +145,52 @@ authorities, and at most nine assignments. A solution must satisfy both
 9. Params, runner CLI, run ID, resume validation, reproduction command, summary,
    and report preserve the new mode without changing old-mode schemas.
 
+## Implementation Evidence
+
+The default-off `protected_proposal_authority_search` implementation is ready
+for the predeclared D1. It retains one immutable native proposal per projection
+attempt, accumulates exact protected edges monotonically, and replans only the
+protected components touched by a current residual edge. Each affected plan is
+validated against every protected edge in that component. A full-validator
+residual that intersects the protected set now fails closed as
+`protected_edge_reopened`; the result records current/new/protected/validated
+edges, affected and untouched component counts, and monotonic progress.
+
+The three-body regression reproduces the historical `A/B <-> B/C` cycle and
+closes it in two passes with nine authority states. A separate four-body
+fixture starts from two protected components, introduces a bridge edge, merges
+them, validates all three historical edges, and grows the cumulative corrected
+scope from two IDs to three without resetting it. Other tests cover unrelated
+component isolation, reopened-edge failure, component/state caps before the
+failing pass writes, optimizer-state cleanup, runner/resume serialization, and
+float32/float64 CPU/GPU identity. Paired pre-change fixtures preserve
+coordinates and recursively stripped non-timing diagnostics for all three old
+modes.
+
+Installed-tree verification on physical GPU 2 passes `45` projector, `19`
+reproducibility, `6` exact-guard, `54` anchor/keep-in/collision, `9` irregular
+density, and `105` M336 baseline/config tests: `238/238` focused tests. The
+aggregate runner executes `267` tests and repeats TEST-001's ten known API
+compatibility errors while returning zero; it is not a green suite. Python
+compilation, params JSON parsing, and `git diff --check` pass. No C/CUDA file
+changed, so `clang-format` is not applicable.
+
+Source/install SHA-256 parity is:
+
+```text
+exact_contact_projection.py
+5288253e6c67747dbdacd9020e37f263224d7122bd6714e7ac14fc56df7ebaa6
+NonLinearPlace.py
+91fbdf91977adbb006990c3830393a55eafb55b592b0f018b50d1fca68b25a59
+params.json
+51393c2e7c4d0c98283b0194bbaa495b12cf5a2c31497221f3ae7c6c24a70990
+```
+
+The protected M336-141 guide aggregate remains
+`4091eb8e0611a8042bbc0bf5bed6d15843909d2168a21a4a34655653607ff77d`.
+This is implementation evidence only. No D1, D2, D3, E4, fallback, CP-SAT,
+cap change, or parameter sweep was run while the implementation was unpushed.
+
 ## Experiment Gates
 
 No effect run is authorized until this issue and its implementation are

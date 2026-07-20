@@ -10,10 +10,17 @@ import torch
 COMPONENT_CONSENSUS = "component_consensus"
 MINIMUM_COVER_ROLLBACK = "minimum_cover_rollback"
 PROPOSAL_AUTHORITY_SEARCH = "proposal_authority_search"
+PROTECTED_PROPOSAL_AUTHORITY_SEARCH = (
+    "protected_proposal_authority_search"
+)
+PROPOSAL_AUTHORITY_MODES = (
+    PROPOSAL_AUTHORITY_SEARCH,
+    PROTECTED_PROPOSAL_AUTHORITY_SEARCH,
+)
 CONTACT_PROJECTION_MODES = (
     COMPONENT_CONSENSUS,
     MINIMUM_COVER_ROLLBACK,
-    PROPOSAL_AUTHORITY_SEARCH,
+    *PROPOSAL_AUTHORITY_MODES,
 )
 
 
@@ -140,21 +147,21 @@ class ExactContactProjector:
                 "contact projection cover component limit must be at least two"
             )
         if (
-            self.mode == PROPOSAL_AUTHORITY_SEARCH
+            self.mode in PROPOSAL_AUTHORITY_MODES
             and self.max_authority_states <= 0
         ):
             raise ValueError(
                 "contact projection authority state limit must be positive"
             )
         if (
-            self.mode == PROPOSAL_AUTHORITY_SEARCH
+            self.mode in PROPOSAL_AUTHORITY_MODES
             and self.component_validator is None
         ):
             raise ValueError(
                 "proposal authority search requires an exact component validator"
             )
         if (
-            self.mode == PROPOSAL_AUTHORITY_SEARCH
+            self.mode in PROPOSAL_AUTHORITY_MODES
             and self.component_projector is None
         ):
             raise ValueError(
@@ -456,7 +463,7 @@ class ExactContactProjector:
             "node_ids": tuple(component),
             "active_node_ids": active,
             "inactive_node_ids": inactive,
-            "authority_kind": PROPOSAL_AUTHORITY_SEARCH,
+            "authority_kind": self.mode,
             "representative_node_id": None,
             "corrected_node_ids": (),
             "available_authority_node_ids": (),
@@ -900,6 +907,18 @@ class ExactContactProjector:
             )
         return serialized
 
+    def _serialize_contact_edges(self, edges):
+        return [
+            {
+                "node_ids": list(edge),
+                "refdes": [
+                    self.node_id_to_refdes.get(node_id, str(node_id))
+                    for node_id in edge
+                ],
+            }
+            for edge in sorted(edges)
+        ]
+
     def __call__(self, origin, position, hard_projector):
         if origin.shape != position.shape:
             raise ValueError("contact projection position shapes do not match")
@@ -933,7 +952,7 @@ class ExactContactProjector:
         reference_coordinate_values = None
         reference_coordinate_keys = None
         reference_cpu = None
-        if self.mode == PROPOSAL_AUTHORITY_SEARCH:
+        if self.mode in PROPOSAL_AUTHORITY_MODES:
             displacement_keys = tuple(
                 row.contiguous().numpy().tobytes()
                 for row in reference_displacement_cpu
@@ -963,6 +982,8 @@ class ExactContactProjector:
                 for row in reference_coordinates
             )
         protected_edges = set()
+        protected_closure_validation = []
+        protected_edge_reopened_edges = set()
         corrected_contact_node_ids = set()
         iterations = []
         initial_report = None
@@ -994,14 +1015,40 @@ class ExactContactProjector:
                 if int(report.get("keepin_violation_count", 0)):
                     reason = "keepin_violation"
                     break
-                if int(report.get("overlap_pair_count", 0)) == 0:
+                overlap_pair_count = int(report.get("overlap_pair_count", 0))
+                current_edges = (
+                    self._overlap_edges(report) if overlap_pair_count else set()
+                )
+                if self.mode == PROTECTED_PROPOSAL_AUTHORITY_SEARCH:
+                    reopened_edges = current_edges.intersection(
+                        protected_edges
+                    )
+                    new_edges = current_edges.difference(protected_edges)
+                    protected_closure_validation.append(
+                        {
+                            "iteration": iteration,
+                            "current_contact_edges": sorted(current_edges),
+                            "new_contact_edges": sorted(new_edges),
+                            "protected_contact_edges_before": sorted(
+                                protected_edges
+                            ),
+                            "reopened_contact_edges": sorted(
+                                reopened_edges
+                            ),
+                            "monotonic_progress": not reopened_edges,
+                        }
+                    )
+                    if reopened_edges:
+                        protected_edge_reopened_edges.update(reopened_edges)
+                        reason = "protected_edge_reopened"
+                        break
+                if overlap_pair_count == 0:
                     reason = "legal"
                     converged = True
                     break
                 if iteration == self.max_iterations:
                     break
 
-                current_edges = self._overlap_edges(report)
                 if not current_edges:
                     reason = "missing_overlap_pairs"
                     break
@@ -1012,7 +1059,8 @@ class ExactContactProjector:
                 ):
                     reason = "immutable_overlap"
                     break
-                new_edges = current_edges - protected_edges
+                if self.mode != PROTECTED_PROPOSAL_AUTHORITY_SEARCH:
+                    new_edges = current_edges - protected_edges
                 protected_edges.update(current_edges)
                 contact_node_ids = sorted(
                     {
@@ -1045,6 +1093,9 @@ class ExactContactProjector:
                 iteration_valid_authority_state_count = 0
                 iteration_authority_projection_seconds = 0.0
                 iteration_authority_validator_seconds = 0.0
+                validated_contact_edges = current_edges
+                affected_protected_component_count = 0
+                untouched_protected_component_count = 0
                 if self.mode == COMPONENT_CONSENSUS:
                     components = _contact_components(protected_edges)
                     component_plans = self._component_plans(
@@ -1105,7 +1156,37 @@ class ExactContactProjector:
                         iteration_search_state_count,
                     )
                 else:
-                    components = _contact_components(current_edges)
+                    if self.mode == PROTECTED_PROPOSAL_AUTHORITY_SEARCH:
+                        protected_components = _contact_components(
+                            protected_edges
+                        )
+                        current_node_ids = {
+                            node_id
+                            for edge in current_edges
+                            for node_id in edge
+                        }
+                        components = tuple(
+                            component
+                            for component in protected_components
+                            if current_node_ids.intersection(component)
+                        )
+                        affected_protected_component_count = len(components)
+                        untouched_protected_component_count = (
+                            len(protected_components) - len(components)
+                        )
+                        affected_node_ids = {
+                            node_id
+                            for component in components
+                            for node_id in component
+                        }
+                        validated_contact_edges = {
+                            edge
+                            for edge in protected_edges
+                            if edge[0] in affected_node_ids
+                            and edge[1] in affected_node_ids
+                        }
+                    else:
+                        components = _contact_components(current_edges)
                     position_cpu = position.detach().cpu()
                     current_coordinate_values = tuple(
                         (
@@ -1117,7 +1198,7 @@ class ExactContactProjector:
                     component_plans, planning_reason = (
                         self._proposal_authority_plans(
                             components,
-                            current_edges,
+                            validated_contact_edges,
                             origin_coordinate_values,
                             reference_coordinate_values,
                             current_coordinate_values,
@@ -1278,7 +1359,7 @@ class ExactContactProjector:
                     ),
                     "applied": False,
                 }
-                if self.mode == PROPOSAL_AUTHORITY_SEARCH:
+                if self.mode in PROPOSAL_AUTHORITY_MODES:
                     iteration_record.update(
                         {
                             "authority_state_count": (
@@ -1302,32 +1383,30 @@ class ExactContactProjector:
                             "authority_validator_seconds": (
                                 iteration_authority_validator_seconds
                             ),
-                            "current_contact_edges": [
-                                {
-                                    "node_ids": list(edge),
-                                    "refdes": [
-                                        self.node_id_to_refdes.get(
-                                            node_id, str(node_id)
-                                        )
-                                        for node_id in edge
-                                    ],
-                                }
-                                for edge in sorted(current_edges)
-                            ],
-                            "protected_contact_edges": [
-                                {
-                                    "node_ids": list(edge),
-                                    "refdes": [
-                                        self.node_id_to_refdes.get(
-                                            node_id, str(node_id)
-                                        )
-                                        for node_id in edge
-                                    ],
-                                }
-                                for edge in sorted(protected_edges)
-                            ],
+                            "current_contact_edges": (
+                                self._serialize_contact_edges(current_edges)
+                            ),
+                            "protected_contact_edges": (
+                                self._serialize_contact_edges(protected_edges)
+                            ),
                         }
                     )
+                    if self.mode == PROTECTED_PROPOSAL_AUTHORITY_SEARCH:
+                        iteration_record.update(
+                            {
+                                "validated_contact_edges": (
+                                    self._serialize_contact_edges(
+                                        validated_contact_edges
+                                    )
+                                ),
+                                "affected_protected_component_count": (
+                                    affected_protected_component_count
+                                ),
+                                "untouched_protected_component_count": (
+                                    untouched_protected_component_count
+                                ),
+                            }
+                        )
                 if planning_reason is not None:
                     reason = planning_reason
                     iterations.append(iteration_record)
@@ -1364,7 +1443,7 @@ class ExactContactProjector:
                     candidate_before, position, self.num_nodes
                 )
                 if (
-                    self.mode == PROPOSAL_AUTHORITY_SEARCH
+                    self.mode in PROPOSAL_AUTHORITY_MODES
                     and hard_projection_correction["changed_node_count"]
                 ):
                     position.copy_(candidate_before)
@@ -1487,7 +1566,7 @@ class ExactContactProjector:
             "correction": correction,
             "iterations": iterations,
         }
-        if self.mode == PROPOSAL_AUTHORITY_SEARCH:
+        if self.mode in PROPOSAL_AUTHORITY_MODES:
             result.update(
                 {
                     "max_authority_states": self.max_authority_states,
@@ -1507,18 +1586,54 @@ class ExactContactProjector:
                     "maximum_authority_component_state_count": (
                         maximum_authority_component_state_count
                     ),
-                    "protected_contact_edges": [
+                    "protected_contact_edges": (
+                        self._serialize_contact_edges(protected_edges)
+                    ),
+                }
+            )
+        if self.mode == PROTECTED_PROPOSAL_AUTHORITY_SEARCH:
+            result.update(
+                {
+                    "protected_closure_validation": [
                         {
-                            "node_ids": list(edge),
-                            "refdes": [
-                                self.node_id_to_refdes.get(
-                                    node_id, str(node_id)
+                            "iteration": row["iteration"],
+                            "current_contact_edges": (
+                                self._serialize_contact_edges(
+                                    row["current_contact_edges"]
                                 )
-                                for node_id in edge
+                            ),
+                            "new_contact_edges": (
+                                self._serialize_contact_edges(
+                                    row["new_contact_edges"]
+                                )
+                            ),
+                            "protected_contact_edges_before": (
+                                self._serialize_contact_edges(
+                                    row["protected_contact_edges_before"]
+                                )
+                            ),
+                            "reopened_contact_edges": (
+                                self._serialize_contact_edges(
+                                    row["reopened_contact_edges"]
+                                )
+                            ),
+                            "monotonic_progress": row[
+                                "monotonic_progress"
                             ],
                         }
-                        for edge in sorted(protected_edges)
+                        for row in protected_closure_validation
                     ],
+                    "protected_edge_reopened_count": len(
+                        protected_edge_reopened_edges
+                    ),
+                    "protected_edge_reopened_edges": (
+                        self._serialize_contact_edges(
+                            protected_edge_reopened_edges
+                        )
+                    ),
+                    "monotonic_progress": not (
+                        protected_edge_reopened_edges
+                    ),
                 }
             )
         return result

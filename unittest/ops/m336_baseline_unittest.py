@@ -455,6 +455,17 @@ class M336BaselineTest(unittest.TestCase):
             exact_contact_projection_max_cover_component_nodes=12,
             exact_contact_projection_max_authority_states=2048,
         )
+        protected = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            footprint_collision=True,
+            exact_step_guard=True,
+            exact_contact_projection=True,
+            exact_contact_projection_mode=(
+                "protected_proposal_authority_search"
+            ),
+            exact_contact_projection_max_authority_states=1024,
+        )
 
         self.assertFalse(disabled["footprint_collision_loss_flag"])
         self.assertTrue(enabled["footprint_collision_loss_flag"])
@@ -484,6 +495,14 @@ class M336BaselineTest(unittest.TestCase):
         self.assertEqual(
             controlled["exact_contact_projection_max_authority_states"],
             2048,
+        )
+        self.assertEqual(
+            protected["exact_contact_projection_mode"],
+            "protected_proposal_authority_search",
+        )
+        self.assertEqual(
+            protected["exact_contact_projection_max_authority_states"],
+            1024,
         )
         minimum_cover = placement_config(
             *arguments,
@@ -560,6 +579,15 @@ class M336BaselineTest(unittest.TestCase):
                 *arguments,
                 source_placement=Path("/tmp/m336.pl"),
                 exact_contact_projection_mode="proposal_authority_search",
+                exact_contact_projection_max_authority_states=0,
+            )
+        with self.assertRaisesRegex(ValueError, "authority state"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                exact_contact_projection_mode=(
+                    "protected_proposal_authority_search"
+                ),
                 exact_contact_projection_max_authority_states=0,
             )
 
@@ -661,6 +689,20 @@ class M336BaselineTest(unittest.TestCase):
         )
         config["exact_contact_projection_mode"] = "proposal_authority_search"
         args.exact_contact_projection_mode = "proposal_authority_search"
+        with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
+            _require_collision_contract(
+                config,
+                args,
+                EXPERIMENTS["E3"],
+                Path("/tmp/result.json"),
+                "resume",
+            )
+        config["exact_contact_projection_mode"] = (
+            "protected_proposal_authority_search"
+        )
+        args.exact_contact_projection_mode = (
+            "protected_proposal_authority_search"
+        )
         with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
             _require_collision_contract(
                 config,

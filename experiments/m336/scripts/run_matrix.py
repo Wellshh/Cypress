@@ -44,10 +44,14 @@ M336_ANCHOR_WEIGHT_RAMP_ITERATIONS = 10
 MIN_M336_LEARNING_RATE_SCALE = 1.0
 MAX_M336_LEARNING_RATE_SCALE = 32.0
 DEFAULT_CUBLAS_WORKSPACE_CONFIG = ":4096:8"
+PROPOSAL_AUTHORITY_MODES = (
+    "proposal_authority_search",
+    "protected_proposal_authority_search",
+)
 CONTACT_PROJECTION_MODES = (
     "component_consensus",
     "minimum_cover_rollback",
-    "proposal_authority_search",
+    *PROPOSAL_AUTHORITY_MODES,
 )
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
 IMPLEMENTATION_FILES = (
@@ -492,7 +496,7 @@ def placement_config(
             "two"
         )
     if (
-        exact_contact_projection_mode == "proposal_authority_search"
+        exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES
         and exact_contact_projection_max_authority_states <= 0
     ):
         raise ValueError(
@@ -656,7 +660,7 @@ def placement_config(
                 ],
             }
         )
-        if exact_contact_projection_mode == "proposal_authority_search":
+        if exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES:
             config["exact_contact_projection_max_authority_states"] = (
                 exact_contact_projection_max_authority_states
             )
@@ -1388,8 +1392,8 @@ def _require_collision_contract(config, args, spec, result_path, action):
             ),
         )
         if (
-            actual_contact_projection_mode == "proposal_authority_search"
-            or expected_contact_projection_mode == "proposal_authority_search"
+            actual_contact_projection_mode in PROPOSAL_AUTHORITY_MODES
+            or expected_contact_projection_mode in PROPOSAL_AUTHORITY_MODES
         ):
             checks += (
                 (
@@ -1610,7 +1614,7 @@ def run_one(
         )
         if (
             result["exact_contact_projection_mode"]
-            == "proposal_authority_search"
+            in PROPOSAL_AUTHORITY_MODES
         ):
             result[
                 "exact_contact_projection_max_authority_states"
@@ -2019,10 +2023,7 @@ def run_one(
             args.manual_baseline,
         ),
     }
-    if (
-        result["exact_contact_projection_mode"]
-        == "proposal_authority_search"
-    ):
+    if result["exact_contact_projection_mode"] in PROPOSAL_AUTHORITY_MODES:
         result["exact_contact_projection_max_authority_states"] = int(
             config.get(
                 "exact_contact_projection_max_authority_states",
@@ -2790,7 +2791,7 @@ def reproduction_command(args, weights=None):
         "--placer",
         repo_path(args.placer),
     ]
-    if args.exact_contact_projection_mode == "proposal_authority_search":
+    if args.exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES:
         command.extend(
             [
                 "--exact-contact-projection-max-authority-states",
@@ -3018,7 +3019,7 @@ def main():
         or args.exact_contact_projection_max_nodes < 2
         or args.exact_contact_projection_max_cover_component_nodes < 2
         or (
-            args.exact_contact_projection_mode == "proposal_authority_search"
+            args.exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES
             and args.exact_contact_projection_max_authority_states <= 0
         )
         or not math.isfinite(args.learning_rate_scale)
@@ -3137,7 +3138,7 @@ def main():
             "runs": results,
             "aggregate": aggregate_weight_sweep(results),
         }
-        if args.exact_contact_projection_mode == "proposal_authority_search":
+        if args.exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES:
             summary["exact_contact_projection_max_authority_states"] = (
                 args.exact_contact_projection_max_authority_states
             )
@@ -3217,7 +3218,7 @@ def main():
                 results, aggregate_rows, comparisons, validation
             ),
         }
-        if args.exact_contact_projection_mode == "proposal_authority_search":
+        if args.exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES:
             summary["exact_contact_projection_max_authority_states"] = (
                 args.exact_contact_projection_max_authority_states
             )

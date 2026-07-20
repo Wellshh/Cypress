@@ -50,7 +50,7 @@ from dreamplace.constraints.exact_step_guard import (
 )
 from dreamplace.constraints.exact_contact_projection import (
     CONTACT_PROJECTION_MODES,
-    PROPOSAL_AUTHORITY_SEARCH,
+    PROPOSAL_AUTHORITY_MODES,
     ExactContactProjector,
 )
 
@@ -663,7 +663,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 "least two"
             )
         if (
-            exact_contact_projection_mode == PROPOSAL_AUTHORITY_SEARCH
+            exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES
             and exact_contact_projection_max_authority_states <= 0
         ):
             raise ValueError(
@@ -690,7 +690,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     ),
                 }
             )
-            if exact_contact_projection_mode == PROPOSAL_AUTHORITY_SEARCH:
+            if exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES:
                 native_execution[
                     "exact_contact_projection_max_authority_states"
                 ] = exact_contact_projection_max_authority_states
@@ -810,7 +810,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     component_projector = None
                     if (
                         exact_contact_projection_mode
-                        == PROPOSAL_AUTHORITY_SEARCH
+                        in PROPOSAL_AUTHORITY_MODES
                     ):
                         constraint_context = self.anchor_keepin_context
 
