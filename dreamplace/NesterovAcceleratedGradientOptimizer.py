@@ -128,6 +128,8 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
             constraint_fn = self.constraint_fn
             for i, p in enumerate(group["params"]):
                 if not group["u_k"]:
+                    if constraint_fn is not None:
+                        constraint_fn(p)
                     group["u_k"].append(p.data.clone())
                     # directly use p as v_k to save memory
                     # group['v_k'].append(torch.autograd.Variable(p.data, requires_grad=True))
@@ -153,6 +155,8 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
                         )
                     )
                     group["v_k_1"][i].data.copy_(group["v_k"][i] - group["lr"] * g_k)
+                    if constraint_fn is not None:
+                        constraint_fn(group["v_k_1"][i])
                     obj, grad = obj_and_grad_fn(group["v_k_1"][i])
                     if not self._all_finite(obj, grad):
                         raise FloatingPointError(

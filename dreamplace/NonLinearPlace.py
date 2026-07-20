@@ -29,6 +29,7 @@ import torch
 from torch.optim.lr_scheduler import ExponentialLR
 import gzip
 import copy
+import json
 import math
 import matplotlib.pyplot as plt
 
@@ -43,6 +44,114 @@ import dreamplace.EvalMetrics as EvalMetrics
 import pdb
 import dreamplace.ops.fence_region.fence_region as fence_region
 import dreamplace.ops.place_io.place_io_cpp as place_io_cpp
+
+
+def _placement_displacement_stats(
+    before, after, num_nodes, include_node_ids=True
+):
+    """Measure per-node Euclidean displacement in a concatenated position tensor."""
+    with torch.no_grad():
+        delta_x = after[:num_nodes] - before[:num_nodes]
+        delta_y = after[num_nodes : num_nodes * 2] - before[
+            num_nodes : num_nodes * 2
+        ]
+        distances = torch.sqrt(delta_x.square() + delta_y.square())
+        changed = torch.nonzero(distances > 0, as_tuple=False).flatten()
+        if not changed.numel():
+            return {
+                "changed_node_count": 0,
+                "mean_distance": 0.0,
+                "max_distance": 0.0,
+                "node_ids": (),
+            }
+        changed_distances = distances.index_select(0, changed)
+        return {
+            "changed_node_count": int(changed.numel()),
+            "mean_distance": float(changed_distances.mean().item()),
+            "max_distance": float(changed_distances.max().item()),
+            "node_ids": (
+                tuple(int(node_id) for node_id in changed.cpu().tolist())
+                if include_node_ids
+                else ()
+            ),
+        }
+
+
+class _CompositeProjector:
+    """Apply board and footprint constraints at explicit optimizer boundaries."""
+
+    def __init__(self, board_projector, region_projector, num_nodes):
+        self.board_projector = board_projector
+        self.region_projector = region_projector
+        self.num_nodes = int(num_nodes)
+        self._proposal_origin = None
+        self.reset_step()
+
+    def reset_step(self):
+        self._proposal_origin = None
+        self._last_proposal = {
+            "changed_node_count": 0,
+            "mean_distance": 0.0,
+            "max_distance": 0.0,
+            "node_ids": (),
+        }
+        self._last_correction = dict(self._last_proposal)
+        self._projected_node_ids = set()
+        self._projection_event_count = 0
+        self._projection_distance_sum = 0.0
+        self._projection_max_distance = 0.0
+
+    def begin_step(self, position):
+        self.reset_step()
+        self._proposal_origin = position.detach().clone()
+
+    def __call__(self, position):
+        track_step = self._proposal_origin is not None
+        before_projection = position.detach().clone() if track_step else None
+        if track_step:
+            self._last_proposal = _placement_displacement_stats(
+                self._proposal_origin,
+                before_projection,
+                self.num_nodes,
+                include_node_ids=False,
+            )
+
+        self.board_projector(position)
+        region_stats = None
+        if self.region_projector is not None:
+            region_stats = self.region_projector(position)
+
+        if not track_step:
+            return region_stats
+        correction = _placement_displacement_stats(
+            before_projection, position.detach(), self.num_nodes
+        )
+        self._last_correction = correction
+        self._projected_node_ids.update(correction["node_ids"])
+        self._projection_event_count += correction["changed_node_count"]
+        self._projection_distance_sum += (
+            correction["mean_distance"] * correction["changed_node_count"]
+        )
+        self._projection_max_distance = max(
+            self._projection_max_distance, correction["max_distance"]
+        )
+        return region_stats
+
+    def finish_step(self):
+        summary = {
+            "proposal": self._last_proposal,
+            "accepted_projection": self._last_correction,
+            "projected_node_ids": tuple(sorted(self._projected_node_ids)),
+            "projection_event_count": self._projection_event_count,
+            "projection_mean_distance": (
+                self._projection_distance_sum / self._projection_event_count
+                if self._projection_event_count
+                else 0.0
+            ),
+            "projection_max_distance": self._projection_max_distance,
+        }
+        self.reset_step()
+        return summary
 
 
 class NonLinearPlace(BasicPlace.BasicPlace):
@@ -70,6 +179,21 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         lrs = []
         scheduler = None
         plot_frequency = 100
+        native_models = []
+        native_execution = {
+            "nonlinear_place_executed": bool(params.global_place_flag),
+            "place_obj_executed": False,
+            "backward_call_count": 0,
+            "optimizer_names": [],
+            "optimizer_step_count": 0,
+            "optimizer_changed_step_count": 0,
+            "proposal_changed_node_events": 0,
+            "proposal_max_distance": 0.0,
+            "projection_node_events": 0,
+            "projection_search_node_events": 0,
+            "projection_max_distance": 0.0,
+            "device": str(self.data_collections.pos[0].device),
+        }
         net_crossing_enabled = bool(
             params.net_crossing_flag and float(params.net_crossing_weight) != 0.0
         )
@@ -102,7 +226,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     self.op_collections,
                     global_place_params,
                 ).to(self.data_collections.pos[0].device)
+                native_models.append(model)
+                native_execution["place_obj_executed"] = True
                 optimizer_name = global_place_params["optimizer"]
+                native_execution["optimizer_names"].append(optimizer_name.lower())
 
                 # determine optimizer
                 position = []
@@ -112,6 +239,16 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         orient_logits.append(param)
                     else:
                         position.append(param)
+
+                constraint_projector = _CompositeProjector(
+                    self.op_collections.move_boundary_op,
+                    (
+                        self.op_collections.move_region_boundary_op
+                        if self.anchor_keepin_context is not None
+                        else None
+                    ),
+                    placedb.num_nodes,
+                )
                 
                 if optimizer_name.lower() == "adam":
                     optimizer = torch.optim.Adam(position, lr=0)
@@ -126,17 +263,11 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         position, lr=0, momentum=0.9, nesterov=True
                     )
                 elif optimizer_name.lower() == "nesterov":
-                    constraint_fn = self.op_collections.move_boundary_op
-                    if self.anchor_keepin_context is not None:
-                        def constraint_fn(position):
-                            self.op_collections.move_boundary_op(position)
-                            self.op_collections.move_region_boundary_op(position)
-
                     optimizer = NesterovAcceleratedGradientOptimizer.NesterovAcceleratedGradientOptimizer(
                         position,
                         lr=0,
                         obj_and_grad_fn=model.obj_and_grad_fn,
-                        constraint_fn=constraint_fn,
+                        constraint_fn=constraint_projector,
                     )
                 else:
                     assert 0, "unknown optimizer %s" % (optimizer_name)
@@ -186,9 +317,14 @@ class NonLinearPlace(BasicPlace.BasicPlace):
 
                 # a function to initialize learning rate
                 def initialize_learning_rate(pos):
+                    constraint_projector(pos)
+                    constraint_projector.reset_step()
                     learning_rate = model.estimate_initial_learning_rate(
-                        pos, global_place_params["learning_rate"]
+                        pos,
+                        global_place_params["learning_rate"],
+                        constraint_fn=constraint_projector,
                     )
+                    constraint_projector.reset_step()
                     # update learning rate
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = learning_rate.data
@@ -375,9 +511,8 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     pos = model.data_collections.pos[0]
 
                     # move any out-of-bound cell back to placement region
-                    self.op_collections.move_boundary_op(pos)
-                    if self.anchor_keepin_context is not None:
-                        self.op_collections.move_region_boundary_op(pos)
+                    constraint_projector(pos)
+                    constraint_projector.reset_step()
 
                     # handle multiple density weights for multi-electric field
                     if torch.eq(model.density_weight.mean(), 0.0):
@@ -473,9 +608,12 @@ class NonLinearPlace(BasicPlace.BasicPlace):
 
                     #### stop updating fence regions that are marked stop, exclude the outer cell !
                     t3 = time.time()
+                    optimizer_stepped = False
+                    constraint_projector.begin_step(pos)
                     if model.update_mask is not None:
                         pos_bk = pos.data.clone()
                         optimizer.step()
+                        optimizer_stepped = True
 
                         for region_id, fence_region_update_flag in enumerate(
                             model.update_mask
@@ -489,25 +627,61 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     else:
                         if not model.freeze_pos:
                             optimizer.step()
+                            optimizer_stepped = True
 
-                    if self.anchor_keepin_context is not None:
-                        projection_stats = self.op_collections.move_region_boundary_op(pos)
-                        if projection_stats.count:
-                            from dreamplace.constraints.region_projection import (
-                                zero_optimizer_state,
-                            )
+                    if optimizer_stepped and optimizer_name.lower() != "nesterov":
+                        constraint_projector(pos)
+                    step_evidence = constraint_projector.finish_step()
+                    if optimizer_stepped:
+                        from dreamplace.constraints.region_projection import (
+                            zero_optimizer_state,
+                        )
 
-                            zero_optimizer_state(
-                                optimizer,
-                                pos,
-                                projection_stats.projected_node_ids,
-                                placedb.num_nodes,
-                            )
-                            logging.info(
-                                "keep-in projection: %d nodes, max distance %.6g",
-                                projection_stats.count,
-                                projection_stats.max_distance,
-                            )
+                        zero_optimizer_state(
+                            optimizer,
+                            pos,
+                            step_evidence["projected_node_ids"],
+                            placedb.num_nodes,
+                        )
+                        proposal = step_evidence["proposal"]
+                        projection = step_evidence["accepted_projection"]
+                        native_execution["optimizer_step_count"] += 1
+                        native_execution["proposal_changed_node_events"] += proposal[
+                            "changed_node_count"
+                        ]
+                        native_execution["proposal_max_distance"] = max(
+                            native_execution["proposal_max_distance"],
+                            proposal["max_distance"],
+                        )
+                        native_execution["projection_node_events"] += projection[
+                            "changed_node_count"
+                        ]
+                        native_execution["projection_search_node_events"] += (
+                            step_evidence["projection_event_count"]
+                        )
+                        native_execution["projection_max_distance"] = max(
+                            native_execution["projection_max_distance"],
+                            step_evidence["projection_max_distance"],
+                        )
+                        if proposal["changed_node_count"]:
+                            native_execution["optimizer_changed_step_count"] += 1
+                        logging.info(
+                            "native optimizer evidence: optimizer=%s step=%d "
+                            "device=%s proposal_changed_nodes=%d "
+                            "proposal_mean_distance=%.6g "
+                            "proposal_max_distance=%.6g projected_nodes=%d "
+                            "projection_mean_distance=%.6g "
+                            "projection_max_distance=%.6g",
+                            optimizer_name.lower(),
+                            native_execution["optimizer_step_count"],
+                            pos.device,
+                            proposal["changed_node_count"],
+                            proposal["mean_distance"],
+                            proposal["max_distance"],
+                            projection["changed_node_count"],
+                            projection["mean_distance"],
+                            projection["max_distance"],
+                        )
 
                     logging.info("optimizer step %.3f ms" % ((time.time() - t3) * 1000))
 
@@ -1089,6 +1263,14 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             "overflow": overflows,
             "density": densities,
         }
+        native_execution["backward_call_count"] = sum(
+            model.backward_call_count for model in native_models
+        )
+        processed_metrics["native_execution"] = native_execution
+        logging.info(
+            "native execution summary: %s",
+            json.dumps(native_execution, sort_keys=True),
+        )
         if net_crossing_enabled:
             processed_metrics["net_crossing"] = net_crossing
 
@@ -1241,8 +1423,6 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     "stats": repair_stats,
                 }
                 with (context.output_dir / "repair.json").open("w") as stream:
-                    import json
-
                     json.dump(repair_report, stream, indent=2, sort_keys=True)
                     stream.write("\n")
                 logging.info(
@@ -1262,8 +1442,6 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 processed_metrics["anchor_keepin"]["repair"] = repair_report
             report_path = context.output_dir / "legality.json"
             with report_path.open("w") as stream:
-                import json
-
                 json.dump(exact_report, stream, indent=2, sort_keys=True)
                 stream.write("\n")
             logging.info(

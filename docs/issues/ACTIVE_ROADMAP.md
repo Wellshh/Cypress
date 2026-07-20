@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-142`
+**Evidence through:** `M336-143`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -70,8 +70,8 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | Priority | Work | Exit criterion |
 | --- | --- | --- |
 | N0 (complete) | Rebuild, repeat the M336-118 native HPWL/RSMT score, and capture current E0/E2/E3/E4 seed-1000 smoke | Repeated score is identical; old logs prove GPU optimizer execution but lack an explicit backward marker, which N1 instrumentation must add |
-| N1 (active) | Make objective evaluation pure and projection lifecycle explicit | Repeat objective/gradient tests show no coordinate mutation; projected optimizer state is cleared |
-| N2 | Add a differentiable interior keep-in margin and bounded adaptive subgroup-balanced anchor control | Finite inward margin gradients and serialized bounded anchor-weight diagnostics |
+| N1 (complete) | Make objective evaluation pure and projection lifecycle explicit | M336-143 tests and GPU smoke prove pure objective, explicit candidates, backward, optimizer updates, projection metrics, and state reset |
+| N2 (active) | Add a differentiable interior keep-in margin and bounded adaptive subgroup-balanced anchor control | Finite inward margin gradients and serialized bounded anchor-weight diagnostics |
 | N3 | Make TOP/BOTTOM density respect conservative irregular usable capacity | Side-isolated tests and reduced projection pressure or improved final metrics |
 | N4 | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Exact preflight preserves legal coordinates; cold/warm timings and local-repair scope are reported |
 | N5 | Run final cold/warm E0-E4 matrix for seeds 1000, 1001, and 1002 | Exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |

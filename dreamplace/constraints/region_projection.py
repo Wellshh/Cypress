@@ -160,6 +160,8 @@ class ProjectionStats:
     projected_node_ids: Tuple[int, ...]
     projected_refdes: Tuple[str, ...]
     max_distance: float
+    mean_distance: float = 0.0
+    total_distance: float = 0.0
 
     @property
     def count(self):
@@ -190,6 +192,7 @@ class RegionProjector:
 
         projected_ids = []
         projected_names = []
+        projected_distances = []
         max_distance = 0.0
         with torch.no_grad():
             for node_id, lower_left in self.frozen_lower_left.items():
@@ -214,10 +217,16 @@ class RegionProjector:
                     )
                     projected_ids.append(node_id)
                     projected_names.append(constraint.refdes)
+                    projected_distances.append(distance)
                     max_distance = max(max_distance, distance)
 
+        total_distance = float(sum(projected_distances))
         self.last_stats = ProjectionStats(
-            tuple(projected_ids), tuple(projected_names), max_distance
+            tuple(projected_ids),
+            tuple(projected_names),
+            max_distance,
+            total_distance / len(projected_distances) if projected_distances else 0.0,
+            total_distance,
         )
         self.total_projected += self.last_stats.count
         return self.last_stats
@@ -238,6 +247,10 @@ def zero_optimizer_state(optimizer, parameter, node_ids: Iterable[int], num_node
         if tensor is not parameter and tensor.shape == parameter.shape:
             tensor.index_fill_(0, coordinate_ids, 0)
 
+    def synchronize_tensor(tensor):
+        if tensor is not parameter and tensor.shape == parameter.shape:
+            tensor.index_copy_(0, coordinate_ids, parameter.index_select(0, coordinate_ids))
+
     state = optimizer.state.get(parameter, {})
     with torch.no_grad():
         for value in state.values():
@@ -252,4 +265,7 @@ def zero_optimizer_state(optimizer, parameter, node_ids: Iterable[int], num_node
                 elif isinstance(value, list):
                     for item in value:
                         if torch.is_tensor(item):
-                            clear_tensor(item)
+                            if key in {"u_k", "v_k", "v_k_1", "v_kp1"}:
+                                synchronize_tensor(item)
+                            else:
+                                clear_tensor(item)

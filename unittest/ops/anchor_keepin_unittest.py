@@ -148,6 +148,9 @@ class AnchorKeepInTest(unittest.TestCase):
         stats = RegionProjector(1, [constraint])(pos)
         center = (float(pos[0]) + 0.25, float(pos[1]) + 0.25)
         self.assertEqual(stats.count, 1)
+        self.assertGreater(stats.max_distance, 0.0)
+        self.assertEqual(stats.mean_distance, stats.max_distance)
+        self.assertEqual(stats.total_distance, stats.max_distance)
         self.assertTrue(domain.contains(center))
 
     def test_rectangle_packer_resolves_colliding_preferences(self):

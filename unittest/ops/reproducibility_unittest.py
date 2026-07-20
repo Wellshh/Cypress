@@ -17,12 +17,73 @@ sys.path.append(REPO_ROOT)
 from dreamplace.NesterovAcceleratedGradientOptimizer import (
     NesterovAcceleratedGradientOptimizer,
 )
+from dreamplace.PlaceObj import PlaceObj
 from dreamplace.Placer import seed_all
 from dreamplace.BasicPlace import load_initial_placement
+from dreamplace.constraints.region_projection import zero_optimizer_state
 from tuner.tuner_worker import AutoDMPWorker
 
 
 class ReproducibilityTest(unittest.TestCase):
+    def test_place_objective_is_pure_for_position(self):
+        model = PlaceObj.__new__(PlaceObj)
+        torch.nn.Module.__init__(model)
+        model.params = SimpleNamespace(
+            anchor_loss_flag=False,
+            keepin_soft_loss_flag=False,
+            macro_overlap_flag=False,
+        )
+        model.placedb = SimpleNamespace(regions=[])
+        model.op_collections = SimpleNamespace(
+            anchor_keepin_context=SimpleNamespace(
+                projector=lambda _: self.fail("objective invoked projector")
+            ),
+            wirelength_op=lambda position: position.square().sum(),
+            two_side_density_op=lambda position: position.sum() * 0,
+        )
+        model.net_crossing_enabled = False
+        model.init_density = torch.tensor(1.0)
+        model.quad_penalty = False
+        model.density_weight = torch.tensor([0.0])
+        model.density_factor = 1.0
+        pos = torch.tensor([0.25, -0.5, 1.0, 2.0], requires_grad=True)
+        original = pos.detach().clone()
+
+        first_objective = model.obj_fn(pos)
+        first_gradient = torch.autograd.grad(first_objective, pos)[0]
+        second_objective = model.obj_fn(pos)
+        second_gradient = torch.autograd.grad(second_objective, pos)[0]
+
+        self.assertTrue(torch.equal(pos.detach(), original))
+        self.assertTrue(torch.equal(first_objective, second_objective))
+        self.assertTrue(torch.equal(first_gradient, second_gradient))
+
+    def test_learning_rate_candidate_is_explicitly_projected(self):
+        model = SimpleNamespace(
+            obj_and_grad_fn=lambda position: (
+                position.square().sum(),
+                2 * position,
+            )
+        )
+        position = torch.tensor([0.5, -0.5], requires_grad=True)
+        original = position.detach().clone()
+        projected_candidates = []
+
+        def projector(candidate):
+            with torch.no_grad():
+                candidate.clamp_(-0.75, 0.75)
+            projected_candidates.append(candidate.detach().clone())
+
+        PlaceObj.estimate_initial_learning_rate(
+            model, position, 10.0, constraint_fn=projector
+        )
+
+        self.assertTrue(projected_candidates)
+        self.assertTrue(
+            all(candidate.abs().max() <= 0.75 for candidate in projected_candidates)
+        )
+        self.assertTrue(torch.equal(position.detach(), original))
+
     def test_importing_placer_does_not_create_a_log(self):
         with tempfile.TemporaryDirectory() as directory:
             environment = os.environ.copy()
@@ -141,6 +202,68 @@ class ReproducibilityTest(unittest.TestCase):
         optimizer.step()
         self.assertTrue(torch.isfinite(parameter).all())
         self.assertLess(parameter.detach().norm().item(), 2 ** 0.5)
+
+    def test_nesterov_projects_bootstrap_before_objective(self):
+        parameter = torch.nn.Parameter(torch.tensor([2.0, -2.0]))
+        evaluated_positions = []
+
+        def objective_and_gradient(position):
+            evaluated_positions.append(position.detach().clone())
+            return position.square().sum(), 2 * position
+
+        def projector(position):
+            with torch.no_grad():
+                position.clamp_(-1.0, 1.0)
+
+        optimizer = NesterovAcceleratedGradientOptimizer(
+            [parameter],
+            lr=0.1,
+            obj_and_grad_fn=objective_and_gradient,
+            constraint_fn=projector,
+        )
+        optimizer.step()
+
+        self.assertTrue(evaluated_positions)
+        self.assertTrue(
+            all(position.abs().max() <= 1.0 for position in evaluated_positions)
+        )
+
+    def test_nesterov_projection_reset_synchronizes_position_history(self):
+        parameter = torch.nn.Parameter(torch.tensor([1.0, 2.0, 3.0, 4.0]))
+
+        def objective_and_gradient(position):
+            return position.square().sum(), 2 * position
+
+        optimizer = NesterovAcceleratedGradientOptimizer(
+            [parameter],
+            lr=0.1,
+            obj_and_grad_fn=objective_and_gradient,
+            constraint_fn=lambda _: None,
+        )
+        optimizer.step()
+        with torch.no_grad():
+            parameter[[1, 3]] = torch.tensor([9.0, 10.0])
+
+        zero_optimizer_state(optimizer, parameter, node_ids=[1], num_nodes=2)
+
+        group = optimizer.param_groups[0]
+        coordinate_ids = torch.tensor([1, 3])
+        for key in ("u_k", "v_k_1", "v_kp1"):
+            for history in group[key]:
+                self.assertTrue(
+                    torch.equal(
+                        history.index_select(0, coordinate_ids),
+                        parameter.index_select(0, coordinate_ids),
+                    )
+                )
+        for key in ("g_k", "g_k_1"):
+            for history in group[key]:
+                self.assertTrue(
+                    torch.equal(
+                        history.index_select(0, coordinate_ids),
+                        torch.zeros(2),
+                    )
+                )
 
 
 if __name__ == "__main__":

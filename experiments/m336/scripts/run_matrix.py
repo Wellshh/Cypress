@@ -29,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
 IMPLEMENTATION_FILES = (
     "dreamplace/BasicPlace.py",
+    "dreamplace/NesterovAcceleratedGradientOptimizer.py",
     "dreamplace/NonLinearPlace.py",
     "dreamplace/PlaceObj.py",
     "dreamplace/Placer.py",
@@ -50,6 +51,7 @@ IMPLEMENTATION_FILES = (
     "experiments/m336/scripts/score_exact_site_result.py",
     "experiments/m336/scripts/solve_discrete_placement.py",
     "install/dreamplace/BasicPlace.py",
+    "install/dreamplace/NesterovAcceleratedGradientOptimizer.py",
     "install/dreamplace/NonLinearPlace.py",
     "install/dreamplace/PlaceObj.py",
     "install/dreamplace/Placer.py",
@@ -416,6 +418,23 @@ def parse_final_ppa(log_text):
     return ast.literal_eval(re.sub(r"\binf\b", "1e999", matches[-1]))
 
 
+def parse_native_execution(log_text):
+    matches = re.findall(r"native execution summary: (\{.*\})", log_text)
+    if not matches:
+        return None
+    evidence = json.loads(matches[-1])
+    required = {
+        "backward_call_count",
+        "nonlinear_place_executed",
+        "optimizer_step_count",
+        "place_obj_executed",
+    }
+    missing = sorted(required - evidence.keys())
+    if missing:
+        raise ValueError("native execution summary is missing: %s" % missing)
+    return evidence
+
+
 def parse_weight(log_text, label):
     match = re.search(r"%s weight = ([0-9.Ee+-]+)" % re.escape(label), log_text)
     return float(match.group(1)) if match else None
@@ -640,6 +659,7 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         result["metrics"]["soft_keepin_loss_diagnostics"] = (
             parse_weight_diagnostics(log_text, "soft keep-in loss", 1.0)
         )
+        result["metrics"]["native_execution"] = parse_native_execution(log_text)
         result["legality"] = legality_summary(legality)
         result["anchor_weight_scale"] = effective_weight
         result["constraint_grid_mm"] = float(args.grid_mm)
@@ -794,6 +814,7 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
             "soft_keepin_loss_diagnostics": parse_weight_diagnostics(
                 log_text, "soft keep-in loss", 1.0
             ),
+            "native_execution": parse_native_execution(log_text),
         },
         "legality": legality_summary(legality),
         "artifacts": stable_artifacts(run_dir, placement_dir, legality_path),

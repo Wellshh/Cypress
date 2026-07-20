@@ -231,6 +231,8 @@ class PlaceObj(nn.Module):
         self.global_place_params = global_place_params
         self.anchor_loss_weight = None
         self.keepin_soft_loss_weight = None
+        self.backward_call_count = 0
+        self._backward_evidence_logged = False
 
         self.gpu = params.gpu
         self.data_collections = data_collections
@@ -481,10 +483,6 @@ class PlaceObj(nn.Module):
         @return objective value
         """
 
-        context = getattr(self.op_collections, "anchor_keepin_context", None)
-        if context is not None:
-            context.projector(pos)
-
         # create result as a zero tensor
         result = torch.tensor([0], dtype=pos.dtype, device=pos.device, requires_grad=True)
 
@@ -687,6 +685,18 @@ class PlaceObj(nn.Module):
         obj = self.obj_fn(pos, orient_logits)
 
         obj.backward(retain_graph=True)
+        self.backward_call_count += 1
+        if not self._backward_evidence_logged:
+            active_grad = orient_logits.grad if orient_logits is not None else pos.grad
+            gradient_l1 = active_grad.detach().abs().sum().item()
+            logging.info(
+                "native objective evidence: PlaceObj.obj_fn -> backward() "
+                "device=%s objective=%.6E gradient_l1=%.6E",
+                active_grad.device,
+                obj.detach().item(),
+                gradient_l1,
+            )
+            self._backward_evidence_logged = True
 
         # need to get theta.grad into precondition op
         ret_grad = None
@@ -744,11 +754,13 @@ class PlaceObj(nn.Module):
         logging.info("density_grad norm    = %.6E" % (density_grad_norm))
         pos.grad.zero_()
 
-    def estimate_initial_learning_rate(self, x_k, lr):
+    def estimate_initial_learning_rate(self, x_k, lr, constraint_fn=None):
         """Estimate initial learning rate by moving a small step."""
         # obj_and_grad_fn = partial(self.obj_and_grad_fn, enabled_ops="wl:dens")
         _, g_k = self.obj_and_grad_fn(x_k)
         x_k_1 = torch.autograd.Variable(x_k - lr * g_k, requires_grad=True)
+        if constraint_fn is not None:
+            constraint_fn(x_k_1)
         _, g_k_1 = self.obj_and_grad_fn(x_k_1)
         delta_position = torch.linalg.vector_norm((x_k - x_k_1).double())
         delta_gradient = torch.linalg.vector_norm((g_k - g_k_1).double())
@@ -771,6 +783,8 @@ class PlaceObj(nn.Module):
                 fx, dfx = f(x), df(x)
                 dfxN = dfx.norm(p=2).square()
                 x1 = torch.autograd.Variable(x - t * dfx, requires_grad=True)
+                if constraint_fn is not None:
+                    constraint_fn(x1)
                 max_backtracks = 50
                 for _ in range(max_backtracks):
                     candidate_value = f(x1)
@@ -782,6 +796,8 @@ class PlaceObj(nn.Module):
                     t *= beta
                     with torch.no_grad():
                         x1.copy_(x - t * dfx)
+                    if constraint_fn is not None:
+                        constraint_fn(x1)
                 raise FloatingPointError(
                     "Initial learning-rate search did not find a finite Armijo step"
                 )

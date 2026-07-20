@@ -153,6 +153,7 @@ append-only audit ledger.
 | [M336-139](M336-139-full-domain-data2-blocker-audit.md) | Critical | Mitigated | Full-domain replay proves both DATA2 targets are exact lattice sites blocked by frozen MIC401 |
 | [M336-140](M336-140-target-net-span-data2-closure-collapse.md) | Critical | Mitigated | Direct DATA2 optimization creates a legal topology and proves its hard-ceiling finite closure optimal only at incumbent HPWL |
 | [M336-142](M336-142-native-score-float-serialization.md) | Critical | Mitigated | Binary64 PL serialization and float64 native evaluation preserve exact legality and produce a repeated M336-118 native score |
+| [M336-143](M336-143-objective-projection-lifecycle.md) | Critical | Mitigated | Objective evaluation is position-pure; one explicit composite projector records proposals and safely resets Adam/SGD/Nesterov state |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

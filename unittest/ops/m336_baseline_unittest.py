@@ -116,6 +116,7 @@ from score_exact_site_result import (  # noqa: E402
     _native_evaluation_config,
     _require_objective_replay_audit,
 )
+from run_matrix import parse_native_execution  # noqa: E402
 from exact_site_checkpoint import (  # noqa: E402
     export_checkpoint,
     resolve_result_path,
@@ -185,6 +186,19 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_native_execution_summary_is_fail_closed(self):
+        evidence = parse_native_execution(
+            "native execution summary: "
+            '{"backward_call_count": 3, "nonlinear_place_executed": true, '
+            '"optimizer_step_count": 1, "place_obj_executed": true}'
+        )
+        self.assertEqual(evidence["backward_call_count"], 3)
+        self.assertEqual(evidence["optimizer_step_count"], 1)
+        with self.assertRaises(ValueError):
+            parse_native_execution(
+                'native execution summary: {"optimizer_step_count": 1}'
+            )
+
     def test_native_evaluation_config_is_float_preserving(self):
         base = {"dtype": "float32", "global_place_flag": 1}
         config = _native_evaluation_config(
