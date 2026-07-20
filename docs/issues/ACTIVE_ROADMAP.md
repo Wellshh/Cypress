@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (implementation ready; D1 pending, D2/D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | Commit/push/pull the tested M336-177 proposal-authority projection, then requalify scale-1 D1 before any larger run |
+| N6 (blocked; M336-177 D1 failed) | Prevent native optimizer steps from crossing same-side footprint contacts | Replace the costly eight-pass authority closure under a separately reviewed contract, then requalify scale-1 D1 before any larger run |
 
 ## Paused Exact-Site Priorities
 
@@ -485,6 +485,22 @@ TEST-001's ten errors across 260 tests and is not green. This is implementation
 evidence only: sign, commit, push, and pull it before running exactly the
 predeclared scale-1 E2/E3 D1; D2, D3, E4, fallback, CP-SAT, and parameter
 ladders remain prohibited.
+
+The post-implementation M336-177 D1 replay at `48b5cdd` stops the candidate.
+Both arms prove the complete native CUDA chain, ten changing Adam steps, exact
+legality after every accepted step, and zero-drift float64 serialization. The
+new search is effective at its narrow purpose: accepted correction writes fall
+to `74/75` for E2/E3, versus matching rigid counterfactuals of `85/86` and the
+separate M336-174 ceilings of `181/184`; real accepted components use multiple
+proposal authorities, and maximum correction remains `0.003263852 mm`.
+However, nine proposals per arm reach the eight-pass closure limit before a
+bounded retry succeeds. GPU optimization rises to `3.872x/3.151x` the
+M336-171 feature-off controls. E2/E3 HPWL regress from matching M336-174 D1 by
+`0.122776/0.213276`, and RSMT by `1.310/1.373`. E3 anchor mean and p90 are
+strictly lower than E2, but only by `0.0001312%/0.0000286%`. The conjunctive D1
+gate therefore fails. Do not run D2, D3, E4, fallback, CP-SAT, cap changes, or
+parameter ladders; a successor must first address bounded closure convergence,
+runtime, and quality under a new reviewed contract.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

@@ -238,6 +238,78 @@ Stop and document any failed conjunct. D2, D3, E4, cap changes, fallback, CP-SAT
 and all parameter ladders remain prohibited until a complete D1 pass is pushed
 and pulled.
 
+## Scale-1 D1 Replay and Stop
+
+The implementation was signed, committed, pushed, and pulled at
+`48b5cdd4f05f9d8248258dc6f3591044ee6a7cee` before the only authorized effect
+run. The replay used checkpoint-warm E2/E3, seed `1000`, ten iterations, LR
+scale `1`, deterministic CuBLAS, physical GPU 2 (`NVIDIA H100`, driver
+`550.54.14`), and explicit run-local output, summary, and report paths. It did
+not run E4, repair, fallback, CP-SAT, or a parameter ladder.
+
+```text
+results/m336/native-cypress/
+  m336-177-authority-d1-warm-10-scale1/
+summary SHA-256
+61f5f7e1239c0a7633c926bb6227ebba7864c2df4c9f6c85c79876b7c62ce1a6
+report SHA-256
+deb84786cc300401505b824e7db7995d0f3c1ec16009ac79610fb397130d4ab2
+E2/E3 exact-guard SHA-256
+81900b8eb017d34fe799e09f6e4bd5999eb2f197bd0b0927375f3832614792e9
+2ce5248da0ac36123c2dd9b6dfac5bed2a4377567e6cc869b10d9fe891c47534
+```
+
+Both arms prove `NonLinearPlace`, `PlaceObj`, 13 backward calls, and ten
+changing CUDA Adam steps. All ten accepted steps per arm are exact legal. Both
+serialized float64 replays are 100/100 contained with zero keep-in violations,
+zero overlaps, zero coordinate drift, and matching input/replay placement
+hashes.
+
+The authority mechanism is active on real proposals and substantially reduces
+intervention. Six accepted proposals per arm use fewer final writes than their
+matching rigid counterfactual; the first is `8 < 10`. Eight accepted component
+plans per arm use multiple native authorities. Across all accepted proposals,
+authority writes are `74 < 85` for E2 and `75 < 86` for E3 versus matching
+rigid counterfactuals. They are also below the separate M336-174 trajectories
+of `181/184` writes.
+
+| Gate | E2 | E3 | Result |
+| --- | ---: | ---: | :---: |
+| Accepted / rejected attempts | `10 / 9` | `10 / 9` | reported |
+| Maximum corrected IDs, all attempts | `15 / 32` | `15 / 32` | pass |
+| Maximum component nodes | `4 / 16` | `4 / 16` | pass |
+| Maximum per-component authority states | `256 / 4096` | `256 / 4096` | pass |
+| Accepted writes vs matching rigid | `74 / 85` | `75 / 86` | pass |
+| Accepted writes vs M336-174 ceiling | `74 / 181` | `75 / 184` | pass |
+| Maximum correction (`mm`) | `0.003263852` | `0.003263852` | pass |
+| Native HPWL | `15633.232566` | `15633.232367` | **fail** |
+| FLUTE RSMT | `17329.610` | `17329.580` | **fail** |
+| Normalized native score | `0.9279784973` | `0.9279793130` | reported |
+| Anchor mean / p90 (`mm`) | `6.525443185 / 12.050416826` | `6.525434624 / 12.050413384` | pass |
+| GPU optimization / end-to-end (`s`) | `4.18548 / 15.91143` | `4.24706 / 16.09262` | **fail / pass** |
+
+Against matching M336-174 D1, E2 HPWL/RSMT regress by
+`+0.122776/+1.310`, and E3 regress by `+0.213276/+1.373`. Against the
+M336-171 feature-off controls, GPU optimization costs are `3.872x/3.151x`,
+above the `2x` limit, although end-to-end ratios remain `1.354x/1.357x`.
+E3 does retain the required same-run anchor direction: mean and p90 improve
+over E2 by `0.0001312%` and `0.0000286%`, respectively.
+
+Nine proposals per arm hit the eight-pass contact-closure limit with one
+residual overlap and are transactionally rejected; bounded LR retries
+eventually produce all ten legal accepted steps. No attempt approaches the
+32-ID, 16-node, or 4,096-state limits, so increasing those bounds is not
+supported. The observed runtime failure is instead dominated by repeated
+bounded authority enumeration and exact validation. The quality regressions
+show that lower correction scope alone does not preserve the qualifying rigid
+D1 trajectory.
+
+The conjunction therefore fails. M336-177 remains open, N6 remains blocked,
+and D2, D3, E4, cap changes, fallback, CP-SAT, and parameter ladders were not
+run and remain prohibited. Any successor needs a separately reviewed contract
+that addresses closure convergence and cost while retaining the demonstrated
+multi-authority write reduction and exact safety.
+
 ## Acceptance Criteria
 
 - Search consumes only displacements produced by the current native optimizer
