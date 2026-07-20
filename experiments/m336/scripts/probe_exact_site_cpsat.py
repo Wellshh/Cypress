@@ -587,33 +587,46 @@ def _candidate_coverage_component(
     }
 
 
+def _resolve_unique_net_ids(placedb, requested_net_names, label):
+    requested = tuple(requested_net_names)
+    if len(set(requested)) != len(requested):
+        raise ValueError(f"{label} net names must be unique")
+    if not requested:
+        return ()
+    net_ids_by_name = {}
+    for net_id, value in enumerate(placedb.net_names):
+        net_ids_by_name.setdefault(_decode(value), []).append(net_id)
+    result = []
+    for net_name in requested:
+        matches = net_ids_by_name.get(net_name, [])
+        if len(matches) != 1:
+            raise ValueError(
+                f"{label} net {net_name!r} must resolve uniquely"
+            )
+        result.append(matches[0])
+    return tuple(result)
+
+
 def _candidate_coverage_net_endpoints(
     placedb, constraints, requested_net_names, scope_refdes
 ):
     requested = tuple(requested_net_names)
-    if len(set(requested)) != len(requested):
-        raise ValueError("candidate coverage net names must be unique")
+    net_ids = _resolve_unique_net_ids(
+        placedb, requested, "candidate coverage"
+    )
     if not requested:
         return {}
-    net_ids_by_name = {}
-    for net_id, value in enumerate(placedb.net_names):
-        net_ids_by_name.setdefault(_decode(value), []).append(net_id)
     node_refdes = {
         int(constraint.node_id): constraint.refdes
         for constraint in constraints
     }
     scope = frozenset(scope_refdes)
     result = {}
-    for net_name in requested:
-        matches = net_ids_by_name.get(net_name, [])
-        if len(matches) != 1:
-            raise ValueError(
-                f"candidate coverage net {net_name!r} must resolve uniquely"
-            )
+    for net_name, net_id in zip(requested, net_ids):
         endpoints = sorted(
             {
                 node_refdes[node_id]
-                for pin_id in placedb.net2pin_map[matches[0]]
+                for pin_id in placedb.net2pin_map[net_id]
                 for node_id in (int(placedb.pin2node_map[pin_id]),)
                 if node_id in node_refdes and node_refdes[node_id] in scope
             }
@@ -1063,6 +1076,7 @@ def _objective_replay_audit(
     rounding_allowance,
     integer_hpwl_limit=None,
     response_objective_mode="hpwl",
+    response_objective_net_ids=(),
 ):
     coordinate_mismatches = _candidate_coordinate_mismatches(rows, solver)
     solver_total, solver_nets = _solver_integer_hpwl_by_net(
@@ -1090,9 +1104,62 @@ def _objective_replay_audit(
                     "delta_integer": delta,
                 }
             )
+    target_net_ids = tuple(int(value) for value in response_objective_net_ids)
+    if len(set(target_net_ids)) != len(target_net_ids):
+        raise ValueError("response objective net IDs must be unique")
+    solver_nets_by_id = {row["net_id"]: row for row in solver_nets}
+    replay_nets_by_id = {row["net_id"]: row for row in replay_nets}
+    missing_target_net_ids = sorted(
+        set(target_net_ids) - set(solver_nets_by_id)
+    )
+    if missing_target_net_ids:
+        raise ValueError(
+            "response objective nets are absent from the HPWL model: "
+            + ", ".join(map(str, missing_target_net_ids))
+        )
+    if response_objective_mode == "target_net_span" and not target_net_ids:
+        raise ValueError("target net-span replay requires objective net IDs")
+    if response_objective_mode != "target_net_span" and target_net_ids:
+        raise ValueError(
+            "response objective net IDs require target_net_span mode"
+        )
+    target_solver_total = (
+        sum(
+            solver_nets_by_id[net_id]["integer_hpwl"]
+            for net_id in target_net_ids
+        )
+        if target_net_ids
+        else None
+    )
+    target_replay_total = (
+        sum(
+            replay_nets_by_id[net_id]["integer_hpwl"]
+            for net_id in target_net_ids
+        )
+        if target_net_ids
+        else None
+    )
     response_objective_available = objective_value is not None
     response_objective_checked_as_hpwl = (
         response_objective_available and response_objective_mode == "hpwl"
+    )
+    response_objective_checked_as_target_net_span = (
+        response_objective_available
+        and response_objective_mode == "target_net_span"
+    )
+    response_objective_checked = (
+        response_objective_checked_as_hpwl
+        or response_objective_checked_as_target_net_span
+    )
+    response_solver_total = (
+        target_solver_total
+        if response_objective_checked_as_target_net_span
+        else solver_total
+    )
+    response_replay_total = (
+        target_replay_total
+        if response_objective_checked_as_target_net_span
+        else replay_total
     )
     rounded_response_objective = (
         int(round(objective_value))
@@ -1103,12 +1170,12 @@ def _objective_replay_audit(
         math.isclose(
             objective_value, rounded_response_objective, abs_tol=1e-6
         )
-        if response_objective_checked_as_hpwl
+        if response_objective_checked
         else None
     )
     rounded_objective = (
         rounded_response_objective
-        if response_objective_checked_as_hpwl
+        if response_objective_checked
         else None
     )
     float_delta = replay_total / integer_scale - floating_hpwl
@@ -1120,10 +1187,11 @@ def _objective_replay_audit(
     )
     passed = (
         (
-            not response_objective_checked_as_hpwl
+            not response_objective_checked
             or (
                 objective_is_integral
-                and rounded_objective == solver_total
+                and rounded_objective == response_solver_total
+                and response_solver_total == response_replay_total
             )
         )
         and solver_total == replay_total
@@ -1141,20 +1209,32 @@ def _objective_replay_audit(
         "response_objective_checked_as_hpwl": (
             response_objective_checked_as_hpwl
         ),
+        "response_objective_checked_as_target_net_span": (
+            response_objective_checked_as_target_net_span
+        ),
         "solver_objective_is_integral": objective_is_integral,
         "solver_objective_integer": rounded_objective,
-        "solver_variable_objective_integer": solver_total,
-        "selected_site_objective_integer": replay_total,
+        "solver_variable_objective_integer": response_solver_total,
+        "selected_site_objective_integer": response_replay_total,
         "solver_minus_variable_integer": (
-            rounded_objective - solver_total
-            if response_objective_checked_as_hpwl
+            rounded_objective - response_solver_total
+            if response_objective_checked
             else None
         ),
         "solver_minus_selected_site_integer": (
-            rounded_objective - replay_total
-            if response_objective_checked_as_hpwl
+            rounded_objective - response_replay_total
+            if response_objective_checked
             else None
         ),
+        "global_solver_hpwl_integer": solver_total,
+        "global_selected_site_hpwl_integer": replay_total,
+        "target_net_ids": list(target_net_ids),
+        "target_net_names": [
+            solver_nets_by_id[net_id]["net_name"]
+            for net_id in target_net_ids
+        ],
+        "target_solver_span_integer": target_solver_total,
+        "target_selected_site_span_integer": target_replay_total,
         "selected_site_minus_floating_hpwl": float_delta,
         "rounding_allowance_integer": rounding_allowance,
         "floating_hpwl_within_rounding_allowance": float_within_allowance,
@@ -1174,6 +1254,7 @@ def _set_model_objective(
     objective_mode,
     hpwl_objective,
     guide_rank_expression,
+    target_net_span_objective=None,
 ):
     if objective_mode == "hpwl":
         if hpwl_objective is None:
@@ -1181,6 +1262,12 @@ def _set_model_objective(
         expression = hpwl_objective
     elif objective_mode == "guide_rank":
         expression = guide_rank_expression
+    elif objective_mode == "target_net_span":
+        if target_net_span_objective is None:
+            raise ValueError(
+                "target net-span objective expression is unavailable"
+            )
+        expression = target_net_span_objective
     elif objective_mode in {"none", "hpwl_feasibility"}:
         return
     else:
@@ -1818,27 +1905,56 @@ def main() -> int:
     if interval_inset < 0:
         raise ValueError("interval inset must be non-negative")
     optimize_hpwl = os.environ.get("M336_OPTIMIZE_HPWL", "0") == "1"
+    target_net_span_names = _comma_separated_values(
+        os.environ.get("M336_OPTIMIZE_NET_SPANS", ""),
+        "target net-span",
+    )
+    target_net_span_ids = _resolve_unique_net_ids(
+        placedb, target_net_span_names, "target net-span"
+    )
     minimum_score = float(os.environ.get("M336_MINIMUM_SCORE", "0"))
     if minimum_score < 0:
         raise ValueError("minimum score must be non-negative")
     minimize_guide_rank = os.environ.get("M336_MINIMIZE_GUIDE_RANK", "0") == "1"
-    if optimize_hpwl and minimize_guide_rank:
-        raise ValueError("HPWL and guide-rank objectives are mutually exclusive")
+    if sum(
+        (
+            bool(optimize_hpwl),
+            bool(minimize_guide_rank),
+            bool(target_net_span_names),
+        )
+    ) > 1:
+        raise ValueError(
+            "HPWL, guide-rank, and target net-span objectives are "
+            "mutually exclusive"
+        )
+    if target_net_span_names and integer_hpwl_ceiling is None:
+        raise ValueError(
+            "target net-span objective requires an explicit integer "
+            "HPWL ceiling"
+        )
     guide_rank_ceiling = _optional_nonnegative_integer(
         os.environ.get("M336_GUIDE_RANK_CEILING", ""),
         "guide-rank ceiling",
     )
     enforce_hpwl = (
         optimize_hpwl
+        or bool(target_net_span_names)
         or minimum_score > 0
         or integer_hpwl_ceiling is not None
     )
-    has_objective = optimize_hpwl or minimize_guide_rank
-    objective_mode = (
-        "hpwl"
-        if optimize_hpwl
-        else "guide_rank" if minimize_guide_rank else "none"
+    has_objective = (
+        optimize_hpwl
+        or minimize_guide_rank
+        or bool(target_net_span_names)
     )
+    if optimize_hpwl:
+        objective_mode = "hpwl"
+    elif minimize_guide_rank:
+        objective_mode = "guide_rank"
+    elif target_net_span_names:
+        objective_mode = "target_net_span"
+    else:
+        objective_mode = "none"
     if objective_mode == "none" and enforce_hpwl:
         objective_mode = "hpwl_feasibility"
     search_branching = _search_branching_mode(
@@ -2400,6 +2516,7 @@ def main() -> int:
         and nonrect_mode == "exact"
     )
     hpwl_objective = None
+    target_net_span_objective = None
     hpwl_objective_rows = []
     necessary_hpwl_limit = None
     integer_hpwl_limit = None
@@ -2424,6 +2541,7 @@ def main() -> int:
 
         coordinate_limit = 2**50
         net_spans = []
+        net_span_expressions = {}
         net_weights = []
         for net_id, pins in enumerate(placedb.net2pin_map):
             pin_x = []
@@ -2473,10 +2591,11 @@ def main() -> int:
             model.add_min_equality(min_x_var, pin_x)
             model.add_max_equality(max_y_var, pin_y)
             model.add_min_equality(min_y_var, pin_y)
-            net_spans.append(
-                integral_weight
-                * (max_x_var - min_x_var + max_y_var - min_y_var)
+            net_span_expression = integral_weight * (
+                max_x_var - min_x_var + max_y_var - min_y_var
             )
+            net_spans.append(net_span_expression)
+            net_span_expressions[net_id] = net_span_expression
             hpwl_objective_rows.append(
                 {
                     "net_id": net_id,
@@ -2489,6 +2608,19 @@ def main() -> int:
                 }
             )
         hpwl_objective = sum(net_spans)
+        if target_net_span_ids:
+            missing_target_net_ids = sorted(
+                set(target_net_span_ids) - set(net_span_expressions)
+            )
+            if missing_target_net_ids:
+                raise ValueError(
+                    "target net-span nets have no modeled pins: "
+                    + ", ".join(map(str, missing_target_net_ids))
+                )
+            target_net_span_objective = sum(
+                net_span_expressions[net_id]
+                for net_id in target_net_span_ids
+            )
         hpwl_rounding_allowance = _hpwl_rounding_allowance_units(net_weights)
         if minimum_score > 0:
             necessary_hpwl_limit = _score_hpwl_limit(
@@ -2507,6 +2639,7 @@ def main() -> int:
         objective_mode,
         hpwl_objective,
         guide_rank_expression,
+        target_net_span_objective,
     )
     build_seconds = time.perf_counter() - build_started
 
@@ -2587,8 +2720,11 @@ def main() -> int:
             "hint_json": hint_json,
             "hint_source": hint_source,
             "initial_movable_refdes": sorted(movable_refdes),
+            "objective_mode": objective_mode,
             "output_json": str(OUTPUT),
             "released_refdes": sorted(released_refdes),
+            "target_net_span_ids": list(target_net_span_ids),
+            "target_net_span_names": list(target_net_span_names),
             "total_solve_seconds": total_solve_seconds,
         }
         if stop_reason is not None:
@@ -2720,6 +2856,7 @@ def main() -> int:
                 hpwl_rounding_allowance,
                 integer_hpwl_limit,
                 response_objective_mode=objective_mode,
+                response_objective_net_ids=target_net_span_ids,
             )
         guide_rank_replay_audit = _guide_rank_replay_audit(
             solver,
@@ -2799,6 +2936,8 @@ def main() -> int:
             candidate_domain_overlap_model_exact
         ),
         "objective_mode": objective_mode,
+        "target_net_span_ids": list(target_net_span_ids),
+        "target_net_span_names": list(target_net_span_names),
         "guide_rank_ceiling": guide_rank_ceiling,
         "minimum_score": minimum_score,
         "necessary_hpwl_limit": necessary_hpwl_limit,
@@ -2832,6 +2971,18 @@ def main() -> int:
             and best_objective_bound is not None
             else None
         ),
+        "solver_objective_target_net_span": (
+            objective_value / integer_scale
+            if objective_mode == "target_net_span"
+            and objective_value is not None
+            else None
+        ),
+        "solver_best_objective_bound_target_net_span": (
+            best_objective_bound / integer_scale
+            if objective_mode == "target_net_span"
+            and best_objective_bound is not None
+            else None
+        ),
         "solver_parameters": {
             "audit_candidate_coverage": candidate_coverage_enabled,
             "candidate_coverage_nets": list(
@@ -2853,6 +3004,7 @@ def main() -> int:
             "minimum_changed_sites": minimum_changed_sites,
             "minimize_guide_rank": minimize_guide_rank,
             "optimize_hpwl": optimize_hpwl,
+            "optimize_net_spans": list(target_net_span_names),
             "num_search_workers": 1,
             "preprocess_threads": PREPROCESS_THREADS,
             "random_seed": random_seed,

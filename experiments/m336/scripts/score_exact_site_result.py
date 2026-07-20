@@ -31,7 +31,9 @@ DEFAULT_BASELINE_RESULT = (
     ROOT
     / "results/m336/baseline_warmstart_smoke/baseline/baseline-result.json"
 )
-HPWL_AUDIT_MODES = frozenset(("hpwl", "hpwl_feasibility"))
+HPWL_AUDIT_MODES = frozenset(
+    ("hpwl", "hpwl_feasibility", "target_net_span")
+)
 
 
 def _write_text_atomic(path: Path, content: str) -> None:

@@ -48,6 +48,7 @@ def _validate_certificate(source: dict) -> None:
     replay_required = source.get("objective_mode") in {
         "hpwl",
         "hpwl_feasibility",
+        "target_net_span",
     }
     if replay_required and not replay.get("passed"):
         raise ValueError("checkpoint source failed objective replay")

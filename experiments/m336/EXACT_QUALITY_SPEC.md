@@ -1,7 +1,7 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-139`
+证据范围：`M336-105` 至 `M336-140`
 
 上位合同：[`SPEC.md`](SPEC.md)
 
@@ -15,7 +15,7 @@ keep-in、锚点、E0-E4 与默认关闭行为的验收合同；本文不得削�
 generation 与 HPWL closure、按 residual net 生成 guide、按物理闭包扩张
 support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应用以下修正：
 
-- 提案快照止于 M336-122；当前实现证据已推进到 M336-139。
+- 提案快照止于 M336-122；当前实现证据已推进到 M336-140。
 - guide-rank 是稳定的拓扑成本，不是多样性约束；M336-128 已证明无 HPWL
   上限时它仍返回 seed 3001。
 - M336-050 和旧 Q601/two-anchor 证明只能约束各自声明的有限域，不能外推为
@@ -110,6 +110,14 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
   Jaccard `1.0` 重放，排除 instrumentation side effect。扩大 K 或调整 weight
   无法恢复完整 obstacle-free domain 中不存在的坐标；必须保持 `MIC401` 冻结并
   直接优化 DATA2 的 legal alternative。
+- `M336-140` 增加默认关闭的 named-net span objective，并将目标 span 与全局
+  HPWL ceiling/replay 分离。首个 DATA2 20-component K512/K4096、`Delta=20`
+  模型把 integer span 从 `272367284` 降至 `260868573`，生成 K1-certified
+  五器件合法 topology；但独立 one-opt 后的一次完整 2,892-pair、130,718,237-site
+  scan 精确回到 M336-129 swap plateau。独立 hard-ceiling CP-SAT Solve B 又证明
+  其 21,072-candidate finite domain 的全局 HPWL optimum 恰为 `15634450483`，并
+  认证一个新的双 swap 等 HPWL plateau。该结果验证了 direct residual workflow，
+  但没有改善 M336-118；最优证明只约束声明的 guide/allocation/support。
 
 当前六个主要乐观 residual 均集中在 page 7：
 
@@ -221,10 +229,14 @@ fail closed。tracked reference 为
 M336-130 target guide 对照：candidate set 明显变化但 DATA2 exact gap 不变。
 `M336-139` 已完成 DATA2 full-domain 分类：两个 target 的唯一 uncontrolled fixed
 blocker 都是 `MIC401`；M336-124 另有 controlled/releasable `B402` overlap。下一
-节点不再追逐原 target 坐标，而是在 `MIC401` frozen、`FV710/R708/B402` 及实测
-physical partner movable 的合同下直接最小化 `PSIM2_DATA2` exact span，并保留
-global HPWL rise envelope。guide 的 first-admitted site 数只表示 weighted
-round-robin 中实际插入者，不能替代 target-presence 检查。
+节点不再追逐原 target 坐标。`M336-140` 已在 `MIC401` frozen、20-component
+support、K512/K4096 与 `Delta=20` 下直接最小化 `PSIM2_DATA2` exact span，得到
+合法 guide。local pair closure 返回 M336-129 plateau，hard-ceiling CP-SAT closure
+则证明当前有限域不能严格改善并生成另一个 certified plateau。保留两者供组合
+portfolio/no-good；相同模型禁止 seed/weight ladder。P2 继续对其余 residual net
+运行 direct span objective，并只在加入 exact no-good 或 materially expanded
+support 后重试 DATA2。guide 的 first-admitted site 数只表示 weighted round-robin
+中实际插入者，不能替代 target-presence 检查。
 
 高 residual endpoint/blocker 可用 full-site 或 K8192，次要 page-7 member 用
 K2048/K4096，低相关 member 用 K512/K1024。只有 coverage 报告证明新增了不同

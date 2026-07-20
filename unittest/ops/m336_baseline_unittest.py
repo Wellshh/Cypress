@@ -103,6 +103,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _resolved_path,
     _rows_by_side,
     _required_guide_support_indices,
+    _resolve_unique_net_ids,
     _search_branching_mode,
     _selected_site_in_region,
     _set_model_objective,
@@ -273,7 +274,7 @@ class M336BaselineTest(unittest.TestCase):
                         "status": "OPTIMAL",
                         "candidate_domain_overlap_model_exact": True,
                         "certification_required": False,
-                        "objective_mode": "hpwl",
+                        "objective_mode": "target_net_span",
                         "objective_replay_audit": {"passed": True},
                         "legality": {
                             "keepin_violation_count": 0,
@@ -446,6 +447,10 @@ class M336BaselineTest(unittest.TestCase):
                 "objective_replay_audit": {"passed": True},
             }
         )
+        with self.assertRaisesRegex(ValueError, "objective replay audit"):
+            _require_objective_replay_audit(
+                {"objective_mode": "target_net_span"}
+            )
 
     def test_effective_integer_hpwl_limit_uses_strictest_bound(self):
         self.assertEqual(
@@ -864,6 +869,16 @@ class M336BaselineTest(unittest.TestCase):
         _set_model_objective(model, "hpwl_feasibility", "hpwl", "rank")
         self.assertEqual(minimized, [])
 
+        minimized.clear()
+        _set_model_objective(
+            model,
+            "target_net_span",
+            "hpwl",
+            "rank",
+            "target",
+        )
+        self.assertEqual(minimized, ["target"])
+
     def test_selected_site_region_is_explicit_and_consistent(self):
         selected = _selected_site_in_region(
             {"center": [1.0, 2.0], "region_candidate_index": 3},
@@ -1013,6 +1028,12 @@ class M336BaselineTest(unittest.TestCase):
             _candidate_coverage_net_endpoints(
                 placedb, constraints, ["N1", "N1"], ["A"]
             )
+        self.assertEqual(
+            _resolve_unique_net_ids(placedb, ["N2"], "target"), (1,)
+        )
+        duplicate = SimpleNamespace(net_names=[b"N1", b"N1"])
+        with self.assertRaisesRegex(ValueError, "must resolve uniquely"):
+            _resolve_unique_net_ids(duplicate, ["N1"], "target")
 
     def test_candidate_target_domain_coverage_classifies_obstacles(self):
         domain = FeasibleDomain.build(
@@ -1618,6 +1639,79 @@ class M336BaselineTest(unittest.TestCase):
         )
         self.assertFalse(audit["passed"])
         self.assertEqual(audit["net_objective_mismatch_count"], 2)
+
+    def test_target_net_span_replays_separately_from_global_hpwl(self):
+        class FakeSolver:
+            def value(self, variable):
+                return {
+                    "first_max_x": 10,
+                    "first_min_x": 0,
+                    "first_max_y": 0,
+                    "first_min_y": 0,
+                    "second_max_x": 20,
+                    "second_min_x": 0,
+                    "second_max_y": 0,
+                    "second_min_y": 0,
+                }[variable]
+
+        placedb = SimpleNamespace(
+            net2pin_map=[np.asarray([0, 1]), np.asarray([2, 3])],
+            pin2node_map=np.asarray([0, 1, 2, 3]),
+            pin_offset_x=np.zeros(4),
+            pin_offset_y=np.zeros(4),
+            net_weights=np.ones(2),
+            net_names=np.asarray([b"N1", b"N2"]),
+        )
+        objective_rows = []
+        for prefix, net_id in (("first", 0), ("second", 1)):
+            objective_rows.append(
+                {
+                    "net_id": net_id,
+                    "net_name": f"N{net_id + 1}",
+                    "weight": 1,
+                    "max_x_var": f"{prefix}_max_x",
+                    "min_x_var": f"{prefix}_min_x",
+                    "max_y_var": f"{prefix}_max_y",
+                    "min_y_var": f"{prefix}_min_y",
+                }
+            )
+        arguments = (
+            FakeSolver(),
+            20,
+            [],
+            objective_rows,
+            placedb,
+            np.asarray([0.0, 10.0, 0.0, 20.0]),
+            np.zeros(4),
+            1,
+            30.0,
+            0,
+            30,
+        )
+        audit = _objective_replay_audit(
+            *arguments,
+            response_objective_mode="target_net_span",
+            response_objective_net_ids=(1,),
+        )
+        self.assertTrue(audit["passed"])
+        self.assertFalse(audit["response_objective_checked_as_hpwl"])
+        self.assertTrue(
+            audit["response_objective_checked_as_target_net_span"]
+        )
+        self.assertEqual(audit["solver_objective_integer"], 20)
+        self.assertEqual(audit["global_solver_hpwl_integer"], 30)
+        self.assertEqual(audit["target_selected_site_span_integer"], 20)
+        self.assertEqual(audit["target_net_names"], ["N2"])
+
+        failed_arguments = list(arguments)
+        failed_arguments[1] = 19
+        self.assertFalse(
+            _objective_replay_audit(
+                *failed_arguments,
+                response_objective_mode="target_net_span",
+                response_objective_net_ids=(1,),
+            )["passed"]
+        )
 
     def test_exact_site_rows_are_partitioned_by_physical_side(self):
         self.assertEqual(_packing_sides("TOP"), frozenset(("TOP",)))
