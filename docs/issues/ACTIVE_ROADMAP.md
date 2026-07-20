@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-137`
+**Evidence through:** `M336-138`
 
 **Active specification:**
 [`experiments/m336/EXACT_QUALITY_SPEC.md`](../../experiments/m336/EXACT_QUALITY_SPEC.md)
@@ -35,7 +35,7 @@ zero overlaps. Its placement SHA-256 is
 | Input and geometry correctness | Parsing, coordinates, footprints, collision quantization, exact replay, portable dependency paths | Retained prerequisites | Original `SPEC.md` and resolved issue evidence through M336-132 |
 | Historical Q601/two-anchor policy | `M336-012/014/016/018/022/028/030-045` and their declared finite domains | Historical; not an active score blocker | Current EMI601-only policy revalidated by `M336-105` |
 | Current endpoint legality | Manual EMI601, runtime Q601, fixed assignment, 0.05 mm | Stable | M336-118 portable checkpoint and `M336-119` |
-| Exact-site quality optimization | `M336-105` through `M336-137` | **Active** | `EXACT_QUALITY_SPEC.md` |
+| Exact-site quality optimization | `M336-105` through `M336-138` | **Active** | `EXACT_QUALITY_SPEC.md` |
 | Cypress production integration | Soft margin gradient, warm-start cost, E3/E4 anchor/runtime gates | Open, deferred | Resume after a score-1 exact-site reference exists |
 
 Old infeasibility and lower-bound documents remain valid only for their exact
@@ -48,23 +48,28 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | --- | --- | --- |
 | P0 (complete) | Implement explicit incumbent Hamming exclusion and exact tuple no-goods | M336-128 tests and two distinct K16 legal replays |
 | P1 (paused) | Run `d=2,4,6,8` and `Delta=0,1,2,5,10,20` topology generation, then independent HPWL closure | Five rank-11 tuples all collapse; resume after coverage or support changes |
-| P2 (active) | Build six residual-net-specific legal guides with candidate coverage diagnostics | M336-137 baseline exists; compare M336-130 targets and directly optimize every uncovered endpoint |
+| P2 (active) | Build six residual-net-specific legal guides with candidate coverage diagnostics | M336-138 comparison complete; directly optimize exact-feasible DATA2 span and classify its target obstruction |
 | P3 | Expand support by exact physical/network closure only | Bound/solution evidence justifies each expansion |
 | P4 | Re-run page-86, page-4, one-opt, and pair closure after page-7 changes | New portable incumbent checkpoint |
 | P5 | Run native HPWL/RSMT gate after necessary HPWL threshold is crossed | Repeated normalized score `>= 1.0` with identical hash |
 
 ## Current Boundary
 
-M336-137 adds a default-off, identity-safe candidate audit and a portable
-M336-122 coverage reference. The unchanged page-7 portfolio assigns 18,432 of
-73,728 audited sites to the quality-hybrid guide, yet its exact targets for
-both `PSIM2_DATA2` endpoints are absent: `FV710` is `2.934706 mm` from the
-nearest candidate and `R708` is one `0.05 mm` lattice step away. All other
-listed quality-hybrid residual endpoints are exactly represented. This is not
-an infeasibility result; it proves that guide allocation counts do not imply
-endpoint coverage. M336-138 must compare the six M336-130 targets against this
-reference before another optimization run, then direct net-span generation
-must repair any remaining endpoint gaps.
+M336-138 compares M336-118 plus all six M336-130 residual targets against the
+portable M336-137 reference. The portfolio replaces 2,499 of 73,728 sites
+(Jaccard `0.934433`) and changes 17/18 component candidate sets, so the topology
+change is material. Nevertheless, the dedicated `PSIM2_DATA2` guide still
+misses both exact targets at the same `2.934706 mm` (`FV710`) and `0.05 mm`
+(`R708`) distances. All five other dedicated residual guides cover their
+listed endpoints exactly. This is not an infeasibility result; it rules out
+candidate weighting as the remedy for those collision-relaxed DATA2
+coordinates. P2 now requires a direct exact-feasible DATA2 net-span guide,
+full-domain obstruction classification, and measured physical partners before
+another topology solve.
+
+M336-137 remains the identity-safe audit and portable M336-122 reference. Its
+default-off implementation is a production prerequisite for every subsequent
+portfolio comparison.
 
 M336-136 remains the enumeration boundary. Its fifth rank-11 topology and the
 previous four all become byte-identical after one-opt and share the certified
