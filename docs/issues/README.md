@@ -157,6 +157,9 @@ append-only audit ledger.
 | [M336-144](M336-144-differentiable-interior-keepin-margin.md) | High | Mitigated | A GPU-differentiable footprint-aware interior margin reduces projection pressure but slightly regresses native quality |
 | [M336-145](M336-145-unbounded-static-anchor-weight.md) | High | Mitigated | Group-balanced bounded EMA control works, but isolated anchor gains remain far below the quality gate |
 | [M336-146](M336-146-e2-e3-margin-confound.md) | High | Mitigated | E2/E3 now share keep-in features and isolate anchor loss under a tested contract |
+| [M336-147](M336-147-density-ignores-irregular-keepin.md) | Critical | Mitigated | Conservative side-specific density eliminates projection pressure, but the 50-step quality ablation regresses |
+| [M336-148](M336-148-overflow-gate-skips-native-validation.md) | Critical | Mitigated | Explicit finite high-overflow diagnostics now reach exact validation and native scoring without weakening production defaults |
+| [M336-149](M336-149-target-density-below-usable-area-utilization.md) | High | Open | The fixed 0.7 density target is below measured TOP/BOTTOM usable-area utilization |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

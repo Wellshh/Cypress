@@ -483,12 +483,14 @@ class BasicPlace(nn.Module):
         constraint_subflags = (
             getattr(params, "anchor_loss_flag", False),
             getattr(params, "keepin_soft_loss_flag", False),
+            getattr(params, "irregular_density_flag", False),
             getattr(params, "keepin_projection_flag", False),
             getattr(params, "exact_repair_flag", False),
         )
         if any(constraint_subflags) and not getattr(params, "anchor_keepin_flag", False):
             raise ValueError(
-                "anchor/keep-in loss or projection flags require anchor_keepin_flag=true"
+                "anchor/keep-in loss, density, or projection flags require "
+                "anchor_keepin_flag=true"
             )
         self.anchor_keepin_context = None
         if getattr(params, "anchor_keepin_flag", False):

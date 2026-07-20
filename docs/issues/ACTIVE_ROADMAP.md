@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-146`
+**Evidence through:** `M336-149`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -72,8 +72,8 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N0 (complete) | Rebuild, repeat the M336-118 native HPWL/RSMT score, and capture current E0/E2/E3/E4 seed-1000 smoke | Repeated score is identical; old logs prove GPU optimizer execution but lack an explicit backward marker, which N1 instrumentation must add |
 | N1 (complete) | Make objective evaluation pure and projection lifecycle explicit | M336-143 tests and GPU smoke prove pure objective, explicit candidates, backward, optimizer updates, projection metrics, and state reset |
 | N2 (complete) | Add a differentiable interior keep-in margin and bounded adaptive subgroup-balanced anchor control | M336-144 through M336-146 prove finite inward gradients, bounded serialized control, and an isolated E2/E3 contract; anchor quality remains below the final gate |
-| N3 (active) | Make TOP/BOTTOM density respect conservative irregular usable capacity | Side-isolated tests and reduced projection pressure or improved final metrics |
-| N4 | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Exact preflight preserves legal coordinates; cold/warm timings and local-repair scope are reported |
+| N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
+| N4 (active) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Exact preflight preserves legal coordinates; cold/warm timings and local-repair scope are reported |
 | N5 | Run final cold/warm E0-E4 matrix for seeds 1000, 1001, and 1002 | Exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |
 
 ## Paused Exact-Site Priorities
@@ -93,6 +93,17 @@ The active boundary is native Cypress recovery. M336-118 remains the immutable
 legal reference and optional warm start; M336-140 closes the last committed
 exact-site milestone. The untracked `experiments/m336/guides/M336-141/` is
 user-owned partial evidence and must not be modified, committed, or resumed.
+
+M336-147 adds conservative TOP/BOTTOM capacity maps and a corrected density
+partition containing only the 100 constrained movables while subtracting 40
+frozen anchors/obstacles. In the seed-1000 50-step E2 diagnostic, projection
+events fall from 34 to zero and overlap area falls by about 44%, but overlap
+pairs increase from 65 to 66 and normalized native score falls from `0.611229`
+to `0.609927`. This passes only the N3 projection-pressure signal gate. M336-148
+allows explicitly finite high-overflow diagnostics to continue through exact
+validation and native scoring while preserving production defaults. M336-149
+records that `target_density=0.7` is below measured side utilization; its policy
+must be resolved before the final comparable matrix rather than silently tuned.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

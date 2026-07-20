@@ -35,11 +35,14 @@ IMPLEMENTATION_FILES = (
     "dreamplace/Placer.py",
     "dreamplace/params.json",
     "dreamplace/constraints/anchor_keepin.py",
+    "dreamplace/constraints/irregular_density.py",
     "dreamplace/constraints/pcb_geometry.py",
     "dreamplace/constraints/region_assignment.py",
     "dreamplace/constraints/region_projection.py",
     "dreamplace/constraints/region_validation.py",
     "dreamplace/ops/anchor_keepin/anchor_keepin.py",
+    "dreamplace/ops/electric_potential/electric_overflow.py",
+    "dreamplace/ops/electric_potential/electric_potential.py",
     "experiments/m336/scripts/analyze_quality_bound.py",
     "experiments/m336/scripts/analyze_shared_box_bound.py",
     "experiments/m336/scripts/finalize_assignment.py",
@@ -56,11 +59,14 @@ IMPLEMENTATION_FILES = (
     "install/dreamplace/PlaceObj.py",
     "install/dreamplace/Placer.py",
     "install/dreamplace/constraints/anchor_keepin.py",
+    "install/dreamplace/constraints/irregular_density.py",
     "install/dreamplace/constraints/pcb_geometry.py",
     "install/dreamplace/constraints/region_assignment.py",
     "install/dreamplace/constraints/region_projection.py",
     "install/dreamplace/constraints/region_validation.py",
     "install/dreamplace/ops/anchor_keepin/anchor_keepin.py",
+    "install/dreamplace/ops/electric_potential/electric_overflow.py",
+    "install/dreamplace/ops/electric_potential/electric_potential.py",
 )
 EXPERIMENTS = {
     "E0": {
@@ -68,6 +74,7 @@ EXPERIMENTS = {
         "anchor_loss": False,
         "projection": False,
         "soft_loss": False,
+        "irregular_density": False,
         "repair": False,
         "freeze_anchors": False,
         "integrated_context": False,
@@ -77,6 +84,7 @@ EXPERIMENTS = {
         "anchor_loss": True,
         "projection": False,
         "soft_loss": False,
+        "irregular_density": False,
         "repair": False,
         "freeze_anchors": True,
         "integrated_context": True,
@@ -86,6 +94,7 @@ EXPERIMENTS = {
         "anchor_loss": False,
         "projection": True,
         "soft_loss": True,
+        "irregular_density": True,
         "repair": False,
         "freeze_anchors": True,
         "integrated_context": True,
@@ -95,6 +104,7 @@ EXPERIMENTS = {
         "anchor_loss": True,
         "projection": True,
         "soft_loss": True,
+        "irregular_density": True,
         "repair": False,
         "freeze_anchors": True,
         "integrated_context": True,
@@ -104,6 +114,7 @@ EXPERIMENTS = {
         "anchor_loss": True,
         "projection": True,
         "soft_loss": True,
+        "irregular_density": True,
         "repair": True,
         "freeze_anchors": True,
         "integrated_context": True,
@@ -288,6 +299,7 @@ def placement_config(
     margin_tau_mm,
     aux_input,
     initial_placement=None,
+    irregular_density=True,
 ):
     config = {
         "aux_input": str(Path(aux_input).resolve()),
@@ -344,6 +356,10 @@ def placement_config(
                 "anchor_loss_flag": spec["anchor_loss"],
                 "anchor_gradient_ratio": anchor_gradient_ratio,
                 "keepin_soft_loss_flag": spec["soft_loss"],
+                "irregular_density_flag": bool(
+                    spec["irregular_density"] and irregular_density
+                ),
+                "diagnostic_validation_on_high_overflow_flag": True,
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
                 "constraint_grid_mm": grid_mm,
@@ -424,6 +440,18 @@ def parse_final_ppa(log_text):
     if not matches:
         raise ValueError("Final PPA record not found in DREAMPlace.log")
     return ast.literal_eval(re.sub(r"\binf\b", "1e999", matches[-1]))
+
+
+def require_finite_native_scores(ppa):
+    nonfinite = [
+        name
+        for name in ("hpwl", "rsmt")
+        if not math.isfinite(float(ppa[name]))
+    ]
+    if nonfinite:
+        raise ValueError(
+            "native scoring returned non-finite metrics: %s" % nonfinite
+        )
 
 
 def parse_native_execution(log_text):
@@ -628,6 +656,7 @@ def score_manual_baseline(args):
     placement_dir = run_dir / "m336.baseline"
     log_path = placement_dir / "DREAMPlace.log"
     ppa = parse_final_ppa(log_path.read_text())
+    require_finite_native_scores(ppa)
     legality_path = run_dir / "constraints" / "legality.json"
     legality = evaluate_feature_off(
         config,
@@ -736,6 +765,9 @@ def run_one(
         result["keepin_margin_tau_mm"] = float(
             config.get("keepin_margin_tau_mm", args.keepin_margin_tau_mm)
         )
+        result["irregular_density_enabled"] = bool(
+            config.get("irregular_density_flag", False)
+        )
         result["input_sha256"] = args.input_identity
         result["source_state"] = args.source_identity
         preflight_path = run_dir / "constraints" / "preflight.json"
@@ -803,6 +835,7 @@ def run_one(
         args.keepin_margin_tau_mm,
         args.bookshelf_dir / "m336.aux",
         initial_placement=args.baseline_pl,
+        irregular_density=args.irregular_density,
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -830,6 +863,7 @@ def run_one(
     dreamplace_log_path = placement_dir / "DREAMPlace.log"
     log_text = dreamplace_log_path.read_text()
     ppa = parse_final_ppa(log_text)
+    require_finite_native_scores(ppa)
     legality_path = run_dir / "constraints" / "legality.json"
     if experiment_id == "E0":
         legality = evaluate_feature_off(
@@ -862,6 +896,9 @@ def run_one(
         "keepin_clearance_mm": float(args.clearance_mm),
         "keepin_margin_mm": float(args.keepin_margin_mm),
         "keepin_margin_tau_mm": float(args.keepin_margin_tau_mm),
+        "irregular_density_enabled": bool(
+            config.get("irregular_density_flag", False)
+        ),
         "command": command,
         "config": config,
         "input_sha256": args.input_identity,
@@ -1546,6 +1583,11 @@ def reproduction_command(args, weights=None):
         "--iterations",
         str(args.iterations),
         "--gpu" if args.gpu else "--no-gpu",
+        (
+            "--irregular-density"
+            if args.irregular_density
+            else "--no-irregular-density"
+        ),
         "--grid-mm",
         format(args.grid_mm, "g"),
         "--clearance-mm",
@@ -1598,6 +1640,12 @@ def main():
     parser.add_argument("--seeds", nargs="+", type=int, default=[1000, 1001, 1002])
     parser.add_argument("--iterations", type=int, default=5)
     parser.add_argument("--gpu", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--irregular-density",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="enable side-specific irregular capacity for E2-E4",
+    )
     parser.add_argument("--python", default="python3.11")
     parser.add_argument(
         "--placer", type=Path, default=REPO_ROOT / "install/dreamplace/Placer.py"
@@ -1741,6 +1789,7 @@ def main():
             "keepin_clearance_mm": args.clearance_mm,
             "keepin_margin_mm": args.keepin_margin_mm,
             "keepin_margin_tau_mm": args.keepin_margin_tau_mm,
+            "irregular_density": args.irregular_density,
             "invocation": invocation,
             "reproduction_command": reproduction_command(args, ratios),
             "manual_baseline": args.manual_baseline,
@@ -1776,6 +1825,7 @@ def main():
             "keepin_clearance_mm": args.clearance_mm,
             "keepin_margin_mm": args.keepin_margin_mm,
             "keepin_margin_tau_mm": args.keepin_margin_tau_mm,
+            "irregular_density": args.irregular_density,
             "device": results[0]["device"] if results else "unknown",
             "invocation": invocation,
             "reproduction_command": reproduction_command(args),

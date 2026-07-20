@@ -122,6 +122,8 @@ from run_matrix import (  # noqa: E402
     parse_anchor_weight_updates,
     parse_native_execution,
     parse_weight_diagnostics,
+    placement_config,
+    require_finite_native_scores,
 )
 from exact_site_checkpoint import (  # noqa: E402
     export_checkpoint,
@@ -216,6 +218,35 @@ class M336BaselineTest(unittest.TestCase):
         }
 
         self.assertEqual(differing_fields, {"name", "anchor_loss"})
+
+    def test_irregular_density_ablation_is_explicit(self):
+        arguments = (
+            Path("/tmp/m336-run"),
+            Path("/tmp/m336-constraints.json"),
+            EXPERIMENTS["E2"],
+            1000,
+            10,
+            True,
+            0.1,
+            0.05,
+            0.0,
+            0.1,
+            0.05,
+            Path("/tmp/m336.aux"),
+        )
+
+        enabled = placement_config(*arguments, irregular_density=True)
+        disabled = placement_config(*arguments, irregular_density=False)
+
+        self.assertTrue(enabled["irregular_density_flag"])
+        self.assertFalse(disabled["irregular_density_flag"])
+        self.assertTrue(
+            enabled["diagnostic_validation_on_high_overflow_flag"]
+        )
+
+    def test_nonfinite_native_scores_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "hpwl"):
+            require_finite_native_scores({"hpwl": float("inf"), "rsmt": 1.0})
 
     def test_anchor_weight_updates_parse_structured_diagnostics(self):
         first = {

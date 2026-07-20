@@ -1272,6 +1272,16 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             for model in native_models
             for update in model.anchor_weight_updates
         ]
+        native_execution["irregular_density_capacity"] = [
+            diagnostics
+            for model in native_models
+            for diagnostics in model.irregular_density_diagnostics
+        ]
+        native_execution["density_overflow_by_side"] = [
+            model.latest_density_overflow_by_side
+            for model in native_models
+            if model.latest_density_overflow_by_side is not None
+        ]
         processed_metrics["native_execution"] = native_execution
         logging.info(
             "native execution summary: %s",
@@ -1337,18 +1347,41 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             )
             logging.info(cur_metric)
 
-        # in case of significant divergence, no need to run legalizer
-        if last_metric and (
-            last_metric.overflow[-1] > params.stop_overflow
-            or torch.isinf(last_metric.objective)
-            or torch.isnan(last_metric.objective)
-        ):
-            logging.warn(
-                "overflow is significant %.3f or hpwl is infinity or nan, skip legalization and detail placement steps"
-                % (last_metric.overflow[-1])
+        # High overflow may still be useful for an explicitly bounded diagnostic.
+        if last_metric:
+            high_overflow = last_metric.overflow[-1] > params.stop_overflow
+            invalid_objective = torch.isinf(
+                last_metric.objective
+            ) or torch.isnan(last_metric.objective)
+            continue_high_overflow = bool(
+                getattr(
+                    params,
+                    "diagnostic_validation_on_high_overflow_flag",
+                    False,
+                )
+                and self.anchor_keepin_context is not None
             )
-            self.plot(params, placedb, 9999, self.pos[0].data.clone().cpu().numpy())
-            return float("inf"), float("inf"), processed_metrics
+            if invalid_objective or (
+                high_overflow and not continue_high_overflow
+            ):
+                logging.warning(
+                    "overflow is significant %.3f or objective is infinity "
+                    "or nan; skip validation and post-placement steps",
+                    last_metric.overflow[-1],
+                )
+                self.plot(
+                    params,
+                    placedb,
+                    9999,
+                    self.pos[0].data.clone().cpu().numpy(),
+                )
+                return float("inf"), float("inf"), processed_metrics
+            if high_overflow:
+                logging.warning(
+                    "overflow is significant %.3f; explicit diagnostic mode "
+                    "continues exact validation and native scoring",
+                    last_metric.overflow[-1],
+                )
 
         # legalization
         if params.legalize_flag:

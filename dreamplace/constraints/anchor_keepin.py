@@ -1259,6 +1259,7 @@ class AnchorKeepInContext:
         self.grid = float(grid)
         self.keepin_margin = float(keepin_margin)
         self.keepin_margin_tau = float(keepin_margin_tau)
+        self._density_capacity_cache = {}
         self.projector = RegionProjector(
             num_nodes=self.num_nodes,
             constraints=self.constraints,
@@ -1646,6 +1647,141 @@ class AnchorKeepInContext:
         with (self.output_dir / "initialization.json").open("w") as stream:
             json.dump(packing_stats, stream, indent=2, sort_keys=True)
             stream.write("\n")
+
+    def build_density_capacity_maps(
+        self,
+        placedb,
+        num_bins_x,
+        num_bins_y,
+        target_density,
+        dtype,
+        device,
+    ):
+        """Build cached, side-isolated static occupancy for unusable space."""
+        from dreamplace.constraints.irregular_density import (
+            build_side_capacity_maps,
+        )
+
+        key = (
+            float(placedb.xl),
+            float(placedb.yl),
+            float(placedb.xh),
+            float(placedb.yh),
+            int(num_bins_x),
+            int(num_bins_y),
+            float(target_density),
+            str(dtype),
+            str(device),
+        )
+        if key in self._density_capacity_cache:
+            return self._density_capacity_cache[key], True
+
+        if placedb.num_filler_nodes:
+            raise ValueError(
+                "irregular density does not support filler nodes"
+            )
+        constrained_ids = {constraint.node_id for constraint in self.constraints}
+        frozen_ids = set(self.frozen_lower_left)
+        overlap = sorted(constrained_ids & frozen_ids)
+        if overlap:
+            raise ValueError(
+                "irregular density nodes cannot be constrained and frozen: %s"
+                % overlap
+            )
+        unclassified = sorted(
+            set(range(placedb.num_movable_nodes))
+            - constrained_ids
+            - frozen_ids
+        )
+        if unclassified:
+            raise ValueError(
+                "irregular density requires every movable node to be "
+                "constrained or frozen: %s" % unclassified
+            )
+
+        regions_by_side = {"top": [], "btm": []}
+        for region_id, polygon in self.regions.items():
+            geometry_side = self.geometry.regions[region_id].side
+            if geometry_side not in {"TOP", "BOTTOM"}:
+                raise ValueError(
+                    "unsupported density-capacity side: %s" % geometry_side
+                )
+            side = "top" if geometry_side == "TOP" else "btm"
+            regions_by_side[side].append(polygon)
+        obstacles_by_side = {"top": [], "btm": []}
+        movable_ids_by_side = {"top": [], "btm": []}
+        for node_id in sorted(constrained_ids):
+            side = "top" if placedb.node_side_flag[node_id] else "btm"
+            movable_ids_by_side[side].append(node_id)
+        for node_id in range(placedb.num_physical_nodes):
+            if node_id in constrained_ids:
+                continue
+            side = "top" if placedb.node_side_flag[node_id] else "btm"
+            lower_left = self.frozen_lower_left.get(
+                node_id,
+                (placedb.node_x[node_id], placedb.node_y[node_id]),
+            )
+            obstacles_by_side[side].append(
+                box(
+                    float(lower_left[0]),
+                    float(lower_left[1]),
+                    float(lower_left[0] + placedb.node_size_x[node_id]),
+                    float(lower_left[1] + placedb.node_size_y[node_id]),
+                )
+            )
+        capacity_maps = build_side_capacity_maps(
+            regions_by_side=regions_by_side,
+            obstacles_by_side=obstacles_by_side,
+            bounds=(placedb.xl, placedb.yl, placedb.xh, placedb.yh),
+            num_bins_x=num_bins_x,
+            num_bins_y=num_bins_y,
+            target_density=target_density,
+            dtype=dtype,
+            device=device,
+        )
+        for side in ("top", "btm"):
+            node_ids = torch.as_tensor(
+                movable_ids_by_side[side],
+                dtype=torch.long,
+                device=device,
+            )
+            movable_area = sum(
+                float(placedb.node_size_x[node_id])
+                * float(placedb.node_size_y[node_id])
+                for node_id in movable_ids_by_side[side]
+            )
+            diagnostics = capacity_maps[side]["diagnostics"]
+            diagnostics["movable_node_count"] = int(node_ids.numel())
+            diagnostics["movable_area"] = movable_area
+            usable_area = diagnostics["raster_usable_area"]
+            raw_utilization = (
+                movable_area / usable_area if usable_area else float("inf")
+            )
+            capacity_area = usable_area * float(target_density)
+            unavoidable_overflow = max(0.0, movable_area - capacity_area)
+            diagnostics["raw_area_utilization"] = raw_utilization
+            diagnostics["target_density_feasible"] = bool(
+                raw_utilization <= float(target_density) + 1e-12
+            )
+            diagnostics["unavoidable_area_overflow"] = (
+                unavoidable_overflow
+            )
+            diagnostics["minimum_normalized_overflow"] = (
+                unavoidable_overflow / capacity_area
+                if capacity_area
+                else (0.0 if not movable_area else float("inf"))
+            )
+            if not diagnostics["target_density_feasible"]:
+                logging.warning(
+                    "irregular density target %.6f is below %s usable-area "
+                    "utilization %.6f",
+                    target_density,
+                    side,
+                    raw_utilization,
+                )
+            capacity_maps[side]["movable_node_ids"] = node_ids
+        self._density_capacity_cache[key] = capacity_maps
+        return capacity_maps, False
 
     def build_anchor_loss(self, data_collections, placedb):
         active_constraints = [

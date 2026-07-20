@@ -302,7 +302,8 @@ class ElectricPotential(ElectricOverflow):
         region_id=None,
         fence_regions=None, # [n_subregion, 4] as dummy macros added to initial density. (xl,yl,xh,yh) rectangles
         node2fence_region_map=None,
-        placedb=None
+        placedb=None,
+        static_density_map=None,
         ):
         """
         @brief initialization
@@ -379,7 +380,8 @@ class ElectricPotential(ElectricOverflow):
                              padding=padding,
                              deterministic_flag=deterministic_flag,
                              sorted_node_map=sorted_node_map,
-                             movable_macro_mask=movable_macro_mask)
+                             movable_macro_mask=movable_macro_mask,
+                             static_density_map=static_density_map)
         self.fast_mode = fast_mode
         self.fence_regions = fence_regions
         self.node2fence_region_map = node2fence_region_map
@@ -426,6 +428,7 @@ class ElectricPotential(ElectricOverflow):
             self.deterministic_flag)
 
         fence_region_map.mul_(self.target_density)
+        fence_region_map = self.merge_static_density_map(fence_region_map)
         self.fence_region_map = fence_region_map
         return fence_region_map
 
@@ -560,4 +563,3 @@ class ElectricPotential(ElectricOverflow):
                             self.target_density * bin_area).clamp_(min=0.0).sum()
 
             return density_cost, density_map.max() / bin_area
-

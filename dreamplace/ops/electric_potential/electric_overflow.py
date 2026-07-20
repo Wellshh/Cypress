@@ -134,7 +134,8 @@ class ElectricOverflow(nn.Module):
         padding,
         deterministic_flag,  # control whether to use deterministic routine
         sorted_node_map,
-        movable_macro_mask=None):
+        movable_macro_mask=None,
+        static_density_map=None):
         super(ElectricOverflow, self).__init__()
         self.node_size_x = node_size_x
         self.node_size_y = node_size_y
@@ -154,6 +155,35 @@ class ElectricOverflow(nn.Module):
         self.padding = padding
         self.sorted_node_map = sorted_node_map
         self.movable_macro_mask = movable_macro_mask
+        if static_density_map is None:
+            self.register_buffer("static_density_map", None)
+        else:
+            static_density_map = torch.as_tensor(
+                static_density_map,
+                dtype=node_size_x.dtype,
+                device=node_size_x.device,
+            )
+            expected_shape = (bin_center_x.numel(), bin_center_y.numel())
+            if tuple(static_density_map.shape) != expected_shape:
+                raise ValueError(
+                    "static density map shape %s does not match bins %s"
+                    % (tuple(static_density_map.shape), expected_shape)
+                )
+            if not torch.isfinite(static_density_map).all().item():
+                raise ValueError("static density map must be finite")
+            if torch.any(static_density_map < 0).item():
+                raise ValueError("static density map must be non-negative")
+            maximum_density = (
+                float(target_density) * float(bin_size_x) * float(bin_size_y)
+            )
+            tolerance = max(abs(maximum_density) * 1e-6, 1e-12)
+            if torch.any(static_density_map > maximum_density + tolerance).item():
+                raise ValueError(
+                    "static density map exceeds per-bin target capacity"
+                )
+            self.register_buffer(
+                "static_density_map", static_density_map.detach().contiguous()
+            )
 
         self.deterministic_flag = deterministic_flag
 
@@ -226,6 +256,14 @@ class ElectricOverflow(nn.Module):
         # initial density_map due to fixed cells
         self.initial_density_map = None
 
+    def merge_static_density_map(self, density_map):
+        if self.static_density_map is None:
+            return density_map
+        return density_map + self.static_density_map.to(
+            device=density_map.device,
+            dtype=density_map.dtype,
+        )
+
     def compute_initial_density_map(self, pos):
         if self.num_terminals == 0:
             num_fixed_impacted_bins_x = 0
@@ -256,6 +294,9 @@ class ElectricOverflow(nn.Module):
             self.deterministic_flag)
         # scale density of fixed macros
         self.initial_density_map.mul_(self.target_density)
+        self.initial_density_map = self.merge_static_density_map(
+            self.initial_density_map
+        )
 
     def forward(self, pos):
         if self.initial_density_map is None:
