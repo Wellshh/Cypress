@@ -1,5 +1,6 @@
 """Bounded candidate-side projection for exact contact crossings."""
 
+import math
 import time
 
 import torch
@@ -56,11 +57,32 @@ def _correction_statistics(before, after, num_nodes):
     }
 
 
+def _representative_node_id(displacements, node_ids):
+    """Choose the proposal medoid, with node ID as the deterministic tie-break."""
+    best = None
+    for candidate_node_id in node_ids:
+        candidate_x, candidate_y = displacements[candidate_node_id]
+        cost = math.fsum(
+            (candidate_x - displacements[other_node_id][0]) ** 2
+            + (candidate_y - displacements[other_node_id][1]) ** 2
+            for other_node_id in node_ids
+        )
+        if not math.isfinite(cost):
+            raise ValueError("contact projection received non-finite motion")
+        key = (cost, candidate_node_id)
+        if best is None or key < best:
+            best = key
+    if best is None:
+        raise ValueError("contact projection cannot represent an empty component")
+    return best[1]
+
+
 class ExactContactProjector:
     """Project crossing contact components onto shared proposal motion.
 
-    The node budget limits active coordinates that may be corrected. Inactive
-    endpoints only provide authoritative motion and do not consume that budget.
+    The node budget limits the cumulative active coordinates selected for
+    consensus correction. Inactive endpoints only provide authoritative motion
+    and do not consume that budget.
     """
 
     def __init__(
@@ -115,53 +137,171 @@ class ExactContactProjector:
             edges.add(tuple(sorted((first_node_id, second_node_id))))
         return edges
 
-    def _component_displacement(self, reference, origin, component):
-        inactive = [
+    def _component_plan(
+        self,
+        reference,
+        position,
+        reference_displacement,
+        displacement_values,
+        component,
+    ):
+        active = tuple(
+            node_id
+            for node_id in component
+            if node_id in self.active_node_ids
+        )
+        inactive = tuple(
             node_id
             for node_id in component
             if node_id not in self.active_node_ids
-        ]
-        source_ids = inactive if inactive else list(component)
-        index = torch.as_tensor(
-            source_ids, dtype=torch.long, device=reference.device
         )
-        displacement = torch.stack(
-            (
-                reference.index_select(0, index)
-                - origin.index_select(0, index),
-                reference.index_select(0, self.num_nodes + index)
-                - origin.index_select(0, self.num_nodes + index),
-            ),
-            dim=1,
-        )
-        return displacement.mean(dim=0)
+        if not active:
+            raise ValueError("contact component has no active endpoint")
 
-    def _apply_consensus(self, reference, origin, position, components):
-        for component in components:
-            active = [
+        if inactive:
+            displacement = reference.new_tensor(
+                (
+                    math.fsum(
+                        displacement_values[node_id][0] for node_id in inactive
+                    )
+                    / len(inactive),
+                    math.fsum(
+                        displacement_values[node_id][1] for node_id in inactive
+                    )
+                    / len(inactive),
+                )
+            )
+            authority_kind = "inactive_mean"
+            representative_node_id = None
+            corrected_node_ids = active
+        else:
+            representative_node_id = _representative_node_id(
+                displacement_values, active
+            )
+            displacement = reference_displacement[representative_node_id]
+            authority_kind = "active_representative"
+            corrected_node_ids = tuple(
                 node_id
-                for node_id in component
-                if node_id in self.active_node_ids
-            ]
-            if not active:
+                for node_id in active
+                if node_id != representative_node_id
+            )
+            representative_changed = not (
+                torch.equal(
+                    position[representative_node_id : representative_node_id + 1],
+                    reference[
+                        representative_node_id : representative_node_id + 1
+                    ],
+                )
+                and torch.equal(
+                    position[
+                        self.num_nodes
+                        + representative_node_id : self.num_nodes
+                        + representative_node_id
+                        + 1
+                    ],
+                    reference[
+                        self.num_nodes
+                        + representative_node_id : self.num_nodes
+                        + representative_node_id
+                        + 1
+                    ],
+                )
+            )
+            if representative_changed:
+                corrected_node_ids = tuple(
+                    sorted(corrected_node_ids + (representative_node_id,))
+                )
+
+        return {
+            "node_ids": tuple(component),
+            "active_node_ids": active,
+            "inactive_node_ids": inactive,
+            "authority_kind": authority_kind,
+            "representative_node_id": representative_node_id,
+            "corrected_node_ids": corrected_node_ids,
+            "displacement": displacement,
+        }
+
+    def _component_plans(
+        self,
+        reference,
+        position,
+        reference_displacement,
+        displacement_values,
+        components,
+    ):
+        return tuple(
+            self._component_plan(
+                reference,
+                position,
+                reference_displacement,
+                displacement_values,
+                component,
+            )
+            for component in components
+        )
+
+    def _apply_consensus(self, reference, origin, position, plans):
+        for plan in plans:
+            corrected_node_ids = plan["corrected_node_ids"]
+            if not corrected_node_ids:
                 continue
-            displacement = self._component_displacement(
-                reference, origin, component
+            representative_node_id = plan["representative_node_id"]
+            motion_node_ids = tuple(
+                node_id
+                for node_id in corrected_node_ids
+                if node_id != representative_node_id
             )
-            index = torch.as_tensor(
-                active, dtype=torch.long, device=position.device
-            )
-            position.index_copy_(
-                0,
-                index,
-                origin.index_select(0, index) + displacement[0],
-            )
-            position.index_copy_(
-                0,
-                self.num_nodes + index,
-                origin.index_select(0, self.num_nodes + index)
-                + displacement[1],
-            )
+            if motion_node_ids:
+                index = torch.as_tensor(
+                    motion_node_ids, dtype=torch.long, device=position.device
+                )
+                position.index_copy_(
+                    0,
+                    index,
+                    origin.index_select(0, index) + plan["displacement"][0],
+                )
+                position.index_copy_(
+                    0,
+                    self.num_nodes + index,
+                    origin.index_select(0, self.num_nodes + index)
+                    + plan["displacement"][1],
+                )
+            if representative_node_id in corrected_node_ids:
+                position[representative_node_id].copy_(
+                    reference[representative_node_id]
+                )
+                position[self.num_nodes + representative_node_id].copy_(
+                    reference[self.num_nodes + representative_node_id]
+                )
+
+    def _serialize_component_plan(self, plan):
+        representative_node_id = plan["representative_node_id"]
+        return {
+            "node_ids": list(plan["node_ids"]),
+            "refdes": [
+                self.node_id_to_refdes.get(node_id, str(node_id))
+                for node_id in plan["node_ids"]
+            ],
+            "active_node_count": len(plan["active_node_ids"]),
+            "inactive_node_count": len(plan["inactive_node_ids"]),
+            "authority_kind": plan["authority_kind"],
+            "authority_node_ids": list(plan["inactive_node_ids"]),
+            "representative_node_id": representative_node_id,
+            "representative_refdes": (
+                self.node_id_to_refdes.get(
+                    representative_node_id, str(representative_node_id)
+                )
+                if representative_node_id is not None
+                else None
+            ),
+            "corrected_node_count": len(plan["corrected_node_ids"]),
+            "corrected_node_ids": list(plan["corrected_node_ids"]),
+            "corrected_refdes": [
+                self.node_id_to_refdes.get(node_id, str(node_id))
+                for node_id in plan["corrected_node_ids"]
+            ],
+        }
 
     def __call__(self, origin, position, hard_projector):
         if origin.shape != position.shape:
@@ -176,10 +316,26 @@ class ExactContactProjector:
         validator_call_count = 0
         reference = position.detach().clone()
         before = position.detach().clone()
+        reference_displacement = torch.stack(
+            (
+                reference[: self.num_nodes] - origin[: self.num_nodes],
+                reference[self.num_nodes : 2 * self.num_nodes]
+                - origin[self.num_nodes : 2 * self.num_nodes],
+            ),
+            dim=1,
+        )
+        displacement_values = tuple(
+            (float(row[0]), float(row[1]))
+            for row in reference_displacement.detach().cpu().tolist()
+        )
         protected_edges = set()
+        corrected_contact_node_ids = set()
         iterations = []
         initial_report = None
         final_report = None
+        last_component_plans = ()
+        required_corrected_contact_node_count = 0
+        maximum_corrected_component_node_count = 0
         reason = "iteration_limit"
         converged = False
 
@@ -227,36 +383,103 @@ class ExactContactProjector:
                     for node_id in contact_node_ids
                     if node_id in self.active_node_ids
                 ]
-                if len(active_contact_node_ids) > self.max_contact_nodes:
+                components = _contact_components(protected_edges)
+                component_plans = self._component_plans(
+                    reference,
+                    position,
+                    reference_displacement,
+                    displacement_values,
+                    components,
+                )
+                last_component_plans = component_plans
+                selected_contact_node_ids = sorted(
+                    {
+                        node_id
+                        for plan in component_plans
+                        for node_id in plan["corrected_node_ids"]
+                    }
+                )
+                required_contact_node_ids = corrected_contact_node_ids.union(
+                    selected_contact_node_ids
+                )
+                required_corrected_contact_node_count = max(
+                    required_corrected_contact_node_count,
+                    len(required_contact_node_ids),
+                )
+                maximum_corrected_component_node_count = max(
+                    maximum_corrected_component_node_count,
+                    max(
+                        (
+                            len(plan["corrected_node_ids"])
+                            for plan in component_plans
+                        ),
+                        default=0,
+                    ),
+                )
+                iteration_record = {
+                    "iteration": iteration,
+                    "overlap_pair_count": int(
+                        report.get("overlap_pair_count", 0)
+                    ),
+                    "overlap_area_mm2": float(
+                        report.get("overlap_area_mm2", 0.0)
+                    ),
+                    "new_contact_pair_count": len(new_edges),
+                    "protected_pair_count": len(protected_edges),
+                    "contact_node_count": len(contact_node_ids),
+                    "active_contact_node_count": len(active_contact_node_ids),
+                    "selected_contact_node_count": len(
+                        selected_contact_node_ids
+                    ),
+                    "selected_contact_node_ids": selected_contact_node_ids,
+                    "cumulative_corrected_contact_node_count": len(
+                        corrected_contact_node_ids
+                    ),
+                    "required_corrected_contact_node_count": len(
+                        required_contact_node_ids
+                    ),
+                    "component_count": len(components),
+                    "contact_components": [
+                        self._serialize_component_plan(plan)
+                        for plan in component_plans
+                    ],
+                    "applied": False,
+                }
+                if len(required_contact_node_ids) > self.max_contact_nodes:
                     reason = "contact_node_limit"
+                    iterations.append(iteration_record)
                     break
 
-                components = _contact_components(protected_edges)
                 candidate_before = position.detach().clone()
-                self._apply_consensus(reference, origin, position, components)
+                self._apply_consensus(
+                    reference, origin, position, component_plans
+                )
+                after_consensus = position.detach().clone()
+                consensus_correction = _correction_statistics(
+                    candidate_before, after_consensus, self.num_nodes
+                )
                 hard_projector(position)
+                hard_projection_correction = _correction_statistics(
+                    after_consensus, position, self.num_nodes
+                )
                 correction = _correction_statistics(
                     candidate_before, position, self.num_nodes
                 )
-                iterations.append(
+                corrected_contact_node_ids.update(selected_contact_node_ids)
+                iteration_record.update(
                     {
-                        "iteration": iteration,
-                        "overlap_pair_count": int(
-                            report.get("overlap_pair_count", 0)
+                        "applied": True,
+                        "cumulative_corrected_contact_node_count": len(
+                            corrected_contact_node_ids
                         ),
-                        "overlap_area_mm2": float(
-                            report.get("overlap_area_mm2", 0.0)
+                        "consensus_correction": consensus_correction,
+                        "hard_projection_correction": (
+                            hard_projection_correction
                         ),
-                        "new_contact_pair_count": len(new_edges),
-                        "protected_pair_count": len(protected_edges),
-                        "contact_node_count": len(contact_node_ids),
-                        "active_contact_node_count": len(
-                            active_contact_node_ids
-                        ),
-                        "component_count": len(components),
                         "correction": correction,
                     }
                 )
+                iterations.append(iteration_record)
                 if not new_edges and torch.equal(candidate_before, position):
                     reason = "stalled"
                     break
@@ -282,7 +505,7 @@ class ExactContactProjector:
             "reason": reason,
             "max_iterations": self.max_iterations,
             "max_contact_nodes": self.max_contact_nodes,
-            "contact_node_limit_basis": "active_nodes",
+            "contact_node_limit_basis": "cumulative_corrected_active_nodes",
             "validator_call_count": validator_call_count,
             "validator_seconds": validator_seconds,
             "elapsed_seconds": time.perf_counter() - started,
@@ -301,6 +524,15 @@ class ExactContactProjector:
             "protected_pair_count": len(protected_edges),
             "contact_node_count": len(contact_node_ids),
             "active_contact_node_count": active_contact_node_count,
+            "corrected_contact_node_count": len(corrected_contact_node_ids),
+            "corrected_contact_node_ids": sorted(corrected_contact_node_ids),
+            "corrected_contact_refdes": [
+                self.node_id_to_refdes.get(node_id, str(node_id))
+                for node_id in sorted(corrected_contact_node_ids)
+            ],
+            "required_corrected_contact_node_count": (
+                required_corrected_contact_node_count
+            ),
             "component_count": len(components),
             "maximum_component_node_count": max(
                 component_node_counts, default=0
@@ -308,18 +540,12 @@ class ExactContactProjector:
             "maximum_active_component_node_count": max(
                 active_component_node_counts, default=0
             ),
+            "maximum_corrected_component_node_count": (
+                maximum_corrected_component_node_count
+            ),
             "contact_components": [
-                {
-                    "node_ids": list(component),
-                    "refdes": [
-                        self.node_id_to_refdes.get(node_id, str(node_id))
-                        for node_id in component
-                    ],
-                    "active_node_count": sum(
-                        node_id in self.active_node_ids for node_id in component
-                    ),
-                }
-                for component in components
+                self._serialize_component_plan(plan)
+                for plan in last_component_plans
             ],
             "correction": correction,
             "iterations": iterations,

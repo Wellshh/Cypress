@@ -472,7 +472,7 @@
         "default": 8
     },
     "exact_contact_projection_max_nodes": {
-        "description": "maximum active contact-closure nodes corrected in one native proposal; inactive reference endpoints do not consume the budget",
+        "description": "maximum cumulative active nodes selected for exact contact-consensus correction in one native proposal; crossing endpoints remain separately reported and inactive references do not consume the budget",
         "default": 32
     },
     "keepin_projection_flag": {

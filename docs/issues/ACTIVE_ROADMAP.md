@@ -372,6 +372,18 @@ independent pressure metric, inactive-authority components charge every active
 member, and cap checks occur before mutation. Implement and test this contract,
 then requalify D1 before the one predeclared D2 replay. D3 remains prohibited.
 
+The M336-174 implementation candidate now enforces that cumulative union before
+mutation. Each all-active component retains a deterministic proposal-medoid;
+inactive-authority components still charge every active member, and a later
+component merge cannot reset previously corrected IDs. Separate endpoint,
+selected, cumulative, consensus, and hard-projection metrics preserve the broad
+pressure signal. Projector, guard, M336 baseline/config, reproducibility,
+anchor/keep-in/collision, and irregular-density suites pass 203 focused tests,
+including float32/float64 CPU/GPU identity and source/install parity. The
+aggregate runner's independent ten-error/zero-exit defect is tracked as
+TEST-001 and is not called a pass. This candidate has no effect evidence yet;
+rerun D1 before any D2 attempt, and keep D3 prohibited.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

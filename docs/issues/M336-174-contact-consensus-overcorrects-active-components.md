@@ -184,3 +184,62 @@ alone is implementation evidence, not a Cypress quality promotion.
 - The single authorized D2 replay passes every declared gate above.
 - M336-172 and M336-173 remain open until their active-scope and anchor-direction
   effect failures are independently resolved.
+
+## Implementation Candidate
+
+The default-off projector now implements the cumulative correction contract
+without changing `max_contact_nodes = 32`:
+
+- proposal displacements are frozen after the ordinary hard projector and
+  before contact closure;
+- an all-active component chooses the proposal medoid by minimum summed squared
+  displacement difference, with node ID as the exact tie-break;
+- the representative remains at its native proposal while the other active
+  members receive its rigid displacement;
+- inactive-authority components continue to select every active endpoint;
+- the union of selected active IDs across every closure iteration is checked
+  before coordinate mutation and never shrinks after component merges;
+- a representative previously changed by an earlier closure is charged if it
+  must be restored to its native proposal;
+- consensus-only, subsequent hard-projection, and combined correction metrics
+  are serialized independently;
+- endpoint, active-endpoint, corrected, and required-correction scopes remain
+  separate in every iteration and final result.
+
+`NonLinearPlace` records the new
+`cumulative_corrected_active_nodes` basis only when exact contact projection is
+enabled. The generic flag remains disabled, the runner's numeric defaults and
+D2 collision/guard settings are unchanged, and the transactional exact guard
+still owns final acceptance and optimizer rollback.
+
+Focused source and installed-tree validation on physical GPU 2 passes:
+
+```text
+exact contact projector       14/14
+exact accepted-step guard      6/6
+M336 baseline/config         105/105
+reproducibility               17/17
+anchor/keep-in/collision      52/52
+irregular density              9/9
+Python compile / JSON / diff   pass
+source/install projector       byte-identical
+source/install NonLinearPlace  byte-identical
+source/install params          byte-identical
+```
+
+The projector suite covers float32 and float64 CPU/GPU coordinate identity,
+deterministic representatives, inactive authorities, disconnected components,
+pre-mutation limits, iterative cumulative limits, hard-projection accounting,
+and JSON serialization. Two initial regression commands used nonexistent test
+filenames, and one source-first `PYTHONPATH` hid the installed native extension;
+the canonical source test paths with `install:$PWD` were then run and passed.
+
+The repository aggregate runner executed 232 tests and printed ten unrelated
+legacy compatibility/API errors while returning shell status zero. `TEST-001`
+records that independent infrastructure defect; the aggregate run is not
+reported as passing and is not used to weaken the focused evidence above.
+
+This remains implementation evidence only. D1 must be rerun after this semantic
+change, committed, pushed, and pulled before the single predeclared D2 effect
+test. No M336 GPU placement experiment, E4 repair, CP-SAT path, fallback, or
+parameter ladder has run for this candidate.

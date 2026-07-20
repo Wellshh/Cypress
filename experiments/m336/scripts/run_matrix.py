@@ -2699,7 +2699,10 @@ def main():
         "--exact-contact-projection-max-nodes",
         type=int,
         default=32,
-        help="maximum active contact nodes corrected per native proposal",
+        help=(
+            "maximum cumulative active nodes selected for contact-consensus "
+            "correction per native proposal"
+        ),
     )
     parser.add_argument(
         "--initialization-track",

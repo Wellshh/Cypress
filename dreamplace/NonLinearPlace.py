@@ -639,6 +639,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     "exact_contact_projection_max_nodes": (
                         exact_contact_projection_max_nodes
                     ),
+                    "exact_contact_projection_node_limit_basis": (
+                        "cumulative_corrected_active_nodes"
+                    ),
                 }
             )
         if exact_overlap_interval:
