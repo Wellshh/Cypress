@@ -47,6 +47,19 @@ score remains `0.9281007794550066`. The run executes 13 backward calls and 10
 changing Adam steps with 100/100 containment, zero keep-in violations, zero
 projection events, and the same 28 unaccepted overlaps.
 
+The unchanged committed 50-step control at `ae9db57` exactly reproduces the
+earlier ratio-`0.10` placement SHA `954d1aa2...`, anchor metrics, HPWL/RSMT
+`15632.495737791061/17356.65`, score `0.9272707812261448`, and 71 overlaps. Its
+effective LR remains `0.02308556`. The constrained mean accepted path is
+`0.05143600 mm` and mean net displacement is `0.05067488 mm`, for `98.52%`
+net/path efficiency. The required `1.62896303 mm` mean anchor reduction is
+`32.15x` the measured mean net displacement.
+
+Only `0.00330937 mm`, or `6.53%` of mean net displacement, becomes mean physical
+anchor-distance improvement. The optimizer therefore has both a scale deficit
+and weak anchor-direction yield; increasing LR alone is not sufficient evidence
+of progress.
+
 ## Impact
 
 - The 25%/15% anchor gate is unattainable under the measured step envelope.
@@ -56,10 +69,10 @@ projection events, and the same 28 unaccepted overlaps.
 
 ## Remediation
 
-The required instrumentation is complete. Re-run the unchanged 50-step control
-to measure actual path and net displacement, then test a bounded native
-step-scale policy on seed 1000, with projection, overlap, HPWL/RSMT, and
-objective stability gates. Candidate changes must remain inside
+The required instrumentation and unchanged 50-step control are complete. Add a
+feature-gated, bounded initial-LR scale and test `2/4/8/16/32` on seed 1000,
+stopping on non-finite objectives, keep-in failure, or unacceptable overlap and
+native-score regression. Candidate changes must remain inside
 `NonLinearPlace -> PlaceObj -> backward -> optimizer.step`; no coordinate
 teleport, checkpoint fallback, or exact-site closure may count as improvement.
 

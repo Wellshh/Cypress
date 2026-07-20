@@ -224,7 +224,11 @@ M336-168 now serializes that provenance without changing optimization. The
 mean accepted path/net displacement are only `0.01194159/0.01157887 mm`, a
 `96.96%` net/path ratio. The byte-identical placement and native score rule out
 instrumentation side effects and show that cancellation is not the immediate
-cause. Run the committed 50-step control before changing step scale.
+cause. The committed 50-step control then measures constrained mean path/net at
+only `0.05143600/0.05067488 mm` (`98.52%` efficiency), making the rigorous mean
+displacement deficit `32.15x`. Only `6.53%` of net movement becomes anchor gain,
+so bounded LR experiments must gate direction quality and overlap, not merely
+produce larger steps.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
