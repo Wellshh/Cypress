@@ -142,6 +142,7 @@ append-only audit ledger.
 | [M336-128](M336-128-unbounded-rank-incumbent-exclusion-gap.md) | Critical | Resolved | Exact Hamming exclusion and tuple no-goods now force and replay distinct legal topologies |
 | [M336-129](M336-129-incumbent-exclusion-swap-plateau.md) | Critical | Mitigated | Explicit exclusion produces a certified distinct swap plateau at incumbent HPWL |
 | [M336-130](M336-130-residual-guided-pair-topology.md) | Critical | Mitigated | Residual-guided pair escapes certify d6 feasibility and expose missing physical support |
+| [M336-131](M336-131-feasible-d6-hint-rank-closure.md) | Critical | Mitigated | A certified d6 hint turns the unchanged M336-122 rank search from UNKNOWN into OPTIMAL |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

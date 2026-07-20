@@ -1,7 +1,7 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-130`
+证据范围：`M336-105` 至 `M336-131`
 
 上位合同：[`SPEC.md`](SPEC.md)
 
@@ -69,6 +69,10 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
   内认证首个 d6 topology。该 topology 经 one-opt 与三轮 exact pair closure
   回到 M336-129 swap plateau，未形成评分提升；`C404/FV704/FV705/FV708` 是
   实测所需 closure partner，说明 page-7 18-component support 不完整。
+- `M336-131` 将 M336-130 d6 certificate 作为同一 M336-122 域的精确可行
+  hint，使原先 `UNKNOWN` 的 d6/Delta20 模型在 14.332 DT 内证明 rank 11
+  `OPTIMAL`。该解的独立 closure 仍回到 M336-129 swap plateau；下一步必须对
+  rank-11 tuple 加 no-good，而不是重复 infeasible-hint seed ladder。
 
 当前六个主要乐观 residual 均集中在 page 7：
 
