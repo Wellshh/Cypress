@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -81,6 +82,7 @@ ASSIGNMENT = Path(
     )
 )
 GEOMETRY_EPSILON = 1e-10
+DIVERSITY_SITE_TOLERANCE = 1e-8
 PLACEMENT_SIDES = ("TOP", "BOTTOM")
 
 
@@ -616,6 +618,270 @@ def load_guide(path: Path) -> dict[str, list[float]]:
     }
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _comma_separated_paths(value: str, label: str) -> tuple[Path, ...]:
+    if not value:
+        return ()
+    parts = tuple(part.strip() for part in value.split(","))
+    if any(not part for part in parts):
+        raise ValueError(f"{label} must not contain an empty path")
+    if len(set(parts)) != len(parts):
+        raise ValueError(f"{label} paths must be unique")
+    return tuple(Path(part) for part in parts)
+
+
+def _exact_reference_site_indices(
+    rows, guide, label, tolerance=DIVERSITY_SITE_TOLERANCE
+):
+    if not math.isfinite(tolerance) or tolerance < 0:
+        raise ValueError("diversity site tolerance must be non-negative")
+    row_refdes = [row["constraint"].refdes for row in rows]
+    if len(set(row_refdes)) != len(row_refdes):
+        raise ValueError("diversity rows must have unique refdes")
+    missing = sorted(set(row_refdes) - set(guide))
+    if missing:
+        raise ValueError(
+            f"{label} is missing modeled refdes: " + ", ".join(missing)
+        )
+
+    indices = {}
+    distances = {}
+    for row in rows:
+        refdes = row["constraint"].refdes
+        centers = np.asarray(row["centers"], dtype=np.float64)
+        center = np.asarray(guide[refdes], dtype=np.float64)
+        if (
+            centers.ndim != 2
+            or centers.shape[1] != 2
+            or not len(centers)
+            or center.shape != (2,)
+            or not np.all(np.isfinite(centers))
+            or not np.all(np.isfinite(center))
+        ):
+            raise ValueError(
+                f"{label} has invalid candidate coordinates for {refdes}"
+            )
+        all_distances = np.linalg.norm(centers - center, axis=1)
+        matches = np.flatnonzero(all_distances <= tolerance)
+        if not len(matches):
+            nearest = float(all_distances.min())
+            raise ValueError(
+                f"{label} for {refdes} is not an exact candidate site; "
+                f"nearest distance is {nearest:.12g}"
+            )
+        if len(matches) != 1:
+            raise ValueError(
+                f"{label} for {refdes} matches multiple candidate sites"
+            )
+        index = int(matches[0])
+        indices[refdes] = index
+        distances[refdes] = float(all_distances[index])
+    return indices, distances
+
+
+def _canonical_site_tuple(scope_rows, indices):
+    return [
+        {
+            "refdes": row["constraint"].refdes,
+            "site_index": int(indices[row["constraint"].refdes]),
+            "center": row["centers"][
+                indices[row["constraint"].refdes]
+            ].tolist(),
+        }
+        for row in scope_rows
+    ]
+
+
+def _add_diversity_constraints(
+    model,
+    rows,
+    reference=None,
+    minimum_changed_sites=None,
+    excluded_references=(),
+    movable_refdes=(),
+    fix_guide=False,
+    site_tolerance=DIVERSITY_SITE_TOLERANCE,
+):
+    minimum_was_requested = minimum_changed_sites is not None
+    minimum_changed_sites = (
+        0 if minimum_changed_sites is None else minimum_changed_sites
+    )
+    if minimum_changed_sites < 0:
+        raise ValueError("minimum changed sites must be non-negative")
+    if (minimum_was_requested or excluded_references) and reference is None:
+        raise ValueError(
+            "diversity constraints require M336_DIVERSITY_REFERENCE_JSON"
+        )
+    if reference is None:
+        return {
+            "configured": False,
+            "enabled": False,
+            "passed": True,
+            "solution_replay_available": False,
+        }, None
+
+    reference_indices, reference_distances = _exact_reference_site_indices(
+        rows,
+        reference["guide"],
+        "diversity reference",
+        site_tolerance,
+    )
+    movable = frozenset(movable_refdes)
+    scope_rows = tuple(
+        sorted(
+            (
+                row
+                for row in rows
+                if len(row["centers"]) > 1
+                and (not fix_guide or row["constraint"].refdes in movable)
+            ),
+            key=lambda row: row["constraint"].refdes,
+        )
+    )
+    scope_refdes = tuple(row["constraint"].refdes for row in scope_rows)
+    scope_set = frozenset(scope_refdes)
+    fixed_domain_refdes = sorted(
+        row["constraint"].refdes
+        for row in rows
+        if row["constraint"].refdes in movable and len(row["centers"]) == 1
+    )
+
+    changed_vars = []
+    if minimum_was_requested:
+        for row in scope_rows:
+            refdes = row["constraint"].refdes
+            changed = model.new_bool_var(f"changed_from_reference_{refdes}")
+            model.add(
+                row["site_var"] != reference_indices[refdes]
+            ).only_enforce_if(changed)
+            model.add(
+                row["site_var"] == reference_indices[refdes]
+            ).only_enforce_if(changed.Not())
+            changed_vars.append(changed)
+        model.add(sum(changed_vars) >= minimum_changed_sites)
+
+    excluded_metadata = []
+    excluded_tuples = []
+    seen_tuples = set()
+    for excluded_index, excluded in enumerate(excluded_references):
+        indices, distances = _exact_reference_site_indices(
+            rows,
+            excluded["guide"],
+            f"excluded site tuple {excluded_index}",
+            site_tolerance,
+        )
+        outside_scope = sorted(
+            refdes
+            for refdes, index in indices.items()
+            if refdes not in scope_set and index != reference_indices[refdes]
+        )
+        if outside_scope:
+            raise ValueError(
+                f"excluded site tuple {excluded_index} changes components "
+                "outside diversity scope: " + ", ".join(outside_scope)
+            )
+        site_tuple = tuple(indices[refdes] for refdes in scope_refdes)
+        if not site_tuple:
+            raise ValueError(
+                "exact site no-goods require a non-empty diversity scope"
+            )
+        if site_tuple in seen_tuples:
+            raise ValueError("excluded exact site tuples must be unique")
+        seen_tuples.add(site_tuple)
+        excluded_tuples.append(site_tuple)
+        model.add_forbidden_assignments(
+            [row["site_var"] for row in scope_rows], [site_tuple]
+        )
+        excluded_metadata.append(
+            {
+                "index": excluded_index,
+                "json": excluded["json"],
+                "sha256": excluded["sha256"],
+                "site_tuple": _canonical_site_tuple(scope_rows, indices),
+                "maximum_site_distance": max(distances.values(), default=0.0),
+            }
+        )
+
+    audit = {
+        "configured": True,
+        "enabled": minimum_was_requested or bool(excluded_references),
+        "reference_json": reference["json"],
+        "reference_sha256": reference["sha256"],
+        "site_tolerance": site_tolerance,
+        "reference_mapping_passed": True,
+        "reference_maximum_site_distance": max(
+            reference_distances.values(), default=0.0
+        ),
+        "scope_count": len(scope_rows),
+        "scope_refdes": list(scope_refdes),
+        "fixed_domain_excluded_refdes": fixed_domain_refdes,
+        "minimum_changed_sites_requested": minimum_was_requested,
+        "minimum_changed_sites": minimum_changed_sites,
+        "reference_site_tuple": _canonical_site_tuple(
+            scope_rows, reference_indices
+        ),
+        "excluded_site_tuple_count": len(excluded_tuples),
+        "excluded_site_tuples": excluded_metadata,
+        "solution_replay_available": False,
+        "passed": None,
+    }
+    state = {
+        "scope_rows": scope_rows,
+        "reference_indices": tuple(
+            reference_indices[refdes] for refdes in scope_refdes
+        ),
+        "excluded_tuples": tuple(excluded_tuples),
+    }
+    return audit, state
+
+
+def _diversity_replay_audit(solver, audit, state):
+    if state is None:
+        return dict(audit)
+    result = dict(audit)
+    selected = tuple(
+        int(solver.value(row["site_var"])) for row in state["scope_rows"]
+    )
+    changed_refdes = [
+        row["constraint"].refdes
+        for row, selected_index, reference_index in zip(
+            state["scope_rows"], selected, state["reference_indices"]
+        )
+        if selected_index != reference_index
+    ]
+    matched_no_goods = [
+        index
+        for index, excluded in enumerate(state["excluded_tuples"])
+        if selected == excluded
+    ]
+    result.update(
+        {
+            "solution_replay_available": True,
+            "actual_changed_site_count": len(changed_refdes),
+            "actual_changed_refdes": changed_refdes,
+            "selected_site_tuple": _canonical_site_tuple(
+                state["scope_rows"],
+                {
+                    row["constraint"].refdes: index
+                    for row, index in zip(state["scope_rows"], selected)
+                },
+            ),
+            "matched_excluded_site_tuple_indices": matched_no_goods,
+            "passed": len(changed_refdes)
+            >= result["minimum_changed_sites"]
+            and not matched_no_goods,
+        }
+    )
+    return result
+
+
 def _selected_site_in_region(selected_site, region_id):
     existing_region = selected_site.get("region_id")
     if existing_region is not None and existing_region != region_id:
@@ -861,6 +1127,42 @@ def main() -> int:
         hint_guide = guides[hint_guide_index]
         hint_json = guide_paths[hint_guide_index]
         hint_source = "candidate_guide"
+    diversity_reference_text = os.environ.get(
+        "M336_DIVERSITY_REFERENCE_JSON", ""
+    )
+    minimum_changed_sites_text = os.environ.get(
+        "M336_MIN_CHANGED_SITES", ""
+    )
+    minimum_changed_sites = _optional_nonnegative_integer(
+        minimum_changed_sites_text, "minimum changed sites"
+    )
+    excluded_reference_paths = _comma_separated_paths(
+        os.environ.get("M336_EXCLUDED_SITE_JSONS", ""),
+        "excluded site JSON",
+    )
+    if (
+        minimum_changed_sites_text or excluded_reference_paths
+    ) and not diversity_reference_text:
+        raise ValueError(
+            "diversity constraints require M336_DIVERSITY_REFERENCE_JSON"
+        )
+    diversity_reference = None
+    if diversity_reference_text:
+        diversity_reference_path = Path(diversity_reference_text)
+        diversity_reference = {
+            "json": str(diversity_reference_path),
+            "sha256": _sha256_file(diversity_reference_path),
+            "guide": load_guide(diversity_reference_path),
+        }
+    excluded_references = []
+    for excluded_reference_path in excluded_reference_paths:
+        excluded_references.append(
+            {
+                "json": str(excluded_reference_path),
+                "sha256": _sha256_file(excluded_reference_path),
+                "guide": load_guide(excluded_reference_path),
+            }
+        )
     candidate_guide_weights = _candidate_guide_weights(
         os.environ.get("M336_CANDIDATE_GUIDE_WEIGHTS", ""), len(guides)
     )
@@ -1176,6 +1478,16 @@ def main() -> int:
         )
         candidate_count += len(centers)
         candidate_counts[constraint.refdes] = len(centers)
+
+    diversity_audit, diversity_state = _add_diversity_constraints(
+        model,
+        rows,
+        diversity_reference,
+        minimum_changed_sites,
+        excluded_references,
+        movable_refdes,
+        fix_guide,
+    )
 
     decision_strategy = {
         "enabled": search_branching != "automatic",
@@ -1542,6 +1854,7 @@ def main() -> int:
                 candidate_guide_support_audit
             ),
             "decision_strategy": decision_strategy,
+            "diversity_audit": diversity_audit,
             "complete": complete,
             "core_chain_steps": core_chain_steps,
             "guide_jsons": guide_paths,
@@ -1633,6 +1946,7 @@ def main() -> int:
     placement_output = None
     objective_replay_audit = None
     guide_rank_replay_audit = None
+    diversity_replay_audit = diversity_audit
     if status_code in (cp_model.FEASIBLE, cp_model.OPTIMAL):
         node_x = np.asarray(placedb.node_x, dtype=np.float64).copy()
         node_y = np.asarray(placedb.node_y, dtype=np.float64).copy()
@@ -1688,6 +2002,9 @@ def main() -> int:
             objective_value,
             guide_rank_ceiling,
         )
+        diversity_replay_audit = _diversity_replay_audit(
+            solver, diversity_audit, diversity_state
+        )
         score = 2.0 / (hpwl / baseline_hpwl + hpwl / baseline_rsmt)
         write_placement_atomic(
             placedb, PLACEMENT_OUTPUT, node_x, node_y
@@ -1719,6 +2036,7 @@ def main() -> int:
         "hint_guide_index": hint_guide_index,
         "hint_site_indices": hint_site_indices,
         "hint_site_distances": hint_site_distances,
+        "diversity_audit": diversity_replay_audit,
         "single_site_fixed_domain_count": len(single_site_fixed_refdes),
         "single_site_fixed_refdes": single_site_fixed_refdes,
         "fix_guide": fix_guide,
@@ -1796,6 +2114,7 @@ def main() -> int:
             "max_deterministic_time": max_deterministic_time,
             "max_time_in_seconds": max_time_in_seconds,
             "minimum_score": minimum_score,
+            "minimum_changed_sites": minimum_changed_sites,
             "minimize_guide_rank": minimize_guide_rank,
             "optimize_hpwl": optimize_hpwl,
             "num_search_workers": 1,
@@ -1830,6 +2149,7 @@ def main() -> int:
                     "normalized_score_upper_bound",
                     "objective_replay_audit",
                     "guide_rank_replay_audit",
+                    "diversity_audit",
                 )
             },
             indent=2,
@@ -1845,6 +2165,8 @@ def main() -> int:
         "passed"
     ]:
         return 4
+    if not diversity_replay_audit["passed"]:
+        return 5
     return 0
 
 

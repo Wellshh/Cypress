@@ -77,14 +77,18 @@ from greedy_exact_site_descent import (  # noqa: E402
     _select_guided_threshold_candidate,
 )
 from probe_exact_site_cpsat import (  # noqa: E402
+    _add_diversity_constraints,
     _candidate_coordinate_mismatches,
     _candidate_guide_support_audit,
     _candidate_guide_weights,
+    _comma_separated_paths,
     _context_output_dir,
+    _diversity_replay_audit,
     _effective_integer_hpwl_limit,
     _guide_rank_replay_audit,
     _guide_delta_refdes_order,
     _integer_hpwl_by_net,
+    _load_cp_model,
     _objective_replay_audit,
     _optional_nonnegative_integer,
     _packing_sides,
@@ -473,6 +477,183 @@ class M336BaselineTest(unittest.TestCase):
             _optional_nonnegative_integer("-1", "limit")
         with self.assertRaisesRegex(ValueError, "non-negative integer"):
             _optional_nonnegative_integer("01", "limit")
+
+    def test_diversity_paths_are_strict(self):
+        self.assertEqual(
+            _comma_separated_paths("a.json,b.json", "excluded"),
+            (Path("a.json"), Path("b.json")),
+        )
+        with self.assertRaisesRegex(ValueError, "empty path"):
+            _comma_separated_paths("a.json,", "excluded")
+        with self.assertRaisesRegex(ValueError, "must be unique"):
+            _comma_separated_paths("a.json,a.json", "excluded")
+
+    def test_omitted_diversity_keeps_model_unchanged(self):
+        cp_model = _load_cp_model()
+        model = cp_model.CpModel()
+        site_var = model.new_int_var(0, 1, "A_site")
+        before = (len(model.proto.variables), len(model.proto.constraints))
+        audit, state = _add_diversity_constraints(
+            model,
+            [
+                {
+                    "constraint": SimpleNamespace(refdes="A"),
+                    "centers": np.asarray([[0.0, 0.0], [1.0, 0.0]]),
+                    "site_var": site_var,
+                }
+            ],
+        )
+        self.assertEqual(
+            (len(model.proto.variables), len(model.proto.constraints)), before
+        )
+        self.assertFalse(audit["configured"])
+        self.assertTrue(audit["passed"])
+        self.assertIsNone(state)
+
+        with self.assertRaisesRegex(ValueError, "require.*REFERENCE_JSON"):
+            _add_diversity_constraints(
+                model,
+                [],
+                minimum_changed_sites=0,
+            )
+
+    def test_hamming_diversity_is_exact_and_replayable(self):
+        cp_model = _load_cp_model()
+        model = cp_model.CpModel()
+        rows = []
+        for refdes, centers in (
+            ("A", [[0.0, 0.0], [1.0, 0.0]]),
+            ("B", [[0.0, 1.0], [1.0, 1.0]]),
+            ("FIXED", [[2.0, 0.0]]),
+        ):
+            rows.append(
+                {
+                    "constraint": SimpleNamespace(refdes=refdes),
+                    "centers": np.asarray(centers),
+                    "site_var": model.new_int_var(
+                        0, len(centers) - 1, f"{refdes}_site"
+                    ),
+                }
+            )
+        reference = {
+            "json": "reference.json",
+            "sha256": "a" * 64,
+            "guide": {
+                "A": [0.0, 0.0],
+                "B": [0.0, 1.0],
+                "FIXED": [2.0, 0.0],
+            },
+        }
+        audit, state = _add_diversity_constraints(
+            model,
+            rows,
+            reference,
+            minimum_changed_sites=2,
+            movable_refdes=("A", "B", "FIXED"),
+            fix_guide=True,
+        )
+        solver = cp_model.CpSolver()
+        status = solver.solve(model)
+        self.assertEqual(status, cp_model.OPTIMAL)
+        replay = _diversity_replay_audit(solver, audit, state)
+        self.assertTrue(replay["passed"])
+        self.assertEqual(replay["actual_changed_refdes"], ["A", "B"])
+        self.assertEqual(replay["actual_changed_site_count"], 2)
+        self.assertEqual(audit["fixed_domain_excluded_refdes"], ["FIXED"])
+
+    def test_impossible_hamming_distance_is_solver_infeasible(self):
+        cp_model = _load_cp_model()
+        model = cp_model.CpModel()
+        row = {
+            "constraint": SimpleNamespace(refdes="A"),
+            "centers": np.asarray([[0.0, 0.0], [1.0, 0.0]]),
+            "site_var": model.new_int_var(0, 1, "A_site"),
+        }
+        reference = {
+            "json": "reference.json",
+            "sha256": "a" * 64,
+            "guide": {"A": [0.0, 0.0]},
+        }
+        _add_diversity_constraints(
+            model, [row], reference, minimum_changed_sites=2
+        )
+        self.assertEqual(cp_model.CpSolver().solve(model), cp_model.INFEASIBLE)
+
+    def test_exact_no_good_enumerates_and_replays(self):
+        cp_model = _load_cp_model()
+        model = cp_model.CpModel()
+        rows = []
+        for refdes, y in (("A", 0.0), ("B", 1.0)):
+            rows.append(
+                {
+                    "constraint": SimpleNamespace(refdes=refdes),
+                    "centers": np.asarray([[0.0, y], [1.0, y]]),
+                    "site_var": model.new_int_var(0, 1, f"{refdes}_site"),
+                }
+            )
+        reference = {
+            "json": "reference.json",
+            "sha256": "a" * 64,
+            "guide": {"A": [0.0, 0.0], "B": [0.0, 1.0]},
+        }
+        excluded = ({
+            "json": "excluded.json",
+            "sha256": "b" * 64,
+            "guide": {"A": [1.0, 0.0], "B": [0.0, 1.0]},
+        },)
+        audit, state = _add_diversity_constraints(
+            model,
+            rows,
+            reference,
+            excluded_references=excluded,
+        )
+        model.add(rows[0]["site_var"] == 1)
+        solver = cp_model.CpSolver()
+        self.assertEqual(solver.solve(model), cp_model.OPTIMAL)
+        self.assertEqual(solver.value(rows[1]["site_var"]), 1)
+        replay = _diversity_replay_audit(solver, audit, state)
+        self.assertTrue(replay["passed"])
+        self.assertEqual(replay["matched_excluded_site_tuple_indices"], [])
+
+    def test_diversity_references_fail_closed(self):
+        cp_model = _load_cp_model()
+        model = cp_model.CpModel()
+        rows = []
+        for refdes in ("A", "B"):
+            rows.append(
+                {
+                    "constraint": SimpleNamespace(refdes=refdes),
+                    "centers": np.asarray([[0.0, 0.0], [1.0, 0.0]]),
+                    "site_var": model.new_int_var(0, 1, f"{refdes}_site"),
+                }
+            )
+        malformed = {
+            "json": "reference.json",
+            "sha256": "a" * 64,
+            "guide": {"A": [0.25, 0.0], "B": [0.0, 0.0]},
+        }
+        with self.assertRaisesRegex(ValueError, "not an exact candidate site"):
+            _add_diversity_constraints(model, rows, malformed)
+
+        reference = {
+            "json": "reference.json",
+            "sha256": "a" * 64,
+            "guide": {"A": [0.0, 0.0], "B": [0.0, 0.0]},
+        }
+        outside = ({
+            "json": "outside.json",
+            "sha256": "b" * 64,
+            "guide": {"A": [1.0, 0.0], "B": [1.0, 0.0]},
+        },)
+        with self.assertRaisesRegex(ValueError, "outside diversity scope: B"):
+            _add_diversity_constraints(
+                model,
+                rows,
+                reference,
+                excluded_references=outside,
+                movable_refdes=("A",),
+                fix_guide=True,
+            )
 
     def test_guide_rank_replay_checks_objective_and_ceiling(self):
         solver = SimpleNamespace(value=lambda variable: variable)

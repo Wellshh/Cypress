@@ -1,7 +1,7 @@
 # M336-128: Unbounded Rank Exposes The Missing Incumbent Exclusion
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Resolved
 **Found:** 2026-07-20
 **Affected commit:** `1a4f3a6`
 
@@ -76,3 +76,47 @@ diversity reference. Cross `d=2,4,6,8` with HPWL rise envelopes
 topology, then run an independent HPWL closure with M336-118 as hard ceiling.
 Repeat on the 20-component B402/L401 domain only after the exclusion mechanism
 passes replay tests.
+
+## Remediation
+
+`probe_exact_site_cpsat.py` now accepts the three specified inputs. It maps the
+reference and every no-good onto the final post-truncation candidate domains
+with a unique `1e-8` site tolerance. Missing, ambiguous, non-candidate, duplicate,
+and outside-movable tuples fail before solve. Reified equality/disequality
+literals enforce the Hamming lower bound, while complete forbidden assignments
+exclude prior tuples independently of source, candidate guides, and solver hint.
+
+Results and progress metadata record input paths and SHA-256 values, canonical
+site tuples, scope and fixed-domain exclusions, requested distance, actual
+changed refdes, no-good matches, and replay status. Omitting all diversity
+inputs adds no model variables or constraints.
+
+## Verification
+
+The M336 CPU suite now passes `71/71` tests. New tests cover strict path parsing,
+feature-off model identity, exact mapping, fixed-domain exclusion, Hamming
+enforcement, solver-proved impossible distance, tuple enumeration, replay, and
+outside-support rejection.
+
+Two real K16 probes released only `C703,FV707` from M336-118. The first required
+one changed site and returned `OPTIMAL` at rank 2 by moving `FV707`; the second
+used that complete tuple as a no-good and returned a different `OPTIMAL` rank-2
+state by moving `C703`. Their HPWL values were `15635.450369937662` and
+`15634.950369937662`. Both retained 100/100 containment, zero keep-in
+violations, zero overlaps, and passed diversity replay.
+
+Result SHA-256 values are
+`f13c7885e5ef3ea9700f6744d1c46010ab8c637d6db4dfa34d6825a51280d06f`
+and `2a62d896246ab2d93dd9501d52bcabd34af5e7e3b09bf3964c63159f5fad36bb`;
+placement SHA-256 values are
+`1bfb6c81e2a1f5b4c19e675790a96b3d2e2673b4354c149f14b08a6ecf4dfe53`
+and `4d426c3c0b31e07235b7acd478b7205526c37289cfbfc69a6592ce1f016f2974`.
+These are non-scoring integration states, not promoted incumbents.
+
+A real feature-off all-fixed K1 replay omitted all diversity variables. It
+returned `OPTIMAL`, HPWL `15634.450477332834`, integer objective
+`15634450483`, complete per-net/objective replay, and zero legality failures.
+Its placement SHA-256 is the exact M336-118 value
+`32f814e4b4f49a1450f4d02cc4d197f668ca0ddadc45b6cf523f049ae968cbf7`.
+The result SHA-256 is
+`dbbc0bc08a3b0cb98d1f7aeb6d5b8f05c3cf5904a786a340cbb0f35a97986589`.

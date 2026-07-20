@@ -45,19 +45,18 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 
 | Priority | Work | Exit criterion |
 | --- | --- | --- |
-| P0 | Implement explicit incumbent Hamming exclusion and exact tuple no-goods | Audited, replayable distinct topology or finite-domain proof |
+| P0 (complete) | Implement explicit incumbent Hamming exclusion and exact tuple no-goods | M336-128 tests and two distinct K16 legal replays |
 | P1 | Run `d=2,4,6,8` and `Delta=0,1,2,5,10,20` topology generation, then independent HPWL closure | Strict certified improvement or correctly scoped negative evidence |
 | P2 | Build six residual-net-specific legal guides with candidate coverage diagnostics | Guides cover all listed page-7 residual endpoints |
 | P3 | Expand support by exact physical/network closure only | Bound/solution evidence justifies each expansion |
 | P4 | Re-run page-86, page-4, one-opt, and pair closure after page-7 changes | New portable incumbent checkpoint |
 | P5 | Run native HPWL/RSMT gate after necessary HPWL threshold is crossed | Repeated normalized score `>= 1.0` with identical hash |
 
-## Current Blocker
+## Current Boundary
 
-The exact solver has source, candidate guides, an independent hint, HPWL
-ceilings, and guide-rank objectives, but no hard constraint requiring a result
-to differ from M336-118 or an already found topology. `M336-120/122/125`
-therefore repeatedly return M336-118, while `M336-127/128` prove that even
-bounded and unbounded rank optimization returns certified seed 3001. The next
-experiment must change the model topology with an explicit exclusion; another
-seed, guide-weight, or runtime ladder is out of scope.
+M336-128 now provides independent Hamming exclusion and exact tuple no-goods;
+two K16 integration probes forced and replayed distinct legal topologies. That
+small-domain smoke does not answer the quality question. The next evidence must
+come from the M336-122 18-component K4096 domain with M336-118 as diversity
+reference, the specified `d/Delta` ladder, and independent HPWL closure. Another
+seed, guide-weight, or runtime ladder without exclusion remains out of scope.

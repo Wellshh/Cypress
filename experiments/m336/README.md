@@ -150,6 +150,23 @@ HPWL remains a hard constraint. The guide-rank replay checks the response
 objective, while the HPWL replay independently checks modeled net spans,
 selected coordinates, floating HPWL, and the ceiling.
 
+Guide rank does not require a different topology. Use explicit exact-site
+diversity when enumerating escape states:
+
+```bash
+M336_DIVERSITY_REFERENCE_JSON=<incumbent-result.json> \
+M336_MIN_CHANGED_SITES=4 \
+M336_EXCLUDED_SITE_JSONS=<first-result.json>,<second-result.json> \
+python3.11 experiments/m336/scripts/probe_exact_site_cpsat.py
+```
+
+The reference, candidate guides, source, and solver hint are independent.
+Hamming distance counts only declared movable components with multi-site
+candidate domains. Every reference and no-good coordinate must identify one
+exact candidate site; missing, ambiguous, or outside-support data fails before
+solve. Results serialize the canonical tuples and replay the actual changed
+refdes. Omit all three variables to preserve the historical model exactly.
+
 Use `--packing-only --feasibility-only` only to isolate keep-in, capacity, and
 collision feasibility. This diagnostic mode omits all HPWL variables and the
 score gate; it still reports actual HPWL after finding a candidate, but its
