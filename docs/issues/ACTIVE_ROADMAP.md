@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-135`
+**Evidence through:** `M336-136`
 
 **Active specification:**
 [`experiments/m336/EXACT_QUALITY_SPEC.md`](../../experiments/m336/EXACT_QUALITY_SPEC.md)
@@ -35,7 +35,7 @@ zero overlaps. Its placement SHA-256 is
 | Input and geometry correctness | Parsing, coordinates, footprints, collision quantization, exact replay, portable dependency paths | Retained prerequisites | Original `SPEC.md` and resolved issue evidence through M336-132 |
 | Historical Q601/two-anchor policy | `M336-012/014/016/018/022/028/030-045` and their declared finite domains | Historical; not an active score blocker | Current EMI601-only policy revalidated by `M336-105` |
 | Current endpoint legality | Manual EMI601, runtime Q601, fixed assignment, 0.05 mm | Stable | M336-118 portable checkpoint and `M336-119` |
-| Exact-site quality optimization | `M336-105` through `M336-135` | **Active** | `EXACT_QUALITY_SPEC.md` |
+| Exact-site quality optimization | `M336-105` through `M336-136` | **Active** | `EXACT_QUALITY_SPEC.md` |
 | Cypress production integration | Soft margin gradient, warm-start cost, E3/E4 anchor/runtime gates | Open, deferred | Resume after a score-1 exact-site reference exists |
 
 Old infeasibility and lower-bound documents remain valid only for their exact
@@ -47,25 +47,25 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | Priority | Work | Exit criterion |
 | --- | --- | --- |
 | P0 (complete) | Implement explicit incumbent Hamming exclusion and exact tuple no-goods | M336-128 tests and two distinct K16 legal replays |
-| P1 | Run `d=2,4,6,8` and `Delta=0,1,2,5,10,20` topology generation, then independent HPWL closure | M336-135 proves at least four rank-11 tuples; exclude all four and continue enumeration |
-| P2 | Build six residual-net-specific legal guides with candidate coverage diagnostics | M336-130 first portfolio exists; guides must still cover every listed endpoint |
+| P1 (paused) | Run `d=2,4,6,8` and `Delta=0,1,2,5,10,20` topology generation, then independent HPWL closure | Five rank-11 tuples all collapse; resume after coverage or support changes |
+| P2 (active) | Build six residual-net-specific legal guides with candidate coverage diagnostics | M336-130 first portfolio exists; guides must still cover every listed endpoint |
 | P3 | Expand support by exact physical/network closure only | Bound/solution evidence justifies each expansion |
 | P4 | Re-run page-86, page-4, one-opt, and pair closure after page-7 changes | New portable incumbent checkpoint |
 | P5 | Run native HPWL/RSMT gate after necessary HPWL threshold is crossed | Repeated normalized score `>= 1.0` with identical hash |
 
 ## Current Boundary
 
-M336-135 excluded the first three rank-11 tuples and found a fourth rank-11
-optimum in 14.334 DT. It has the same changed-refdes support as M336-134 but
-different `FV710/R708` sites, and the same HPWL as M336-133 but different
-placement bytes. Canonical site tuples, not HPWL or changed-refdes sets, are
-therefore the enumeration identity. All four become byte-identical after
-one-opt and share the independently certified M336-133 pair closure to the
-M336-129 equal-HPWL swap plateau. M336-118 remains the scoring incumbent.
-Exclude all four tuples and continue enumeration; only exact one-opt placement
-hashes may memoize closure. Prioritize new residual/support guides if this
-layer continues collapsing. Seed, guide-weight, or runtime ladders without
-feasible topology or explicit exclusion remain out of scope.
+M336-136 excluded the first four rank-11 tuples and found a fifth rank-11
+optimum in 14.339 DT. It introduces a new changed-refdes support by moving
+`FV705/FV710/R708` while leaving `FV708` at source. Despite that difference,
+all five topologies become byte-identical after one-opt and share the certified
+M336-133 pair closure to the M336-129 equal-HPWL swap plateau. Rank 11 is not
+proved exhausted, but consecutive enumeration is paused because its marginal
+information is now below the known residual-guide coverage gap. P2 is active:
+generate direct residual-net guides and report unique-site, Jaccard,
+per-component, and endpoint coverage before spending another solver budget.
+Preserve all five tuples as future no-goods. M336-118 remains the scoring
+incumbent. Seed, guide-weight, or runtime ladders remain out of scope.
 
 M336-132 resolves the independent result-metadata path defect found during the
 M336-131 export. Relative launch inputs are now serialized canonically, so

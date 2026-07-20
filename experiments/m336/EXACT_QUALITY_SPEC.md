@@ -1,7 +1,7 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-135`
+证据范围：`M336-105` 至 `M336-136`
 
 上位合同：[`SPEC.md`](SPEC.md)
 
@@ -87,6 +87,10 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
   具有相同 changed-refdes 集合但 site 不同，与 M336-133 具有相同 HPWL 但 bytes
   不同；枚举 identity 必须是完整 canonical site tuple。第四个解经 one-opt 后仍
   收敛到同一 SHA，rank-11 层至少有四个解，尚未穷尽。
+- `M336-136` 排除前四个 tuple 后找到第五个 rank-11 `OPTIMAL`，并覆盖新的
+  changed-refdes support；但其 one-opt 仍收敛到前四个解的同一 SHA。该结果不证明
+  rank-11 层穷尽，但表明继续在原 domain 连续追加 no-good 的边际价值已低于
+  residual guide/候选覆盖缺口；保留五个 portable tuple，P1 暂停并激活 P2。
 
 当前六个主要乐观 residual 均集中在 page 7：
 
