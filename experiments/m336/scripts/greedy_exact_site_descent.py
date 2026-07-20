@@ -248,14 +248,102 @@ def _select_guided_threshold_candidate(
     return selected, move_type
 
 
+def _select_guided_pair_candidate(
+    total_hpwl,
+    legal_pair,
+    first_centers,
+    second_centers,
+    first_current_center,
+    second_current_center,
+    first_guide_center,
+    second_guide_center,
+    current_hpwl,
+    hpwl_ceiling,
+    first_region_candidate_indices,
+    second_region_candidate_indices,
+    improvement_tolerance,
+    equality_tolerance,
+    guide_tolerance,
+    site_tolerance,
+    max_move_rise=None,
+):
+    """Select a bounded-rise two-site move with strict aggregate guide progress."""
+    first_site_distance = np.square(
+        first_centers - first_current_center
+    ).sum(axis=1)
+    second_site_distance = np.square(
+        second_centers - second_current_center
+    ).sum(axis=1)
+    first_guide_distance = np.square(
+        first_centers - first_guide_center
+    ).sum(axis=1)
+    second_guide_distance = np.square(
+        second_centers - second_guide_center
+    ).sum(axis=1)
+    current_guide_distance = float(
+        np.square(first_current_center - first_guide_center).sum()
+        + np.square(second_current_center - second_guide_center).sum()
+    )
+    pair_guide_distance = (
+        first_guide_distance[:, None] + second_guide_distance[None, :]
+    )
+    move_hpwl_ceiling = (
+        np.inf if max_move_rise is None else current_hpwl + max_move_rise
+    )
+    eligible = (
+        legal_pair
+        & (first_site_distance[:, None] > site_tolerance**2)
+        & (second_site_distance[None, :] > site_tolerance**2)
+        & (pair_guide_distance < current_guide_distance - guide_tolerance)
+        & (total_hpwl <= hpwl_ceiling + equality_tolerance)
+        & (total_hpwl <= move_hpwl_ceiling + equality_tolerance)
+    )
+    first_indices, second_indices = np.nonzero(eligible)
+    if not len(first_indices):
+        return None, None, None
+    candidate_hpwl = total_hpwl[first_indices, second_indices]
+    candidate_guide_distance = pair_guide_distance[
+        first_indices, second_indices
+    ]
+    order = np.lexsort(
+        (
+            second_region_candidate_indices[second_indices],
+            first_region_candidate_indices[first_indices],
+            candidate_guide_distance,
+            candidate_hpwl,
+        )
+    )
+    selected = int(order[0])
+    first_selected = int(first_indices[selected])
+    second_selected = int(second_indices[selected])
+    selected_hpwl = float(total_hpwl[first_selected, second_selected])
+    if selected_hpwl < current_hpwl - improvement_tolerance:
+        move_type = "strict"
+    elif selected_hpwl > current_hpwl + equality_tolerance:
+        move_type = "uphill"
+    else:
+        move_type = "plateau"
+    return first_selected, second_selected, move_type
+
+
 def _escape_hold_refdes(
-    escape_moves, current_centers, initial_centers, site_tolerance
+    escape_moves,
+    current_centers,
+    initial_centers,
+    site_tolerance,
+    escape_pair_moves=(),
 ):
     uphill_refdes = {
         move["refdes"]
         for move in escape_moves
         if move["move_type"] == "uphill"
     }
+    uphill_refdes.update(
+        refdes
+        for move in escape_pair_moves
+        if move["move_type"] == "uphill"
+        for refdes in (move["first_refdes"], move["second_refdes"])
+    )
     return frozenset(
         refdes
         for refdes in uphill_refdes
@@ -543,6 +631,243 @@ def _best_pair_move(
     return best, diagnostics
 
 
+def _limited_guided_pair_candidates(
+    row,
+    candidate_mask,
+    guide_center,
+    current_center,
+    candidate_limit,
+    site_tolerance,
+):
+    available = np.flatnonzero(candidate_mask)
+    if not len(available):
+        return available
+    guide_distance = np.square(
+        row["centers"][available] - guide_center
+    ).sum(axis=1)
+    order = np.lexsort((row["eligible"][available], guide_distance))
+    selected = available[order[:candidate_limit]].tolist()
+    current_matches = available[
+        np.linalg.norm(
+            row["centers"][available] - current_center, axis=1
+        )
+        <= site_tolerance
+    ]
+    if len(current_matches) != 1:
+        raise ValueError("guided pair source does not map to one candidate")
+    current_index = int(current_matches[0])
+    if current_index not in selected:
+        selected.append(current_index)
+    return np.asarray(selected, dtype=np.int64)
+
+
+def _best_guided_pair_move(
+    placedb,
+    constraints,
+    candidate_rows,
+    current_centers,
+    node_x,
+    node_y,
+    node_nets,
+    current_hpwl,
+    area_epsilon,
+    plateau_guide,
+    hpwl_ceiling,
+    candidate_limit,
+    improvement_tolerance,
+    equality_tolerance,
+    guide_tolerance,
+    site_tolerance,
+    max_move_rise=None,
+):
+    """Find a legal two-component ejection toward a guide under an HPWL cap."""
+    target_refdes = frozenset(
+        constraint.refdes
+        for constraint in constraints
+        if float(
+            np.linalg.norm(
+                current_centers[constraint.refdes]
+                - np.asarray(plateau_guide[constraint.refdes])
+            )
+        )
+        > guide_tolerance
+    )
+    blockers = _candidate_blockers(
+        constraints, candidate_rows, current_centers, area_epsilon
+    )
+    best = None
+    evaluated_pairs = 0
+    evaluated_combinations = 0
+    for first_index, first in enumerate(constraints):
+        first_row = candidate_rows[first.refdes]
+        first_blockers = blockers[first.refdes]
+        for second_index in range(first_index + 1, len(constraints)):
+            second = constraints[second_index]
+            if not ({first.refdes, second.refdes} & target_refdes):
+                continue
+            second_row = candidate_rows[second.refdes]
+            second_blockers = blockers[second.refdes]
+            shared_nets = node_nets[first.node_id] & node_nets[second.node_id]
+            same_side = first.side == second.side
+            first_released = same_side and np.any(
+                (first_blockers["count"] == 1)
+                & (first_blockers["single"] == second_index)
+            )
+            second_released = same_side and np.any(
+                (second_blockers["count"] == 1)
+                & (second_blockers["single"] == first_index)
+            )
+            if not shared_nets and not first_released and not second_released:
+                continue
+            if same_side:
+                first_mask = (first_blockers["count"] == 0) | (
+                    (first_blockers["count"] == 1)
+                    & (first_blockers["single"] == second_index)
+                )
+                second_mask = (second_blockers["count"] == 0) | (
+                    (second_blockers["count"] == 1)
+                    & (second_blockers["single"] == first_index)
+                )
+            else:
+                first_mask = first_blockers["count"] == 0
+                second_mask = second_blockers["count"] == 0
+            first_guide = np.asarray(
+                plateau_guide[first.refdes], dtype=np.float64
+            )
+            second_guide = np.asarray(
+                plateau_guide[second.refdes], dtype=np.float64
+            )
+            first_candidates = _limited_guided_pair_candidates(
+                first_row,
+                first_mask,
+                first_guide,
+                current_centers[first.refdes],
+                candidate_limit,
+                site_tolerance,
+            )
+            second_candidates = _limited_guided_pair_candidates(
+                second_row,
+                second_mask,
+                second_guide,
+                current_centers[second.refdes],
+                candidate_limit,
+                site_tolerance,
+            )
+            if not len(first_candidates) or not len(second_candidates):
+                continue
+            first_centers = first_row["centers"][first_candidates]
+            second_centers = second_row["centers"][second_candidates]
+            legal_pair = np.ones(
+                (len(first_candidates), len(second_candidates)), dtype=bool
+            )
+            if same_side:
+                displacement_x = (
+                    first_centers[:, None, 0]
+                    - second_centers[None, :, 0]
+                )
+                displacement_y = (
+                    first_centers[:, None, 1]
+                    - second_centers[None, :, 1]
+                )
+                legal_pair &= ~acceptance_overlap_mask(
+                    first.domain.footprint_local,
+                    second.domain.footprint_local,
+                    displacement_x.ravel(),
+                    displacement_y.ravel(),
+                    area_epsilon,
+                ).reshape(displacement_x.shape)
+            incident_nets = node_nets[first.node_id] | node_nets[second.node_id]
+            total_hpwl = _pair_total_hpwl(
+                placedb,
+                first,
+                first_centers,
+                second,
+                second_centers,
+                node_x,
+                node_y,
+                incident_nets,
+                current_hpwl,
+            )
+            first_local, second_local, move_type = (
+                _select_guided_pair_candidate(
+                    total_hpwl,
+                    legal_pair,
+                    first_centers,
+                    second_centers,
+                    current_centers[first.refdes],
+                    current_centers[second.refdes],
+                    first_guide,
+                    second_guide,
+                    current_hpwl,
+                    hpwl_ceiling,
+                    first_row["eligible"][first_candidates],
+                    second_row["eligible"][second_candidates],
+                    improvement_tolerance,
+                    equality_tolerance,
+                    guide_tolerance,
+                    site_tolerance,
+                    max_move_rise=max_move_rise,
+                )
+            )
+            evaluated_pairs += 1
+            evaluated_combinations += int(total_hpwl.size)
+            if first_local is None:
+                continue
+            first_candidate = int(first_candidates[first_local])
+            second_candidate = int(second_candidates[second_local])
+            first_center = first_row["centers"][first_candidate]
+            second_center = second_row["centers"][second_candidate]
+            candidate_hpwl = float(total_hpwl[first_local, second_local])
+            guide_distance_before = float(
+                np.square(current_centers[first.refdes] - first_guide).sum()
+                + np.square(current_centers[second.refdes] - second_guide).sum()
+            )
+            guide_distance_after = float(
+                np.square(first_center - first_guide).sum()
+                + np.square(second_center - second_guide).sum()
+            )
+            candidate = {
+                "first": first,
+                "second": second,
+                "first_center": first_center,
+                "second_center": second_center,
+                "first_region_candidate_index": int(
+                    first_row["eligible"][first_candidate]
+                ),
+                "second_region_candidate_index": int(
+                    second_row["eligible"][second_candidate]
+                ),
+                "hpwl": candidate_hpwl,
+                "move_type": move_type,
+                "guide_distance_before_squared": guide_distance_before,
+                "guide_distance_after_squared": guide_distance_after,
+                "same_side": same_side,
+                "shared_nets": sorted(shared_nets),
+                "first_released": bool(first_released),
+                "second_released": bool(second_released),
+                "pair_candidate_count": int(total_hpwl.size),
+                "legal_pair_count": int(np.count_nonzero(legal_pair)),
+            }
+            key = (
+                candidate_hpwl,
+                guide_distance_after,
+                first.refdes,
+                second.refdes,
+                candidate["first_region_candidate_index"],
+                candidate["second_region_candidate_index"],
+            )
+            if best is None or key < best["key"]:
+                candidate["key"] = key
+                best = candidate
+    diagnostics = {
+        "target_refdes": sorted(target_refdes),
+        "candidate_limit": candidate_limit,
+        "evaluated_pair_count": evaluated_pairs,
+        "evaluated_combination_count": evaluated_combinations,
+    }
+    return best, diagnostics
+
+
 def _fixed_obstacles(placedb, context, controlled_ids, node_x, node_y):
     obstacles = {side: [] for side in PLACEMENT_SIDES}
     for node_id in range(placedb.num_physical_nodes):
@@ -648,6 +973,8 @@ def descend(args) -> dict:
     escape_enabled = args.max_escape_sweeps > 0
     escape_hpwl_ceiling = initial_hpwl + args.escape_hpwl_budget
     escape_moves = []
+    escape_pair_moves = []
+    escape_pair_searches = []
     escape_order_rng = (
         np.random.default_rng(args.escape_order_seed)
         if args.escape_order_seed is not None
@@ -766,6 +1093,99 @@ def descend(args) -> dict:
                     escape_stop_reason = "strict_improvement"
                     strict_improvement = True
                     break
+            if (
+                not strict_improvement
+                and len(escape_pair_moves) < args.max_escape_pair_moves
+            ):
+                pair_started = time.perf_counter()
+                pair_move, pair_diagnostics = _best_guided_pair_move(
+                    placedb,
+                    constraints,
+                    candidate_rows,
+                    current_centers,
+                    node_x,
+                    node_y,
+                    node_nets,
+                    current_hpwl,
+                    area_epsilon,
+                    plateau_guide,
+                    escape_hpwl_ceiling,
+                    args.escape_pair_candidate_limit,
+                    args.improvement_tolerance,
+                    args.equality_tolerance,
+                    args.guide_tolerance,
+                    args.site_tolerance,
+                    max_move_rise=args.max_escape_move_rise,
+                )
+                pair_diagnostics["sweep"] = escape_sweep
+                pair_diagnostics["elapsed_seconds"] = (
+                    time.perf_counter() - pair_started
+                )
+                escape_pair_searches.append(pair_diagnostics)
+                if pair_move is not None:
+                    before_hpwl = current_hpwl
+                    first = pair_move.pop("first")
+                    second = pair_move.pop("second")
+                    pair_move.pop("key")
+                    first_old_center = current_centers[first.refdes].copy()
+                    second_old_center = current_centers[second.refdes].copy()
+                    for constraint, center, region_index in (
+                        (
+                            first,
+                            pair_move["first_center"],
+                            pair_move["first_region_candidate_index"],
+                        ),
+                        (
+                            second,
+                            pair_move["second_center"],
+                            pair_move["second_region_candidate_index"],
+                        ),
+                    ):
+                        node_x[constraint.node_id] = (
+                            center[0] - constraint.node_width / 2
+                        )
+                        node_y[constraint.node_id] = (
+                            center[1] - constraint.node_height / 2
+                        )
+                        current_centers[constraint.refdes] = center.copy()
+                        selected_sites[constraint.refdes] = {
+                            "region_candidate_index": region_index,
+                            "center": center.tolist(),
+                        }
+                    current_hpwl = float(placedb.hpwl(node_x, node_y))
+                    if abs(current_hpwl - pair_move["hpwl"]) > 1e-8:
+                        raise ValueError("guided pair HPWL replay failed")
+                    if current_hpwl > (
+                        escape_hpwl_ceiling + args.equality_tolerance
+                    ):
+                        raise ValueError("guided pair exceeded HPWL ceiling")
+                    pair_move.update(
+                        {
+                            "sweep": escape_sweep,
+                            "first_refdes": first.refdes,
+                            "second_refdes": second.refdes,
+                            "first_old_center": first_old_center.tolist(),
+                            "second_old_center": second_old_center.tolist(),
+                            "first_center": pair_move[
+                                "first_center"
+                            ].tolist(),
+                            "second_center": pair_move[
+                                "second_center"
+                            ].tolist(),
+                            "hpwl_before": before_hpwl,
+                            "hpwl_after": current_hpwl,
+                            "hpwl_delta": current_hpwl - before_hpwl,
+                        }
+                    )
+                    escape_pair_moves.append(pair_move)
+                    escape_peak_hpwl = max(escape_peak_hpwl, current_hpwl)
+                    sweep_moves += 1
+                    if (
+                        current_hpwl
+                        < initial_hpwl - args.improvement_tolerance
+                    ):
+                        escape_stop_reason = "strict_improvement"
+                        strict_improvement = True
             completed_escape_sweeps += 1
             if strict_improvement:
                 break
@@ -778,6 +1198,7 @@ def descend(args) -> dict:
         current_centers,
         initial_centers,
         args.site_tolerance,
+        escape_pair_moves=escape_pair_moves,
     )
     if args.escape_state_output is not None:
         escape_position = torch.from_numpy(
@@ -837,10 +1258,19 @@ def descend(args) -> dict:
                 "escape_hpwl_budget": args.escape_hpwl_budget,
                 "escape_hpwl_ceiling": escape_hpwl_ceiling,
                 "max_escape_move_rise": args.max_escape_move_rise,
+                "max_escape_pair_moves": args.max_escape_pair_moves,
+                "escape_pair_candidate_limit": (
+                    args.escape_pair_candidate_limit
+                ),
                 "completed_escape_sweeps": completed_escape_sweeps,
                 "escape_stop_reason": escape_stop_reason,
                 "escape_move_count": len(escape_moves),
                 "escape_moves": copy.deepcopy(escape_moves),
+                "escape_pair_move_count": len(escape_pair_moves),
+                "escape_pair_moves": copy.deepcopy(escape_pair_moves),
+                "escape_pair_searches": copy.deepcopy(
+                    escape_pair_searches
+                ),
                 "escape_held_refdes": sorted(escape_held_refdes),
                 "source_hpwl": initial_hpwl,
                 "hpwl": current_hpwl,
@@ -1098,23 +1528,44 @@ def descend(args) -> dict:
     )
     write_placement_atomic(placedb, args.placement, node_x, node_y)
     attempted_move_count = (
-        len(escape_moves) + len(moves) + 2 * len(pair_moves)
+        len(escape_moves)
+        + 2 * len(escape_pair_moves)
+        + len(moves)
+        + 2 * len(pair_moves)
     )
     attempted_strict_move_count = (
         sum(move["move_type"] == "strict" for move in escape_moves)
+        + 2
+        * sum(
+            move["move_type"] == "strict" for move in escape_pair_moves
+        )
         + sum(move["move_type"] == "strict" for move in moves)
     )
     attempted_plateau_move_count = (
         sum(move["move_type"] == "plateau" for move in escape_moves)
+        + 2
+        * sum(
+            move["move_type"] == "plateau" for move in escape_pair_moves
+        )
         + sum(move["move_type"] == "plateau" for move in moves)
     )
-    attempted_uphill_move_count = sum(
-        move["move_type"] == "uphill" for move in escape_moves
+    attempted_uphill_move_count = (
+        sum(move["move_type"] == "uphill" for move in escape_moves)
+        + 2
+        * sum(
+            move["move_type"] == "uphill" for move in escape_pair_moves
+        )
     )
     result = {
         "status": "FEASIBLE",
         "method": (
-            "deterministic_exact_guided_threshold_two_opt_search"
+            "deterministic_exact_guided_pair_threshold_two_opt_search"
+            if escape_enabled
+            and args.max_escape_pair_moves
+            and args.max_pair_moves
+            else "deterministic_exact_guided_pair_threshold_site_search"
+            if escape_enabled and args.max_escape_pair_moves
+            else "deterministic_exact_guided_threshold_two_opt_search"
             if escape_enabled and args.max_pair_moves
             else "deterministic_exact_guided_threshold_site_search"
             if escape_enabled
@@ -1164,6 +1615,8 @@ def descend(args) -> dict:
         "escape_hpwl_budget": args.escape_hpwl_budget,
         "escape_hpwl_ceiling": escape_hpwl_ceiling,
         "max_escape_move_rise": args.max_escape_move_rise,
+        "max_escape_pair_moves": args.max_escape_pair_moves,
+        "escape_pair_candidate_limit": args.escape_pair_candidate_limit,
         "completed_escape_sweeps": completed_escape_sweeps,
         "escape_stop_reason": escape_stop_reason,
         "escape_peak_hpwl": escape_peak_hpwl,
@@ -1180,6 +1633,9 @@ def descend(args) -> dict:
             move["move_type"] == "uphill" for move in escape_moves
         ),
         "escape_moves": escape_moves,
+        "escape_pair_move_count": len(escape_pair_moves),
+        "escape_pair_moves": escape_pair_moves,
+        "escape_pair_searches": escape_pair_searches,
         "completed_sweeps": completed_sweeps,
         "stop_reason": stop_reason,
         "search_stop_reason": search_stop_reason,
@@ -1189,7 +1645,9 @@ def descend(args) -> dict:
         "attempted_strict_move_count": attempted_strict_move_count,
         "attempted_plateau_move_count": attempted_plateau_move_count,
         "attempted_uphill_move_count": attempted_uphill_move_count,
-        "attempted_pair_move_count": len(pair_moves),
+        "attempted_pair_move_count": (
+            len(escape_pair_moves) + len(pair_moves)
+        ),
         "move_count": 0 if returned_to_source else attempted_move_count,
         "strict_move_count": (
             0 if returned_to_source else attempted_strict_move_count
@@ -1224,6 +1682,10 @@ def parse_args():
     parser.add_argument("--max-sweeps", type=int, default=20)
     parser.add_argument("--max-pair-moves", type=int, default=0)
     parser.add_argument("--max-escape-sweeps", type=int, default=0)
+    parser.add_argument("--max-escape-pair-moves", type=int, default=0)
+    parser.add_argument(
+        "--escape-pair-candidate-limit", type=int, default=512
+    )
     parser.add_argument("--escape-order-seed", type=int)
     parser.add_argument("--escape-hpwl-budget", type=float, default=0.0)
     parser.add_argument("--max-escape-move-rise", type=float)
@@ -1247,6 +1709,10 @@ def parse_args():
         parser.error("--max-pair-moves must be non-negative")
     if args.max_escape_sweeps < 0:
         parser.error("--max-escape-sweeps must be non-negative")
+    if args.max_escape_pair_moves < 0:
+        parser.error("--max-escape-pair-moves must be non-negative")
+    if args.escape_pair_candidate_limit <= 0:
+        parser.error("--escape-pair-candidate-limit must be positive")
     if args.escape_order_seed is not None and args.escape_order_seed < 0:
         parser.error("--escape-order-seed must be non-negative")
     if args.escape_hpwl_budget < 0:
@@ -1262,6 +1728,10 @@ def parse_args():
         parser.error("--max-escape-sweeps requires --plateau-guide")
     if args.escape_hold_sweeps and not args.max_escape_sweeps:
         parser.error("--escape-hold-sweeps requires --max-escape-sweeps")
+    if args.max_escape_pair_moves and not args.max_escape_sweeps:
+        parser.error(
+            "--max-escape-pair-moves requires --max-escape-sweeps"
+        )
     if (args.escape_state_output is None) != (
         args.escape_state_placement is None
     ):
@@ -1295,6 +1765,7 @@ def main() -> int:
                     "stop_reason",
                     "escape_stop_reason",
                     "escape_move_count",
+                    "escape_pair_move_count",
                     "escape_peak_hpwl_rise",
                     "returned_to_source",
                     "completed_sweeps",

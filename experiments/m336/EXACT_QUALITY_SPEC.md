@@ -1,7 +1,7 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-129`
+证据范围：`M336-105` 至 `M336-130`
 
 上位合同：[`SPEC.md`](SPEC.md)
 
@@ -65,6 +65,10 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
 - `M336-129` 用显式 exclusion 在 M336-122 域中生成并认证了不同于 incumbent
   的 `C703/FV707` swap plateau；其 HPWL 与 M336-118 相同，但独立 closure
   尚未产生严格改善。
+- `M336-130` 生成六组 residual-directed exact-legal family，并在 `Delta=20`
+  内认证首个 d6 topology。该 topology 经 one-opt 与三轮 exact pair closure
+  回到 M336-129 swap plateau，未形成评分提升；`C404/FV704/FV705/FV708` 是
+  实测所需 closure partner，说明 page-7 18-component support 不完整。
 
 当前六个主要乐观 residual 均集中在 page 7：
 
@@ -154,6 +158,12 @@ closure 回到 M336-118 是有效负结果，不得把 Solve A 的上升态写�
 优化目标 net span，同时释放其列出的端点及 exact physical collision closure；
 随后才组合多个 guide。不得再从单个全局 collision-relaxed placement 直接抽取
 一个四器件 escape 作为 page-7 的完整代表。
+
+`M336-130` 的首轮 portfolio 是此步骤的部分证据，不是完成标志。它已为六个
+net 生成独立 coordinate target，并认证了对应合法 topology，但 target 仍来自
+collision-relaxed page-7 quality guide，且 `R703/FV710/R709/R710` 尚未发生
+target-directed 位移。下一轮必须直接优化各 residual net span，并补齐这些端点
+及实测 blocker `C404/FV704/FV705/FV708` 的候选覆盖。
 
 候选报告必须增加：
 

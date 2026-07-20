@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-129`
+**Evidence through:** `M336-130`
 
 **Active specification:**
 [`experiments/m336/EXACT_QUALITY_SPEC.md`](../../experiments/m336/EXACT_QUALITY_SPEC.md)
@@ -35,7 +35,7 @@ zero overlaps. Its placement SHA-256 is
 | Input and geometry correctness | Parsing, coordinates, footprints, collision quantization, exact replay | Retained prerequisites | Original `SPEC.md` and resolved issue evidence |
 | Historical Q601/two-anchor policy | `M336-012/014/016/018/022/028/030-045` and their declared finite domains | Historical; not an active score blocker | Current EMI601-only policy revalidated by `M336-105` |
 | Current endpoint legality | Manual EMI601, runtime Q601, fixed assignment, 0.05 mm | Stable | M336-118 portable checkpoint and `M336-119` |
-| Exact-site quality optimization | `M336-105` through `M336-129` | **Active** | `EXACT_QUALITY_SPEC.md` |
+| Exact-site quality optimization | `M336-105` through `M336-130` | **Active** | `EXACT_QUALITY_SPEC.md` |
 | Cypress production integration | Soft margin gradient, warm-start cost, E3/E4 anchor/runtime gates | Open, deferred | Resume after a score-1 exact-site reference exists |
 
 Old infeasibility and lower-bound documents remain valid only for their exact
@@ -47,17 +47,19 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | Priority | Work | Exit criterion |
 | --- | --- | --- |
 | P0 (complete) | Implement explicit incumbent Hamming exclusion and exact tuple no-goods | M336-128 tests and two distinct K16 legal replays |
-| P1 | Run `d=2,4,6,8` and `Delta=0,1,2,5,10,20` topology generation, then independent HPWL closure | Strict certified improvement or correctly scoped negative evidence |
-| P2 | Build six residual-net-specific legal guides with candidate coverage diagnostics | Guides cover all listed page-7 residual endpoints |
+| P1 | Run `d=2,4,6,8` and `Delta=0,1,2,5,10,20` topology generation, then independent HPWL closure | Strict certified improvement or correctly scoped negative evidence; first d6 topology certified by M336-130 |
+| P2 | Build six residual-net-specific legal guides with candidate coverage diagnostics | M336-130 first portfolio exists; guides must still cover every listed endpoint |
 | P3 | Expand support by exact physical/network closure only | Bound/solution evidence justifies each expansion |
 | P4 | Re-run page-86, page-4, one-opt, and pair closure after page-7 changes | New portable incumbent checkpoint |
 | P5 | Run native HPWL/RSMT gate after necessary HPWL threshold is crossed | Repeated normalized score `>= 1.0` with identical hash |
 
 ## Current Boundary
 
-M336-129 applied exclusion to the exact M336-122 18-component K4096 domain and
-found a certified `C703/FV707` site-swap topology at exactly the M336-118 HPWL.
-A 300-DT closure retained that distinct plateau but found no strict
-improvement; the score-permitting bound remains open. Continue exact no-good
-enumeration at d4, then d6/d8, using only feasible certified hints. Another
-seed, guide-weight, or runtime ladder without exclusion remains out of scope.
+M336-130 generated six exact residual-directed families and the first certified
+d6 topology inside `Delta=20`. Its closure follows three strict pair moves back
+to the M336-129 `C703/FV707` equal-HPWL plateau, so M336-118 remains the scoring
+incumbent. Measured partners `FV704/FV705/FV708` and cross-page `C404` prove the
+18-component endpoint support is incomplete. Rerun d6 rank generation with the
+portable d6 certificate as a feasible independent hint, then enumerate no-goods
+and expand support from measured blockers. Another seed, guide-weight, or
+runtime ladder without topology exclusion remains out of scope.

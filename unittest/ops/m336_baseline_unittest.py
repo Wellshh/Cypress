@@ -74,6 +74,7 @@ from greedy_exact_site_descent import (  # noqa: E402
     _escape_sweep_order,
     _pair_total_hpwl,
     _select_candidate,
+    _select_guided_pair_candidate,
     _select_guided_threshold_candidate,
 )
 from probe_exact_site_cpsat import (  # noqa: E402
@@ -108,6 +109,7 @@ from exact_site_checkpoint import (  # noqa: E402
     export_checkpoint,
     resolve_result_path,
 )
+from build_hybrid_guide import build_hybrid_guide  # noqa: E402
 from dreamplace.constraints.region_projection import (  # noqa: E402
     FeasibleDomain,
     NodeConstraint,
@@ -168,6 +170,70 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_hybrid_guide_replaces_only_selected_components(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_path = root / "source.json"
+            target_path = root / "target.json"
+            source_path.write_text(
+                json.dumps(
+                    {
+                        "selected_sites": {
+                            "A": {"center": [1.0, 2.0]},
+                            "B": {"center": [3.0, 4.0]},
+                        }
+                    }
+                )
+            )
+            target_path.write_text(
+                json.dumps(
+                    {
+                        "selected_sites": {
+                            "A": {"center": [10.0, 20.0]},
+                            "B": {"center": [30.0, 40.0]},
+                        }
+                    }
+                )
+            )
+
+            guide = build_hybrid_guide(
+                source_path, target_path, ["B"]
+            )
+
+            self.assertEqual(guide["selected_refdes"], ["B"])
+            self.assertEqual(
+                guide["selected_sites"],
+                {
+                    "A": {"center": [1.0, 2.0]},
+                    "B": {"center": [30.0, 40.0]},
+                },
+            )
+            self.assertEqual(guide["displacements"][0]["refdes"], "B")
+            self.assertGreater(guide["displacements"][0]["distance"], 0.0)
+
+    def test_hybrid_guide_fails_closed_on_invalid_contracts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_path = root / "source.json"
+            target_path = root / "target.json"
+            source_path.write_text(
+                json.dumps(
+                    {"selected_sites": {"A": {"center": [1.0, 2.0]}}}
+                )
+            )
+            target_path.write_text(
+                json.dumps(
+                    {"selected_sites": {"A": {"center": [1.0, 2.0]}}}
+                )
+            )
+
+            with self.assertRaisesRegex(ValueError, "unchanged"):
+                build_hybrid_guide(source_path, target_path, ["A"])
+            with self.assertRaisesRegex(ValueError, "unknown"):
+                build_hybrid_guide(source_path, target_path, ["B"])
+            with self.assertRaisesRegex(ValueError, "unique"):
+                build_hybrid_guide(source_path, target_path, ["A", "A"])
+
     def test_checkpoint_paths_resolve_from_declaring_result(self):
         result = Path("/work/checkpoint/certificate.json")
         self.assertEqual(
@@ -840,6 +906,42 @@ class M336BaselineTest(unittest.TestCase):
         )
         self.assertEqual((selected, move_type), (1, "strict"))
 
+    def test_guided_pair_requires_two_moves_and_aggregate_progress(self):
+        first_centers = np.asarray([[0.0, 0.0], [2.0, 0.0]])
+        second_centers = np.asarray([[10.0, 0.0], [8.0, 0.0]])
+        arguments = dict(
+            total_hpwl=np.asarray([[10.0, 11.0], [12.0, 13.0]]),
+            legal_pair=np.ones((2, 2), dtype=bool),
+            first_centers=first_centers,
+            second_centers=second_centers,
+            first_current_center=first_centers[0],
+            second_current_center=second_centers[0],
+            first_guide_center=np.asarray([5.0, 0.0]),
+            second_guide_center=np.asarray([5.0, 0.0]),
+            current_hpwl=10.0,
+            first_region_candidate_indices=np.asarray([0, 7]),
+            second_region_candidate_indices=np.asarray([1, 5]),
+            improvement_tolerance=1e-9,
+            equality_tolerance=1e-9,
+            guide_tolerance=1e-12,
+            site_tolerance=1e-8,
+        )
+        selected = _select_guided_pair_candidate(
+            hpwl_ceiling=13.0, max_move_rise=3.0, **arguments
+        )
+        self.assertEqual(selected, (1, 1, "uphill"))
+
+        selected = _select_guided_pair_candidate(
+            hpwl_ceiling=12.9, max_move_rise=3.0, **arguments
+        )
+        self.assertEqual(selected, (None, None, None))
+
+        arguments["legal_pair"][1, 1] = False
+        selected = _select_guided_pair_candidate(
+            hpwl_ceiling=13.0, max_move_rise=3.0, **arguments
+        )
+        self.assertEqual(selected, (None, None, None))
+
     def test_escape_hold_only_keeps_unreverted_uphill_moves(self):
         escape_moves = [
             {"refdes": "U1", "move_type": "uphill"},
@@ -849,18 +951,32 @@ class M336BaselineTest(unittest.TestCase):
         initial = {
             "U1": np.asarray([0.0, 0.0]),
             "U2": np.asarray([1.0, 1.0]),
+            "U3": np.asarray([4.0, 4.0]),
+            "U4": np.asarray([5.0, 5.0]),
             "P1": np.asarray([2.0, 2.0]),
         }
         current = {
             "U1": np.asarray([0.0, 1.0]),
             "U2": np.asarray([1.0, 1.0 + 1e-10]),
+            "U3": np.asarray([4.0, 5.0]),
+            "U4": np.asarray([5.0, 5.0]),
             "P1": np.asarray([3.0, 2.0]),
         }
         self.assertEqual(
             _escape_hold_refdes(
-                escape_moves, current, initial, site_tolerance=1e-8
+                escape_moves,
+                current,
+                initial,
+                site_tolerance=1e-8,
+                escape_pair_moves=[
+                    {
+                        "first_refdes": "U3",
+                        "second_refdes": "U4",
+                        "move_type": "uphill",
+                    }
+                ],
             ),
-            frozenset({"U1"}),
+            frozenset({"U1", "U3"}),
         )
 
     def test_escape_sweep_order_is_seeded_without_changing_default(self):
