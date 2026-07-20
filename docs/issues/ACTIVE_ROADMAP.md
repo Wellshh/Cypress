@@ -327,6 +327,18 @@ reproducibility suites pass. This is an implementation signal only; one
 post-fix D2 replay is required before N6 can advance, and a negative anchor
 direction still stops D3 even if the false node-limit backoffs disappear.
 
+The single post-fix D2 replay at `e99673f` confirms the implementation fix but
+does not promote N6. A 33-total/32-active closure now converges and is accepted,
+while later proposals expose the real boundary: E2 reaches 33/34 active nodes
+and E3 reaches 33, so the unchanged 32-active-node cap correctly rejects eight
+attempts. All accepted steps and final placements remain exact legal, and D1
+HPWL/RSMT improve, but E3 still worsens anchor mean/p90 versus E2 by
+`0.010171%/0.015043%`. Final accepted LR falls to `0.00283634/0.00141817` for
+E2/E3. D2 therefore still fails active-scope and anchor-direction gates. Keep
+D3 prohibited and do not raise the cap; reduce simultaneous native crossing
+support or add a bounded deterministic local trust region before one further
+D2 authorization.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

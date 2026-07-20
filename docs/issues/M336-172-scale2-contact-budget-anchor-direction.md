@@ -249,3 +249,66 @@ the active scope bounded and restores a positive E3-minus-E2 anchor signal.
 - E3 improves both anchor mean and p90 versus same-run E2.
 - Native HPWL/RSMT do not regress versus D1, and all source/input/placement
   hashes and stage timings remain complete.
+
+## Post-Fix D2 Replay
+
+Commit `e99673f1cff56ce7cb3db71fe78a54b7082cb659` was pushed and
+pulled before the one authorized replay. The run uses the same D2 contract and
+writes to
+`results/m336/native-cypress/m336-172-active-budget-d2-warm-10-scale2/`.
+It executes `NonLinearPlace`, `PlaceObj`, 13 backward calls, and ten changing
+CUDA Adam steps in each arm. E4, CP-SAT placement, repair, and fallback remain
+disabled.
+
+| Metric | E2 | E3 |
+| --- | ---: | ---: |
+| Accepted / rejected attempts | `10 / 4` | `10 / 5` |
+| Final containment / keep-in / overlap | `100/100 / 0 / 0` | `100/100 / 0 / 0` |
+| Native HPWL | `15631.746997` | `15631.705249` |
+| FLUTE RSMT | `17325.858` | `17326.810` |
+| Normalized score | `0.9281235331` | `0.9280990557` |
+| Anchor mean (`mm`) | `6.523258388` | `6.523921861` |
+| Anchor p90 (`mm`) | `12.045451606` | `12.047263630` |
+| Constrained path / net (`mm`) | `0.013341648 / 0.012577319` | `0.009582606 / 0.009123127` |
+| Hard keep-in projected nodes | `4` | `2` |
+| GPU optimization / end-to-end (`s`) | `2.02390 / 13.7367` | `2.29210 / 14.4123` |
+
+The correction has the intended narrow effect: a closure with 33 total
+endpoints but only 32 active endpoints now converges and is accepted. It does
+not remove the safeguard. Later E2 proposals reach 33, 33, and 34 active nodes;
+E3 reaches 33 active nodes in five proposals. Those eight proposals correctly
+fail with `contact_node_limit`. One additional E2 retry stays at 28 active
+nodes but fails `stalled`. Maximum component scope remains four active/five
+total nodes, confirming that aggregate support across 14-16 disconnected
+components, not one coupled component, causes the real limit failure.
+
+Every accepted step has zero exact keep-in and overlap violations. The true
+active pressure nevertheless forces E2's final accepted LR to `0.0028363438`
+and E3's to `0.0014181719`, below both the original D2 and D1 endpoints.
+Relative to D1, constrained net displacement rises `24.461%` in E2 and
+`9.784%` in E3, while HPWL/RSMT improve by `0.675270/1.420` and
+`0.742851/0.976`, respectively. Larger motion therefore exists, but it is not
+anchor-directed: E3 makes anchor mean `0.010171%` worse and p90 `0.015043%`
+worse than same-run E2. E3 also gives back `0.952` RSMT and
+`0.0000244774` normalized score.
+
+The active-budget implementation fix is retained, but D2 still fails both the
+global active-scope and anchor-direction gates. D3 remains prohibited. Do not
+raise the 32-active-node cap; the next material change must reduce simultaneous
+crossing support in the native proposal or introduce a bounded, deterministic
+local trust region before another D2 replay.
+
+Evidence SHA-256 values are:
+
+```text
+summary
+048e13819208f650b0965ee2b77d3765cda9af2a6620cc2606344f320c255fd7
+E2 exact guard
+901f1577eacbac4288ca9b57c01569ff9dfc18963dd6b60de6058210cf00c746
+E3 exact guard
+4c2cdfb0761ee2271f1f5a101c0739f685aee2f6ef35a254a2846d6f6c089d0b
+E2 placement
+41c66e690c9d1b2c7fe90711dc0170c60951d9091c2475edce328ade73270acd
+E3 placement
+1574669cd1bba21ccdba154ad4727f53a408cf8c409febefc22ffa0eb1cbd562
+```
