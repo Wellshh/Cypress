@@ -334,3 +334,140 @@ class SoftKeepInLoss(nn.Module):
             return pos.sum() * 0
         normalized_margin = (self.margin - distances) / self.tau
         return functional.softplus(normalized_margin).square().mean()
+
+
+class FootprintCollisionLoss(nn.Module):
+    """Side-local footprint clearance barrier sampled from a packed SDF atlas."""
+
+    def __init__(
+        self,
+        atlas,
+        first_node_ids,
+        second_node_ids,
+        active_node_ids,
+        relative_signs,
+        field_origins,
+        atlas_offsets,
+        field_sizes,
+        node_size_x,
+        node_size_y,
+        num_nodes,
+        grid,
+        margin,
+        tau,
+    ):
+        super().__init__()
+        dtype = node_size_x.dtype
+        self.register_buffer("atlas", torch.as_tensor(atlas, dtype=dtype).contiguous())
+        self.register_buffer(
+            "first_node_ids", torch.as_tensor(first_node_ids, dtype=torch.long)
+        )
+        self.register_buffer(
+            "second_node_ids", torch.as_tensor(second_node_ids, dtype=torch.long)
+        )
+        self.register_buffer(
+            "relative_signs", torch.as_tensor(relative_signs, dtype=dtype)
+        )
+        self.register_buffer(
+            "field_origins", torch.as_tensor(field_origins, dtype=dtype).reshape(-1, 2)
+        )
+        self.register_buffer(
+            "atlas_offsets", torch.as_tensor(atlas_offsets, dtype=torch.long).reshape(-1, 2)
+        )
+        self.register_buffer(
+            "field_sizes", torch.as_tensor(field_sizes, dtype=torch.long).reshape(-1, 2)
+        )
+        self.register_buffer("node_size_x", node_size_x.detach().clone())
+        self.register_buffer("node_size_y", node_size_y.detach().clone())
+        active_node_ids = torch.as_tensor(active_node_ids, dtype=torch.long)
+        self.register_buffer("active_node_ids", active_node_ids)
+        self.register_buffer(
+            "coordinate_ids",
+            torch.cat((active_node_ids, int(num_nodes) + active_node_ids)),
+        )
+        self.num_nodes = int(num_nodes)
+        self.grid = float(grid)
+        self.margin = float(margin)
+        self.tau = float(tau)
+        self.normalization_count = max(len(active_node_ids), 1)
+        if self.grid <= 0:
+            raise ValueError("collision SDF grid must be positive")
+        if self.margin < 0:
+            raise ValueError("collision margin must be non-negative")
+        if self.tau <= 0:
+            raise ValueError("collision tau must be positive")
+        pair_count = len(self.first_node_ids)
+        expected_pair_shapes = {
+            "second_node_ids": self.second_node_ids.shape,
+            "relative_signs": self.relative_signs.shape,
+            "field_origins": self.field_origins.shape[:1],
+            "atlas_offsets": self.atlas_offsets.shape[:1],
+            "field_sizes": self.field_sizes.shape[:1],
+        }
+        invalid = [
+            name
+            for name, shape in expected_pair_shapes.items()
+            if shape != (pair_count,)
+        ]
+        if invalid:
+            raise ValueError("collision pair metadata has inconsistent shapes: %s" % invalid)
+        if self.atlas.ndim != 2 or min(self.atlas.shape) < 2:
+            raise ValueError("collision SDF atlas must be a two-dimensional grid")
+
+    def _centers(self, pos, node_ids):
+        return torch.stack(
+            (
+                pos[node_ids] + self.node_size_x[node_ids] / 2,
+                pos[self.num_nodes + node_ids]
+                + self.node_size_y[node_ids] / 2,
+            ),
+            dim=1,
+        )
+
+    def sampled_clearances(self, pos):
+        if not len(self.first_node_ids):
+            return pos.new_empty(0)
+        relative = self._centers(pos, self.second_node_ids) - self._centers(
+            pos, self.first_node_ids
+        )
+        relative = relative * self.relative_signs[:, None]
+        local = (relative - self.field_origins) / self.grid
+        field_widths = self.field_sizes[:, 0]
+        field_heights = self.field_sizes[:, 1]
+        inside = (
+            (local[:, 0] >= 0)
+            & (local[:, 0] <= field_widths - 1)
+            & (local[:, 1] >= 0)
+            & (local[:, 1] <= field_heights - 1)
+        )
+
+        atlas_x = local[:, 0] + self.atlas_offsets[:, 0]
+        atlas_y = local[:, 1] + self.atlas_offsets[:, 1]
+        floor_x = torch.floor(atlas_x)
+        floor_y = torch.floor(atlas_y)
+        fraction_x = atlas_x - floor_x
+        fraction_y = atlas_y - floor_y
+        column0 = floor_x.long().clamp(0, self.atlas.shape[1] - 1)
+        row0 = floor_y.long().clamp(0, self.atlas.shape[0] - 1)
+        column1 = (column0 + 1).clamp(max=self.atlas.shape[1] - 1)
+        row1 = (row0 + 1).clamp(max=self.atlas.shape[0] - 1)
+        flat_atlas = self.atlas.reshape(-1)
+        atlas_width = self.atlas.shape[1]
+        value00 = flat_atlas[row0 * atlas_width + column0]
+        value10 = flat_atlas[row0 * atlas_width + column1]
+        value01 = flat_atlas[row1 * atlas_width + column0]
+        value11 = flat_atlas[row1 * atlas_width + column1]
+        upper = value00 + fraction_x * (value10 - value00)
+        lower = value01 + fraction_x * (value11 - value01)
+        sampled = upper + fraction_y * (lower - upper)
+        far_clearance = self.margin + 20 * self.tau
+        return torch.where(inside, sampled, sampled.new_full((), far_clearance))
+
+    def forward(self, pos):
+        clearances = self.sampled_clearances(pos)
+        if not clearances.numel():
+            return pos.sum() * 0
+        normalized_margin = (self.margin - clearances) / self.tau
+        return functional.softplus(normalized_margin).square().sum() / (
+            self.normalization_count
+        )

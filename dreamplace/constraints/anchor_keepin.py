@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import shapely
 import torch
+from scipy import ndimage, signal
 from scipy.spatial import cKDTree
 from shapely import affinity
 from shapely.geometry import Point, box
@@ -34,7 +35,11 @@ from dreamplace.constraints.region_validation import (
     ComponentPlacement,
     validate_placement,
 )
-from dreamplace.ops.anchor_keepin.anchor_keepin import AnchorKeepInLoss, SoftKeepInLoss
+from dreamplace.ops.anchor_keepin.anchor_keepin import (
+    AnchorKeepInLoss,
+    FootprintCollisionLoss,
+    SoftKeepInLoss,
+)
 
 
 def _decode_name(name):
@@ -75,6 +80,231 @@ def _distance_distribution(values):
         "p90": float(np.percentile(values, 90)),
         "max": float(np.max(values)),
     }
+
+
+def _collision_shape_key(shape, precision):
+    canonical = shapely.normalize(shapely.set_precision(shape, precision))
+    if canonical.is_empty or canonical.area <= 0:
+        raise ValueError("collision footprint became empty after normalization")
+    return canonical.wkb_hex, canonical
+
+
+def _rasterize_collision_footprint(shape, grid):
+    # A half-cell guard makes sampled occupancy conservative at cell boundaries.
+    guarded = shape.buffer(grid / 2, cap_style="square", join_style="mitre")
+    min_x, min_y, max_x, max_y = guarded.bounds
+    first_x = int(math.floor(min_x / grid)) - 2
+    last_x = int(math.ceil(max_x / grid)) + 2
+    first_y = int(math.floor(min_y / grid)) - 2
+    last_y = int(math.ceil(max_y / grid)) + 2
+    x_values = np.arange(first_x, last_x + 1, dtype=np.float64) * grid
+    y_values = np.arange(first_y, last_y + 1, dtype=np.float64) * grid
+    x_grid, y_grid = np.meshgrid(x_values, y_values)
+    occupancy = shapely.intersects_xy(guarded, x_grid, y_grid)
+    if not occupancy.any():
+        raise ValueError("collision footprint rasterization produced no occupied cells")
+    return occupancy, first_x, first_y
+
+
+def _build_collision_sdf(first, second, grid, padding_cells):
+    first_mask, first_x, first_y = first
+    second_mask, second_x, second_y = second
+    correlation = signal.fftconvolve(
+        first_mask.astype(np.float32),
+        second_mask[::-1, ::-1].astype(np.float32),
+        mode="full",
+    )
+    collision_mask = np.pad(
+        correlation > 0.5, padding_cells, constant_values=False
+    )
+    outside_distance = ndimage.distance_transform_edt(
+        ~collision_mask, sampling=grid
+    )
+    inside_distance = ndimage.distance_transform_edt(
+        collision_mask, sampling=grid
+    )
+    signed_distance = np.where(
+        collision_mask,
+        -np.maximum(inside_distance - grid / 2, 0.0),
+        np.maximum(outside_distance - grid / 2, 0.0),
+    ).astype(np.float32)
+    origin = (
+        (
+            first_x
+            - second_x
+            - (second_mask.shape[1] - 1)
+            - padding_cells
+        )
+        * grid,
+        (
+            first_y
+            - second_y
+            - (second_mask.shape[0] - 1)
+            - padding_cells
+        )
+        * grid,
+    )
+    return signed_distance, origin
+
+
+def _pack_collision_fields(fields, fill_value):
+    if not fields:
+        return np.full((2, 2), fill_value, dtype=np.float32), {}
+    total_cells = sum(field.size for field, _ in fields.values())
+    widest = max(field.shape[1] for field, _ in fields.values())
+    target_width = max(widest, int(math.ceil(math.sqrt(total_cells))))
+    atlas_width = 1 << int(math.ceil(math.log2(max(target_width, 2))))
+    placements = {}
+    cursor_x = 0
+    cursor_y = 0
+    row_height = 0
+    ordered = sorted(
+        fields.items(),
+        key=lambda row: (-row[1][0].shape[0], -row[1][0].shape[1], row[0]),
+    )
+    for key, (field, _) in ordered:
+        height, width = field.shape
+        if cursor_x and cursor_x + width + 2 > atlas_width:
+            cursor_y += row_height + 2
+            cursor_x = 0
+            row_height = 0
+        placements[key] = (cursor_x, cursor_y)
+        cursor_x += width + 2
+        row_height = max(row_height, height)
+    atlas_height = max(cursor_y + row_height, 2)
+    atlas = np.full(
+        (atlas_height, atlas_width), fill_value, dtype=np.float32
+    )
+    for key, (field, _) in fields.items():
+        offset_x, offset_y = placements[key]
+        height, width = field.shape
+        atlas[offset_y : offset_y + height, offset_x : offset_x + width] = field
+    return atlas, placements
+
+
+def _build_footprint_collision_data(
+    footprints,
+    node_sides,
+    active_node_ids,
+    num_physical_nodes,
+    grid,
+    margin,
+    tau,
+):
+    """Build deterministic side-local configuration-space SDF metadata."""
+    grid = float(grid)
+    margin = float(margin)
+    tau = float(tau)
+    if grid <= 0 or tau <= 0 or margin < 0:
+        raise ValueError("invalid footprint collision field parameters")
+    active_node_ids = tuple(sorted(set(int(node_id) for node_id in active_node_ids)))
+    active_set = set(active_node_ids)
+    invalid_active = [
+        node_id
+        for node_id in active_node_ids
+        if node_id < 0 or node_id >= num_physical_nodes
+    ]
+    if invalid_active:
+        raise ValueError("collision active nodes are not physical: %s" % invalid_active)
+    missing = sorted(set(range(num_physical_nodes)) - set(footprints))
+    if missing:
+        raise ValueError("collision footprints are missing physical nodes: %s" % missing)
+
+    precision = max(grid * 1e-6, 1e-9)
+    shape_keys = {}
+    shapes = {}
+    for node_id in range(num_physical_nodes):
+        key, canonical = _collision_shape_key(footprints[node_id], precision)
+        shape_keys[node_id] = key
+        shapes.setdefault(key, canonical)
+
+    pairs = []
+    pair_types = set()
+    side_pair_counts = defaultdict(int)
+    for first_node_id in range(num_physical_nodes):
+        for second_node_id in range(first_node_id + 1, num_physical_nodes):
+            if (
+                first_node_id not in active_set
+                and second_node_id not in active_set
+            ):
+                continue
+            first_side = str(node_sides[first_node_id]).upper()
+            second_side = str(node_sides[second_node_id]).upper()
+            if first_side != second_side:
+                continue
+            first_key = shape_keys[first_node_id]
+            second_key = shape_keys[second_node_id]
+            if first_key <= second_key:
+                field_key = (first_key, second_key)
+                relative_sign = 1.0
+            else:
+                field_key = (second_key, first_key)
+                relative_sign = -1.0
+            pairs.append(
+                (first_node_id, second_node_id, field_key, relative_sign)
+            )
+            pair_types.add(field_key)
+            side_pair_counts[first_side] += 1
+
+    padding_cells = int(math.ceil((margin + 12 * tau) / grid)) + 2
+    rasterized = {
+        key: _rasterize_collision_footprint(shape, grid)
+        for key, shape in shapes.items()
+    }
+    fields = {
+        key: _build_collision_sdf(
+            rasterized[key[0]], rasterized[key[1]], grid, padding_cells
+        )
+        for key in sorted(pair_types)
+    }
+    far_clearance = margin + 20 * tau
+    atlas, placements = _pack_collision_fields(fields, far_clearance)
+
+    first_node_ids = []
+    second_node_ids = []
+    relative_signs = []
+    field_origins = []
+    atlas_offsets = []
+    field_sizes = []
+    for first_node_id, second_node_id, field_key, relative_sign in pairs:
+        field, origin = fields[field_key]
+        first_node_ids.append(first_node_id)
+        second_node_ids.append(second_node_id)
+        relative_signs.append(relative_sign)
+        field_origins.append(origin)
+        atlas_offsets.append(placements[field_key])
+        field_sizes.append((field.shape[1], field.shape[0]))
+    data = {
+        "atlas": atlas,
+        "first_node_ids": first_node_ids,
+        "second_node_ids": second_node_ids,
+        "active_node_ids": active_node_ids,
+        "relative_signs": relative_signs,
+        "field_origins": field_origins,
+        "atlas_offsets": atlas_offsets,
+        "field_sizes": field_sizes,
+        "grid": grid,
+        "margin": margin,
+        "tau": tau,
+    }
+    diagnostics = {
+        "active_node_count": len(active_node_ids),
+        "physical_node_count": int(num_physical_nodes),
+        "pair_count": len(pairs),
+        "pair_count_by_side": dict(sorted(side_pair_counts.items())),
+        "shape_type_count": len(shapes),
+        "field_type_count": len(fields),
+        "atlas_height": int(atlas.shape[0]),
+        "atlas_width": int(atlas.shape[1]),
+        "atlas_bytes": int(atlas.nbytes),
+        "grid": grid,
+        "raster_guard": grid / 2,
+        "margin": margin,
+        "tau": tau,
+        "padding_cells": padding_cells,
+        "model": "conservative_raster_configuration_space_sdf",
+    }
+    return data, diagnostics
 
 
 def _resolve_path(config_path: Path, value: str) -> Path:
@@ -1587,6 +1817,7 @@ class AnchorKeepInContext:
             "bounded_repair_seconds": 0.0,
             "serialization_seconds": 0.0,
             "native_scoring_seconds": 0.0,
+            "collision_preprocessing_seconds": 0.0,
         }
         self.num_nodes = int(num_nodes)
         self.output_dir = Path(output_dir)
@@ -1604,6 +1835,7 @@ class AnchorKeepInContext:
         self._density_capacity_cache = {}
         self._physical_footprint_local_cache = {}
         self._anchor_necessary_domain_cache = {}
+        self.collision_barrier_diagnostics = None
         self.initial_legal_centers = {}
         self.projector = RegionProjector(
             num_nodes=self.num_nodes,
@@ -2267,20 +2499,15 @@ class AnchorKeepInContext:
             center[1] - constraint.node_height / 2
         )
 
-    def _physical_footprint(self, position, placedb, node_id):
+    def _physical_footprint_local(self, placedb, node_id):
         names = placedb.node_names
         refdes = _decode_name(names[node_id])
-        lower_left = self._node_lower_left(position, node_id)
-        center = (
-            lower_left[0] + float(placedb.node_size_x[node_id]) / 2,
-            lower_left[1] + float(placedb.node_size_y[node_id]) / 2,
-        )
         if refdes not in self.geometry.symbols:
             return box(
-                lower_left[0],
-                lower_left[1],
-                lower_left[0] + float(placedb.node_size_x[node_id]),
-                lower_left[1] + float(placedb.node_size_y[node_id]),
+                -float(placedb.node_size_x[node_id]) / 2,
+                -float(placedb.node_size_y[node_id]) / 2,
+                float(placedb.node_size_x[node_id]) / 2,
+                float(placedb.node_size_y[node_id]) / 2,
             )
         if node_id not in self._physical_footprint_local_cache:
             symbol = self.geometry.symbols[refdes]
@@ -2291,8 +2518,16 @@ class AnchorKeepInContext:
                 xoff=-source_center[0],
                 yoff=-source_center[1],
             )
+        return self._physical_footprint_local_cache[node_id]
+
+    def _physical_footprint(self, position, placedb, node_id):
+        lower_left = self._node_lower_left(position, node_id)
+        center = (
+            lower_left[0] + float(placedb.node_size_x[node_id]) / 2,
+            lower_left[1] + float(placedb.node_size_y[node_id]) / 2,
+        )
         return affinity.translate(
-            self._physical_footprint_local_cache[node_id],
+            self._physical_footprint_local(placedb, node_id),
             xoff=center[0],
             yoff=center[1],
         )
@@ -2819,6 +3054,72 @@ class AnchorKeepInContext:
             self.keepin_margin / scale,
             self.keepin_margin_tau / scale,
             len(loss.distance_fields),
+        )
+        return loss
+
+    def build_collision_loss(self, data_collections, placedb, params):
+        started = time.perf_counter()
+        constraints_by_id = {
+            constraint.node_id: constraint for constraint in self.constraints
+        }
+        active_node_ids = [
+            constraint.node_id
+            for constraint in self.constraints
+            if constraint.node_id < placedb.num_movable_nodes
+            and constraint.node_id not in self.frozen_lower_left
+        ]
+        footprints = {
+            node_id: (
+                constraints_by_id[node_id].domain.footprint_local
+                if node_id in constraints_by_id
+                else self._physical_footprint_local(placedb, node_id)
+            )
+            for node_id in range(placedb.num_physical_nodes)
+        }
+        node_sides = {
+            node_id: (
+                "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
+            )
+            for node_id in range(placedb.num_physical_nodes)
+        }
+        scale = abs(self.alignment.scale)
+        margin = float(getattr(params, "collision_margin_mm", 0.0)) * scale
+        tau = float(getattr(params, "collision_tau_mm", 0.025)) * scale
+        data, diagnostics = _build_footprint_collision_data(
+            footprints=footprints,
+            node_sides=node_sides,
+            active_node_ids=active_node_ids,
+            num_physical_nodes=placedb.num_physical_nodes,
+            grid=self.grid,
+            margin=margin,
+            tau=tau,
+        )
+        loss = FootprintCollisionLoss(
+            node_size_x=data_collections.node_size_x,
+            node_size_y=data_collections.node_size_y,
+            num_nodes=placedb.num_nodes,
+            **data,
+        ).to(data_collections.pos[0].device)
+        elapsed = time.perf_counter() - started
+        diagnostics.update(
+            {
+                "build_seconds": elapsed,
+                "grid_mm": self.grid / scale,
+                "raster_guard_mm": self.grid / (2 * scale),
+                "margin_mm": margin / scale,
+                "tau_mm": tau / scale,
+            }
+        )
+        self.collision_barrier_diagnostics = diagnostics
+        self.timing["collision_preprocessing_seconds"] = elapsed
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with (self.output_dir / "collision_barrier.json").open("w") as stream:
+            json.dump(diagnostics, stream, indent=2, sort_keys=True)
+            stream.write("\n")
+        self.write_timing()
+        logging.info(
+            "footprint collision barrier: %s",
+            json.dumps(diagnostics, sort_keys=True),
         )
         return loss
 

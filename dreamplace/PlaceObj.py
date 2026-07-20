@@ -255,6 +255,31 @@ class PlaceObj(nn.Module):
             )
         else:
             self.anchor_loss_weight = None
+        self.collision_weight_controller = None
+        self.collision_weight_updates = []
+        self._collision_last_losses = None
+        if getattr(params, "footprint_collision_loss_flag", False):
+            self.register_buffer(
+                "footprint_collision_loss_weight",
+                data_collections.pos[0].new_zeros(()),
+            )
+            self.collision_weight_controller = AdaptiveAnchorWeight(
+                target_ratio=getattr(params, "collision_gradient_ratio", 0.1),
+                update_interval=getattr(
+                    params, "collision_weight_update_interval", 1
+                ),
+                ema_decay=getattr(params, "collision_weight_ema_decay", 0.8),
+                min_weight=getattr(params, "collision_weight_min", 0.0),
+                max_weight=getattr(params, "collision_weight_max", 5000.0),
+                warmup_iterations=getattr(
+                    params, "collision_weight_warmup_iterations", 0
+                ),
+                ramp_iterations=getattr(
+                    params, "collision_weight_ramp_iterations", 1
+                ),
+            )
+        else:
+            self.footprint_collision_loss_weight = None
         self.keepin_soft_loss_weight = None
         self.backward_call_count = 0
         self._backward_evidence_logged = False
@@ -602,6 +627,70 @@ class PlaceObj(nn.Module):
         )
         return diagnostics
 
+    def update_collision_weight(self, pos, iteration):
+        """Update preventive collision pressure at an explicit descent boundary."""
+        controller = self.collision_weight_controller
+        if controller is None:
+            return None
+        refreshed = controller.needs_gradient_refresh(iteration)
+        if refreshed:
+            wirelength = self.op_collections.wirelength_op(pos)
+            collision_loss = self.op_collections.footprint_collision_loss_op(pos)
+            wirelength_grad = torch.autograd.grad(wirelength, pos)[0]
+            collision_grad = torch.autograd.grad(collision_loss, pos)[0]
+            coordinate_ids = (
+                self.op_collections.footprint_collision_loss_op.coordinate_ids
+            )
+            wirelength_gradient_l1 = (
+                wirelength_grad.index_select(0, coordinate_ids)
+                .abs()
+                .sum()
+                .detach()
+                .item()
+            )
+            collision_gradient_l1 = (
+                collision_grad.index_select(0, coordinate_ids)
+                .abs()
+                .sum()
+                .detach()
+                .item()
+            )
+            self._collision_last_losses = (
+                wirelength.detach().item(),
+                collision_loss.detach().item(),
+            )
+        else:
+            wirelength_gradient_l1 = None
+            collision_gradient_l1 = None
+        diagnostics = controller.step(
+            iteration,
+            wirelength_gradient_l1=wirelength_gradient_l1,
+            anchor_gradient_l1=collision_gradient_l1,
+            epsilon=torch.finfo(pos.dtype).eps,
+        )
+        diagnostics["wirelength_loss"] = self._collision_last_losses[0]
+        diagnostics["collision_loss"] = self._collision_last_losses[1]
+        diagnostics["collision_gradient_l1"] = diagnostics.pop(
+            "anchor_gradient_l1"
+        )
+        with torch.no_grad():
+            self.footprint_collision_loss_weight.fill_(
+                diagnostics["effective_weight"]
+            )
+        self.collision_weight_updates.append(diagnostics)
+        logging.info(
+            "footprint collision loss weight = %.6E "
+            "(wirelength |grad|_1=%.6E, constraint |grad|_1=%.6E)",
+            diagnostics["effective_weight"],
+            diagnostics["wirelength_gradient_l1"],
+            diagnostics["collision_gradient_l1"],
+        )
+        logging.info(
+            "collision weight update: %s",
+            json.dumps(diagnostics, sort_keys=True),
+        )
+        return diagnostics
+
     def obj_fn(self, pos, orient_logits=None):
         """
         @brief Compute objective.
@@ -656,6 +745,16 @@ class PlaceObj(nn.Module):
                     "soft keep-in loss",
                 )
             result = result + self.keepin_soft_loss_weight * self.keepin_soft_loss
+
+        if getattr(self.params, "footprint_collision_loss_flag", False):
+            self.footprint_collision_loss = (
+                self.op_collections.footprint_collision_loss_op(pos)
+            )
+            result = (
+                result
+                + self.footprint_collision_loss_weight
+                * self.footprint_collision_loss
+            )
 
         if len(self.placedb.regions) > 0:
             self.density = self.op_collections.fence_region_density_merged_op(pos)

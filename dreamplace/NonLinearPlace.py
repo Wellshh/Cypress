@@ -780,6 +780,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
 
                     optimizer.zero_grad()
                     model.update_anchor_weight(pos, iteration)
+                    model.update_collision_weight(pos, iteration)
 
                     update_orient_cond = (
                         iteration >= 500 and iteration % 100 == 0
@@ -1545,6 +1546,11 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             update
             for model in native_models
             for update in model.anchor_weight_updates
+        ]
+        native_execution["collision_weight_updates"] = [
+            update
+            for model in native_models
+            for update in model.collision_weight_updates
         ]
         native_execution["irregular_density_capacity"] = [
             diagnostics

@@ -41,6 +41,7 @@ from dreamplace.constraints.anchor_keepin import (
     AnchorKeepInContext,
     _audit_runtime_source,
     _batch_overlap_metrics,
+    _build_footprint_collision_data,
     _domain_cache_digest,
     _forward_check_rectangle_pack,
     _load_cached_domain,
@@ -56,6 +57,7 @@ from dreamplace.constraints.anchor_keepin import (
 from dreamplace.ops.anchor_keepin.anchor_keepin import (
     AdaptiveAnchorWeight,
     AnchorKeepInLoss,
+    FootprintCollisionLoss,
     SoftKeepInLoss,
 )
 
@@ -276,6 +278,124 @@ class AnchorKeepInTest(unittest.TestCase):
             lower = loss_op(pos - offset).item()
         finite_difference = (upper - lower) / (2 * epsilon)
         self.assertAlmostEqual(analytical, finite_difference, places=5)
+
+    @staticmethod
+    def _collision_loss(device="cpu", second_side="TOP", second_shape=None):
+        if second_shape is None:
+            second_shape = box(-0.5, -0.5, 0.5, 0.5)
+        footprints = {
+            0: box(-0.5, -0.5, 0.5, 0.5),
+            1: second_shape,
+        }
+        data, diagnostics = _build_footprint_collision_data(
+            footprints=footprints,
+            node_sides={0: "TOP", 1: second_side},
+            active_node_ids=[0],
+            num_physical_nodes=2,
+            grid=0.05,
+            margin=0.0,
+            tau=0.025,
+        )
+        widths = torch.tensor(
+            [shape.bounds[2] - shape.bounds[0] for shape in footprints.values()],
+            dtype=torch.float64,
+        )
+        heights = torch.tensor(
+            [shape.bounds[3] - shape.bounds[1] for shape in footprints.values()],
+            dtype=torch.float64,
+        )
+        loss = FootprintCollisionLoss(
+            node_size_x=widths,
+            node_size_y=heights,
+            num_nodes=2,
+            **data,
+        ).to(device)
+        return loss, diagnostics
+
+    def test_collision_barrier_has_separating_contact_and_overlap_gradients(self):
+        loss_op, diagnostics = self._collision_loss()
+        self.assertEqual(diagnostics["pair_count"], 1)
+        self.assertEqual(diagnostics["pair_count_by_side"], {"TOP": 1})
+        for second_x in (1.0, 0.975):
+            pos = torch.tensor(
+                [0.0, second_x, 0.0, 0.0],
+                dtype=torch.float64,
+                requires_grad=True,
+            )
+            loss = loss_op(pos)
+            loss.backward()
+            self.assertTrue(torch.isfinite(loss))
+            self.assertTrue(torch.isfinite(pos.grad).all())
+            self.assertGreater(loss.item(), 0.0)
+            self.assertGreater(pos.grad[0].item(), 0.0)
+            self.assertLess(pos.grad[1].item(), 0.0)
+
+    def test_collision_barrier_excludes_cross_side_pairs(self):
+        loss_op, diagnostics = self._collision_loss(second_side="BOTTOM")
+        pos = torch.tensor(
+            [0.0, 0.0, 0.0, 0.0], dtype=torch.float64, requires_grad=True
+        )
+
+        loss_op(pos).backward()
+
+        self.assertEqual(diagnostics["pair_count"], 0)
+        self.assertEqual(loss_op(pos).item(), 0.0)
+        self.assertTrue(torch.equal(pos.grad, torch.zeros_like(pos)))
+
+    def test_collision_barrier_forward_does_not_query_cpu_geometry(self):
+        loss_op, _ = self._collision_loss()
+        pos = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float64)
+        with mock.patch(
+            "shapely.intersects_xy",
+            side_effect=AssertionError("forward queried CPU geometry"),
+        ):
+            self.assertTrue(torch.isfinite(loss_op(pos)))
+
+    def test_collision_barrier_preserves_nonrectangular_footprint_void(self):
+        frame = Polygon(
+            [
+                (-2.0, -2.0),
+                (2.0, -2.0),
+                (2.0, 2.0),
+                (-2.0, 2.0),
+            ],
+            holes=[
+                [
+                    (-1.0, -1.0),
+                    (-1.0, 1.0),
+                    (1.0, 1.0),
+                    (1.0, -1.0),
+                ]
+            ],
+        )
+        loss_op, _ = self._collision_loss(second_shape=frame)
+        separated = torch.tensor(
+            [-0.5, -2.0, -0.5, -2.0], dtype=torch.float64
+        )
+        colliding = torch.tensor(
+            [-0.5, -0.5, -0.5, -2.0], dtype=torch.float64
+        )
+
+        self.assertLess(loss_op(separated).item(), loss_op(colliding).item())
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
+    def test_collision_barrier_cpu_gpu_consistency(self):
+        cpu_loss, _ = self._collision_loss()
+        gpu_loss, _ = self._collision_loss(device="cuda")
+        cpu_pos = torch.tensor(
+            [0.0, 0.975, 0.0, 0.0], dtype=torch.float64, requires_grad=True
+        )
+        gpu_pos = cpu_pos.detach().clone().cuda().requires_grad_(True)
+
+        cpu_value = cpu_loss(cpu_pos)
+        gpu_value = gpu_loss(gpu_pos)
+        cpu_value.backward()
+        gpu_value.backward()
+
+        self.assertAlmostEqual(cpu_value.item(), gpu_value.item(), places=10)
+        np.testing.assert_allclose(
+            cpu_pos.grad.numpy(), gpu_pos.grad.cpu().numpy(), atol=1e-10, rtol=1e-10
+        )
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
     def test_soft_keepin_margin_cpu_gpu_consistency(self):

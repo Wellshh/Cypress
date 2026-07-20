@@ -462,6 +462,7 @@ class PlaceOpCollection(object):
         self.move_region_boundary_op = None
         self.anchor_loss_op = None
         self.keepin_soft_loss_op = None
+        self.footprint_collision_loss_op = None
         self.anchor_keepin_context = None
 
 
@@ -486,10 +487,11 @@ class BasicPlace(nn.Module):
             getattr(params, "irregular_density_flag", False),
             getattr(params, "keepin_projection_flag", False),
             getattr(params, "exact_repair_flag", False),
+            getattr(params, "footprint_collision_loss_flag", False),
         )
         if any(constraint_subflags) and not getattr(params, "anchor_keepin_flag", False):
             raise ValueError(
-                "anchor/keep-in loss, density, or projection flags require "
+                "anchor/keep-in subfeatures require "
                 "anchor_keepin_flag=true"
             )
         self.anchor_keepin_context = None
@@ -714,6 +716,12 @@ class BasicPlace(nn.Module):
                     self.data_collections, placedb
                 ).to(self.device)
             )
+            if getattr(params, "footprint_collision_loss_flag", False):
+                self.op_collections.footprint_collision_loss_op = (
+                    self.anchor_keepin_context.build_collision_loss(
+                        self.data_collections, placedb, params
+                    )
+                )
             self.anchor_keepin_context.log_summary()
         logging.debug("build op_collections takes %.2f seconds" % (time.time() - tt))
 

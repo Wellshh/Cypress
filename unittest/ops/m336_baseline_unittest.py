@@ -125,10 +125,12 @@ from run_matrix import (  # noqa: E402
     EXPERIMENTS,
     _configured_anchor_control,
     _native_subprocess_environment,
+    _require_collision_contract,
     _serialized_native_score_config,
     _warm_runtime_gate,
     constraint_config,
     parse_anchor_weight_updates,
+    parse_collision_weight_updates,
     parse_native_execution,
     parse_placement,
     parse_weight_diagnostics,
@@ -373,6 +375,82 @@ class M336BaselineTest(unittest.TestCase):
                     learning_rate_scale=invalid,
                 )
 
+    def test_footprint_collision_barrier_is_explicit_and_bounded(self):
+        arguments = (
+            Path("/tmp/m336-run"),
+            Path("/tmp/m336-constraints.json"),
+            EXPERIMENTS["E3"],
+            1000,
+            10,
+            True,
+            0.1,
+            0.05,
+            0.0,
+            0.1,
+            0.05,
+            Path("/tmp/m336.aux"),
+        )
+        disabled = placement_config(
+            *arguments, source_placement=Path("/tmp/m336.pl")
+        )
+        enabled = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            footprint_collision=True,
+            collision_gradient_ratio=0.25,
+            collision_margin_mm=0.0,
+            collision_tau_mm=0.025,
+        )
+
+        self.assertFalse(disabled["footprint_collision_loss_flag"])
+        self.assertTrue(enabled["footprint_collision_loss_flag"])
+        self.assertEqual(enabled["collision_gradient_ratio"], 0.25)
+        self.assertEqual(enabled["collision_margin_mm"], 0.0)
+        self.assertEqual(enabled["collision_tau_mm"], 0.025)
+        converted = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            footprint_collision=True,
+            collision_gradient_ratio="0.25",
+            collision_margin_mm="0",
+            collision_tau_mm="0.025",
+        )
+        self.assertEqual(converted["collision_gradient_ratio"], 0.25)
+        with self.assertRaisesRegex(ValueError, "collision ratio"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                footprint_collision=True,
+                collision_gradient_ratio=0.0,
+            )
+
+    def test_collision_contract_rejects_changed_resume_settings(self):
+        config = {
+            "footprint_collision_loss_flag": True,
+            "collision_gradient_ratio": 0.1,
+            "collision_margin_mm": 0.0,
+            "collision_tau_mm": 0.025,
+        }
+        args = SimpleNamespace(
+            footprint_collision=True,
+            collision_gradient_ratio=0.1,
+            collision_margin_mm=0.0,
+            collision_tau_mm=0.025,
+        )
+
+        _require_collision_contract(
+            config, args, EXPERIMENTS["E3"], Path("/tmp/result.json"), "resume"
+        )
+        args.collision_gradient_ratio = 0.25
+        with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
+            _require_collision_contract(
+                config,
+                args,
+                EXPERIMENTS["E3"],
+                Path("/tmp/result.json"),
+                "resume",
+            )
+
     def test_serialized_native_score_disables_context_diagnostics(self):
         optimization_config = {
             "anchor_keepin_flag": True,
@@ -390,11 +468,33 @@ class M336BaselineTest(unittest.TestCase):
             optimization_config["exact_overlap_diagnostic_interval"], 1
         )
         self.assertFalse(score_config["anchor_keepin_flag"])
+        self.assertFalse(score_config["footprint_collision_loss_flag"])
         self.assertFalse(score_config["keepin_projection_flag"])
         self.assertFalse(score_config["exact_repair_flag"])
         self.assertEqual(score_config["exact_overlap_diagnostic_interval"], 0)
         self.assertEqual(score_config["global_place_flag"], 0)
         self.assertEqual(score_config["dtype"], "float64")
+
+    def test_collision_weight_updates_are_machine_readable(self):
+        update = {
+            "effective_weight": 2.0,
+            "wirelength_gradient_l1": 4.0,
+            "collision_gradient_l1": 0.2,
+            "collision_loss": 0.5,
+            "effective_ratio": 0.1,
+            "raw_weight": 2.0,
+            "bounded_weight": 2.0,
+            "ema_weight": 2.0,
+            "ramp": 1.0,
+        }
+        log = "collision weight update: %s" % json.dumps(update, sort_keys=True)
+
+        self.assertEqual(parse_collision_weight_updates(log), [update])
+        diagnostics = parse_weight_diagnostics(
+            log, "footprint collision loss", 0.1
+        )
+        self.assertEqual(diagnostics["constraint_gradient_l1"], 0.2)
+        self.assertEqual(diagnostics["matched_weight"], 2.0)
 
     def test_nonfinite_native_scores_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "hpwl"):

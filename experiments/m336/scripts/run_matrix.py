@@ -380,6 +380,10 @@ def placement_config(
     initialization_track="cold_source",
     feasible_domain_cache_dir=None,
     learning_rate_scale=1.0,
+    footprint_collision=False,
+    collision_gradient_ratio=0.1,
+    collision_margin_mm=0.0,
+    collision_tau_mm=0.025,
 ):
     learning_rate_scale = float(learning_rate_scale)
     if (
@@ -390,6 +394,32 @@ def placement_config(
         raise ValueError(
             "learning-rate scale must be finite and within [%g, %g]"
             % (MIN_M336_LEARNING_RATE_SCALE, MAX_M336_LEARNING_RATE_SCALE)
+        )
+    (
+        collision_gradient_ratio,
+        collision_margin_mm,
+        collision_tau_mm,
+    ) = (
+        float(collision_gradient_ratio),
+        float(collision_margin_mm),
+        float(collision_tau_mm),
+    )
+    if (
+        not all(
+            math.isfinite(value)
+            for value in (
+                collision_gradient_ratio,
+                collision_margin_mm,
+                collision_tau_mm,
+            )
+        )
+        or collision_gradient_ratio <= 0
+        or collision_margin_mm < 0
+        or collision_tau_mm <= 0
+    ):
+        raise ValueError(
+            "collision ratio and tau must be positive and finite; "
+            "collision margin must be finite and non-negative"
         )
     initialization_modes = {
         "cold_source": "preserve_legal",
@@ -486,6 +516,12 @@ def placement_config(
                 ),
                 "diagnostic_validation_on_high_overflow_flag": True,
                 "exact_overlap_diagnostic_interval": 1,
+                "footprint_collision_loss_flag": bool(
+                    footprint_collision and spec["projection"]
+                ),
+                "collision_gradient_ratio": float(collision_gradient_ratio),
+                "collision_margin_mm": float(collision_margin_mm),
+                "collision_tau_mm": float(collision_tau_mm),
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
                 "constraint_grid_mm": grid_mm,
@@ -535,6 +571,7 @@ def evaluate_feature_off(
     params.anchor_keepin_flag = True
     params.anchor_loss_flag = False
     params.keepin_soft_loss_flag = False
+    params.footprint_collision_loss_flag = False
     params.keepin_projection_flag = False
     params.exact_repair_flag = False
     params.freeze_anchor_nodes = False
@@ -592,6 +629,7 @@ def _serialized_native_score_config(config, replay_aux, native_dir):
             "anchor_keepin_flag": False,
             "anchor_loss_flag": False,
             "keepin_soft_loss_flag": False,
+            "footprint_collision_loss_flag": False,
             "irregular_density_flag": False,
             "keepin_projection_flag": False,
             "exact_repair_flag": False,
@@ -787,6 +825,13 @@ def parse_anchor_weight_updates(log_text):
     ]
 
 
+def parse_collision_weight_updates(log_text):
+    return [
+        json.loads(match)
+        for match in re.findall(r"collision weight update: (\{.*\})", log_text)
+    ]
+
+
 def _configured_anchor_control(config, default_ratio):
     if "anchor_gradient_ratio" in config:
         return "anchor_gradient_ratio", float(config["anchor_gradient_ratio"])
@@ -808,6 +853,27 @@ def parse_weight_diagnostics(log_text, label, configured_scale):
                 ],
                 "constraint_gradient_l1": latest["anchor_gradient_l1"],
                 "initial_loss": updates[0]["anchor_loss"],
+                "effective_ratio": latest["effective_ratio"],
+                "raw_weight": latest["raw_weight"],
+                "bounded_weight": latest["bounded_weight"],
+                "ema_weight": latest["ema_weight"],
+                "ramp": latest["ramp"],
+                "update_count": len(updates),
+            }
+    if label == "footprint collision loss":
+        updates = parse_collision_weight_updates(log_text)
+        if updates:
+            latest = updates[-1]
+            return {
+                "configured_target_ratio": float(configured_scale),
+                "matched_weight": latest["effective_weight"],
+                "wirelength_gradient_l1": latest[
+                    "wirelength_gradient_l1"
+                ],
+                "constraint_gradient_l1": latest[
+                    "collision_gradient_l1"
+                ],
+                "initial_loss": updates[0]["collision_loss"],
                 "effective_ratio": latest["effective_ratio"],
                 "raw_weight": latest["raw_weight"],
                 "bounded_weight": latest["bounded_weight"],
@@ -872,6 +938,7 @@ def stable_artifacts(run_dir, placement_dir, legality_path):
         "input_alignment": run_dir / "constraints" / "input_alignment.json",
         "initialization": run_dir / "constraints" / "initialization.json",
         "timing": run_dir / "constraints" / "timing.json",
+        "collision_barrier": run_dir / "constraints" / "collision_barrier.json",
     }
     return {
         key: repo_path(path) for key, path in artifact_paths.items() if path.exists()
@@ -1064,6 +1131,41 @@ def score_manual_baseline(args):
     return result
 
 
+def _require_collision_contract(config, args, spec, result_path, action):
+    expected_enabled = bool(
+        args.footprint_collision and spec["integrated_context"] and spec["projection"]
+    )
+    actual_enabled = bool(config.get("footprint_collision_loss_flag", False))
+    checks = (
+        ("enabled", float(actual_enabled), float(expected_enabled)),
+        (
+            "gradient ratio",
+            float(config.get("collision_gradient_ratio", 0.1)),
+            float(args.collision_gradient_ratio),
+        ),
+        (
+            "margin",
+            float(config.get("collision_margin_mm", 0.0)),
+            float(args.collision_margin_mm),
+        ),
+        (
+            "tau",
+            float(config.get("collision_tau_mm", 0.025)),
+            float(args.collision_tau_mm),
+        ),
+    )
+    mismatches = [
+        label
+        for label, actual, expected in checks
+        if not math.isclose(actual, expected, rel_tol=0.0, abs_tol=1e-12)
+    ]
+    if mismatches:
+        raise RuntimeError(
+            "cannot %s with changed collision contract (%s): %s"
+            % (action, ", ".join(mismatches), result_path)
+        )
+
+
 def run_one(
     args,
     experiment_id,
@@ -1099,6 +1201,9 @@ def run_one(
                 "cannot reevaluate with changed input hashes: %s" % result_path
             )
         config = result["config"]
+        _require_collision_contract(
+            config, args, spec, result_path, "reevaluate"
+        )
         configured_learning_rate_scale = (
             float(config["global_place_stages"][0]["learning_rate"])
             / DEFAULT_M336_LEARNING_RATE
@@ -1160,9 +1265,22 @@ def run_one(
         result["metrics"]["soft_keepin_loss_diagnostics"] = (
             parse_weight_diagnostics(log_text, "soft keep-in loss", 1.0)
         )
+        result["metrics"]["matched_collision_weight"] = parse_weight(
+            log_text, "footprint collision loss"
+        )
+        result["metrics"]["collision_loss_diagnostics"] = (
+            parse_weight_diagnostics(
+                log_text,
+                "footprint collision loss",
+                args.collision_gradient_ratio,
+            )
+        )
         result["metrics"]["native_execution"] = parse_native_execution(log_text)
         result["metrics"]["anchor_weight_updates"] = (
             parse_anchor_weight_updates(log_text)
+        )
+        result["metrics"]["collision_weight_updates"] = (
+            parse_collision_weight_updates(log_text)
         )
         result["legality"] = legality_summary(legality)
         if anchor_control_key == "anchor_gradient_ratio":
@@ -1178,6 +1296,18 @@ def run_one(
         )
         result["keepin_margin_tau_mm"] = float(
             config.get("keepin_margin_tau_mm", args.keepin_margin_tau_mm)
+        )
+        result["footprint_collision_enabled"] = bool(
+            config.get("footprint_collision_loss_flag", False)
+        )
+        result["collision_gradient_ratio"] = float(
+            config.get("collision_gradient_ratio", args.collision_gradient_ratio)
+        )
+        result["collision_margin_mm"] = float(
+            config.get("collision_margin_mm", args.collision_margin_mm)
+        )
+        result["collision_tau_mm"] = float(
+            config.get("collision_tau_mm", args.collision_tau_mm)
         )
         result["irregular_density_enabled"] = bool(
             config.get("irregular_density_flag", False)
@@ -1278,6 +1408,9 @@ def run_one(
         return result
     if args.resume and result_path.exists():
         result = json.loads(result_path.read_text())
+        _require_collision_contract(
+            result.get("config", {}), args, spec, result_path, "resume"
+        )
         if not math.isclose(
             float(result.get("learning_rate_scale", 1.0)),
             args.learning_rate_scale,
@@ -1334,6 +1467,10 @@ def run_one(
         initialization_track=initialization_track,
         feasible_domain_cache_dir=args.feasible_domain_cache_dir,
         learning_rate_scale=args.learning_rate_scale,
+        footprint_collision=args.footprint_collision,
+        collision_gradient_ratio=args.collision_gradient_ratio,
+        collision_margin_mm=args.collision_margin_mm,
+        collision_tau_mm=args.collision_tau_mm,
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -1400,14 +1537,21 @@ def run_one(
         )
         else "-lr-%s" % format(args.learning_rate_scale, "g")
     )
+    collision_enabled = bool(config.get("footprint_collision_loss_flag", False))
+    collision_tag = (
+        "-collision-%s" % format(args.collision_gradient_ratio, "g")
+        if collision_enabled
+        else ""
+    )
 
     result = {
-        "run_id": "%s-%s-ar-%s%s-margin-%s-seed-%d"
+        "run_id": "%s-%s-ar-%s%s%s-margin-%s-seed-%d"
         % (
             initialization_track,
             experiment_id.lower(),
             format(anchor_gradient_ratio, "g"),
             learning_rate_tag,
+            collision_tag,
             format(args.keepin_margin_mm, "g"),
             seed,
         ),
@@ -1422,6 +1566,10 @@ def run_one(
         "keepin_clearance_mm": float(args.clearance_mm),
         "keepin_margin_mm": float(args.keepin_margin_mm),
         "keepin_margin_tau_mm": float(args.keepin_margin_tau_mm),
+        "footprint_collision_enabled": collision_enabled,
+        "collision_gradient_ratio": float(args.collision_gradient_ratio),
+        "collision_margin_mm": float(args.collision_margin_mm),
+        "collision_tau_mm": float(args.collision_tau_mm),
         "irregular_density_enabled": bool(
             config.get("irregular_density_flag", False)
         ),
@@ -1476,8 +1624,17 @@ def run_one(
             "soft_keepin_loss_diagnostics": parse_weight_diagnostics(
                 log_text, "soft keep-in loss", 1.0
             ),
+            "matched_collision_weight": parse_weight(
+                log_text, "footprint collision loss"
+            ),
+            "collision_loss_diagnostics": parse_weight_diagnostics(
+                log_text,
+                "footprint collision loss",
+                args.collision_gradient_ratio,
+            ),
             "native_execution": parse_native_execution(log_text),
             "anchor_weight_updates": parse_anchor_weight_updates(log_text),
+            "collision_weight_updates": parse_collision_weight_updates(log_text),
         },
         "legality": legality_summary(legality),
         "artifacts": stable_artifacts(
@@ -2188,6 +2345,17 @@ def reproduction_command(args, weights=None):
             if args.irregular_density
             else "--no-irregular-density"
         ),
+        (
+            "--footprint-collision"
+            if args.footprint_collision
+            else "--no-footprint-collision"
+        ),
+        "--collision-gradient-ratio",
+        format(args.collision_gradient_ratio, "g"),
+        "--collision-margin-mm",
+        format(args.collision_margin_mm, "g"),
+        "--collision-tau-mm",
+        format(args.collision_tau_mm, "g"),
         "--initialization-track",
         args.initialization_track,
         "--checkpoint-placement",
@@ -2263,6 +2431,15 @@ def main():
         default=True,
         help="enable side-specific irregular capacity for E2-E4",
     )
+    parser.add_argument(
+        "--footprint-collision",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="enable the preventive footprint collision barrier for E2-E4",
+    )
+    parser.add_argument("--collision-gradient-ratio", type=float, default=0.1)
+    parser.add_argument("--collision-margin-mm", type=float, default=0.0)
+    parser.add_argument("--collision-tau-mm", type=float, default=0.025)
     parser.add_argument(
         "--initialization-track",
         choices=("cold_source", "checkpoint_warm_start"),
@@ -2363,6 +2540,12 @@ def main():
         )
     if (
         args.anchor_gradient_ratio <= 0
+        or args.collision_gradient_ratio <= 0
+        or not math.isfinite(args.collision_gradient_ratio)
+        or args.collision_margin_mm < 0
+        or not math.isfinite(args.collision_margin_mm)
+        or args.collision_tau_mm <= 0
+        or not math.isfinite(args.collision_tau_mm)
         or not math.isfinite(args.learning_rate_scale)
         or args.learning_rate_scale < MIN_M336_LEARNING_RATE_SCALE
         or args.learning_rate_scale > MAX_M336_LEARNING_RATE_SCALE
@@ -2373,7 +2556,7 @@ def main():
         or args.site_mm <= 0
     ):
         parser.error(
-            "anchor ratio, grid, margin tau, and site size must be positive; "
+            "anchor/collision ratios, grid, margin taus, and site size must be positive; "
             "learning-rate scale must be within [%g, %g]; clearance and "
             "margin must be non-negative"
             % (MIN_M336_LEARNING_RATE_SCALE, MAX_M336_LEARNING_RATE_SCALE)
@@ -2431,6 +2614,10 @@ def main():
             "seeds": args.seeds,
             "iterations": args.iterations,
             "learning_rate_scale": args.learning_rate_scale,
+            "footprint_collision": args.footprint_collision,
+            "collision_gradient_ratio": args.collision_gradient_ratio,
+            "collision_margin_mm": args.collision_margin_mm,
+            "collision_tau_mm": args.collision_tau_mm,
             "anchor_gradient_ratios": ratios,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
@@ -2477,6 +2664,10 @@ def main():
             "seeds": args.seeds,
             "iterations": args.iterations,
             "learning_rate_scale": args.learning_rate_scale,
+            "footprint_collision": args.footprint_collision,
+            "collision_gradient_ratio": args.collision_gradient_ratio,
+            "collision_margin_mm": args.collision_margin_mm,
+            "collision_tau_mm": args.collision_tau_mm,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
             "keepin_margin_mm": args.keepin_margin_mm,
