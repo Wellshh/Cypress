@@ -1,7 +1,7 @@
 # M336-171: Global Collision Weight Misses Local Contact Direction
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Resolved for D1; D2-D4 remain active under N6
 **Found:** 2026-07-21
 **Affected commit:** `4569e23`
 
@@ -215,6 +215,108 @@ This is a one-step promotion signal only. N6 and D1 remain open until both warm
 E2 and E3 retain exact legality for ten accepted native steps with bounded
 quality and runtime.
 
+## D1 Three-Arm Validation
+
+Commit `bf67663` was evaluated on physical GPU 2 with deterministic CuBLAS,
+checkpoint-warm initialization, seed `1000`, ten Adam steps, LR scale `1`, and
+the same float64 scoring and exact post-serialization path. E2 and E3 differ
+only by the anchor objective. The three D1 arms were feature-off, collision
+barrier only, and barrier plus bounded contact projection plus exact guard.
+
+| Arm | Run | Final pairs / area (`mm2`) | Native HPWL / RSMT | Score | GPU / end-to-end (`s`) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Feature off | E2 | `24 / 0.106247` | `15632.983130 / 17327.078` | `0.9280541970` | `1.08086 / 11.7539` |
+| Barrier only | E2 | `33 / 0.095247` | `15633.117228 / 17327.220` | `0.9280464153` | `1.36448 / 12.2037` |
+| Contact + guard | E2 | `0 / 0` | `15632.422267 / 17327.278` | `0.9280653090` | `1.81014 / 13.3712` |
+| Feature off | E3 | `28 / 0.108631` | `15632.686698 / 17325.676` | `0.9281007795` | `1.34785 / 11.8590` |
+| Barrier only | E3 | `33 / 0.098745` | `15632.979651 / 17326.097` | `0.9280807866` | `1.51287 / 12.6521` |
+| Contact + guard | E3 | `0 / 0` | `15632.448100 / 17327.786` | `0.9280508327` | `2.06893 / 14.0294` |
+
+The barrier-only arm reduces positive overlap area slightly but increases pair
+count to 33 in both experiments. It is therefore not a legality mechanism.
+The contact-control arm receives raw proposals containing `10-16` E2 and
+`10-17` E3 overlap pairs, yet every accepted placement has zero overlap and
+zero keep-in violations. Both runs execute 13 backward calls and ten changing
+CUDA Adam steps; E4 and checkpoint fallback are disabled.
+
+E2 accepts all ten first attempts. E3 rejects one iteration-6 attempt after a
+32-node contact closure stalls on `C404/FV708` with residual area
+`0.0000106471 mm2`. The transactional guard restores the complete position and
+optimizer state, halves the LR from `0.02308556` to `0.01154278`, and accepts
+the retry after closing 14 raw crossings. This is the intended fail-closed
+backoff path, not repair.
+
+Against the corresponding feature-off controls, E2 HPWL improves `0.00359%`
+while RSMT regresses `0.00115%`; E3 HPWL improves `0.00153%` while RSMT
+regresses `0.01218%`. GPU optimization ratios are `1.675x` and `1.535x`, and
+end-to-end ratios are `1.138x` and `1.183x`. These pass the D1 `0.5%` quality
+and `2x` runtime gates. The current-head feature-off E3 placement SHA-256 is
+the byte-identical M336-169 value
+`a6445d6a98180ff4449afdffe37ad313f5215cd336153030c5637aaa10b94c5c`.
+
+The E3 anchor mean and p90 are `0.00179%` and `0.00478%` worse than E2. D1
+validates safe native motion only; it does not satisfy the downstream anchor
+quality gate. D2 must test LR scale `2` exactly once under the same contact
+contract and stop if projection pressure, native score, or anchor direction
+fails its declared gates.
+
+The ignored evidence roots are:
+
+```text
+results/m336/native-cypress/m336-171-contact-projection-d1-feature-off-warm-10-1/
+results/m336/native-cypress/m336-171-contact-projection-d1-barrier-only-warm-10-1/
+results/m336/native-cypress/m336-171-contact-projection-d1-warm-10-1/
+```
+
+All arms use this common contract, with the arm flags and output path changed
+as shown below:
+
+```bash
+env CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES=2 \
+  PYTHONPATH="$PWD/install:$PWD:/tmp/m336-ortools-py311" \
+  python3.11 experiments/m336/scripts/run_matrix.py \
+  --experiments E2 E3 --seeds 1000 --iterations 10 \
+  --learning-rate-scale 1 --gpu --irregular-density \
+  --initialization-track checkpoint_warm_start \
+  <arm-flags> --output-dir <output-path>
+```
+
+```text
+feature off:
+  --no-footprint-collision
+barrier only:
+  --footprint-collision --collision-gradient-ratio 0.1
+  --collision-margin-mm 0 --collision-tau-mm 0.025
+  --no-collision-pair-diagnostics --no-exact-step-guard
+  --no-exact-contact-projection
+contact + guard:
+  --footprint-collision --collision-gradient-ratio 0.1
+  --collision-margin-mm 0 --collision-tau-mm 0.025
+  --no-collision-pair-diagnostics --exact-step-guard
+  --exact-step-guard-backoff 0.5 --exact-step-guard-max-retries 4
+  --exact-contact-projection --exact-contact-projection-max-iterations 8
+  --exact-contact-projection-max-nodes 32
+```
+
+Evidence hashes:
+
+```text
+contact + guard summary
+cce933f66bd76cd7c3c70ec49e3b1dd82d5bd61dae8595dbb14f19fae8aea3d4
+E2 exact guard
+4a95f5f42c39fe4b710c53c793fa4b9dfa2e4db1b6602d21bca242720585f734
+E3 exact guard
+e2557247783b7c4d51c2756cca838ec4facb1e2a14e928cd2ce3c1ec133bb3e1
+feature-off summary
+54b7447e8e07a6de3c297c0a4e90ed5cf6ec56b7591f60b74dc2c35b1899b28d
+barrier-only summary
+ee9e71df180fa922d34777fa91edd908f803e24a03735acfb8245d3ae38ec9cc
+```
+
+M336-171 is resolved for its stated D1 acceptance criteria. N6 remains active
+at D2; this resolution does not authorize larger LR, scalar-weight, seed, or
+repair ladders.
+
 ## Root Cause
 
 The controller matches only the aggregate collision-gradient L1 norm to the
@@ -229,7 +331,7 @@ only when that loss overtakes all competing objective terms on that coordinate.
 The `0.10` to `0.25` increase therefore changes almost no proposal geometry;
 `0.50` changes some signs but still leaves six unavoidable crossings.
 
-## Impact
+## Impact At Discovery
 
 - N6 D1 cannot advance to a 10-step run.
 - Step backoff is a safety mechanism, not a cure for an inward direction.

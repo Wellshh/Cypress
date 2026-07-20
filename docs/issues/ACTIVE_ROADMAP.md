@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (active) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-171 pair-local contact control plus the exact transactional step guard pass D1-D4 with zero accepted overlaps before any final matrix |
+| N6 (D2 active) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-171 passes warm scale-1 D1; the same bounded contact projection plus exact transactional guard must pass D2-D4 before any final matrix |
 
 ## Paused Exact-Site Priorities
 
@@ -288,6 +288,20 @@ baseline `15634.450477/17333.037` to `15633.827651/17332.127`; normalized score
 improves from `0.927850154` to `0.927893042`. The contact-off canonical failure
 hash remains unchanged. This passes only the one-step signal: warm E2/E3 D1,
 runtime, and repeated-hash gates remain open before N6 can close.
+
+M336-171 now passes the complete warm scale-1 D1 three-arm gate on GPU 2. The
+current-head feature-off arm reproduces the prior E3 placement byte-for-byte
+and ends with 24/28 E2/E3 overlap pairs. Barrier-only ends with 33/33 pairs,
+confirming that its lower overlap area is not exact legality. Candidate-side
+contact projection plus the exact guard instead accepts ten native steps in
+both E2 and E3 with 100/100 containment, zero keep-in violations, and zero
+overlaps after every accepted step. E2 accepts all attempts; E3 rejects one
+32-node stalled closure, restores position and Adam state, halves the LR, and
+accepts the bounded retry. Native scores are `0.9280653090/0.9280508327`;
+quality changes versus feature-off are within `0.013%` per HPWL/RSMT metric,
+and GPU optimization costs are `1.675x/1.535x`, below the `2x` gate. E3 anchor
+mean/p90 remain marginally worse than E2, so D2 is now the active boundary and
+must stop after scale `2` if motion direction or pressure regresses.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

@@ -2,7 +2,7 @@
 
 Repository: `Wellshh/Cypress`  
 Branch: `experiment`  
-Current reference head: `239b668` (`M336-168`)  
+Current implementation reference head: `bf67663` (`M336-171`)
 Primary board: `M336`
 
 ## Objective
@@ -43,10 +43,16 @@ fails, and must not be presented as evidence that Cypress itself improved.
   subgroup-balanced adaptive anchor control, irregular side-specific density,
   float64 native scoring, cold/warm tracks, bounded repair, and deterministic
   CuBLAS execution are implemented and retained.
-- A legal checkpoint-warm placement still develops `66/71` same-side overlap
-  pairs after 50 native E2/E3 steps. Learning-rate scale `2` improves HPWL/RSMT
-  slightly but increases 10-step overlaps from `28` to `42`. Larger LR or
-  anchor-ratio ladders are prohibited until native collision pressure is fixed.
+- Before M336-171, a legal checkpoint-warm placement developed `66/71`
+  same-side overlap pairs after 50 native E2/E3 steps. Unguarded learning-rate
+  scale `2` increased 10-step overlaps from `28` to `42`. D2 may repeat scale
+  `2` once under the new contact-projection and exact-guard contract; larger LR
+  and anchor-ratio ladders remain prohibited.
+- M336-171 passes the warm scale-1 D1 gate: E2/E3 each complete ten changing
+  CUDA Adam steps with zero overlap after every accepted step. Candidate-side
+  contact projection plus the exact guard costs `1.675x/1.535x` the matching
+  feature-off GPU optimization path and stays within the `0.5%` HPWL/RSMT
+  quality gate. D2 scale `2` is the next active boundary.
 
 ## Required native-algorithm outcomes
 
@@ -173,7 +179,7 @@ Add focused CPU tests and GPU tests where available:
 
 Run only seed `1000` until every gate below passes.
 
-#### D1 — warm 10-step collision smoke
+#### D1 — warm 10-step collision smoke (passed at M336-171)
 
 Run checkpoint-warm E2 and E3 with LR scale `1`:
 
