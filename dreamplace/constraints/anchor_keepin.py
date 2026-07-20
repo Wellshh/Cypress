@@ -2393,6 +2393,28 @@ class AnchorKeepInContext:
         }
         return report, repair_ids
 
+    def exact_overlap_report(self, position, placedb):
+        """Return lightweight exact collision metrics for optimizer diagnostics."""
+        audit, _ = self._position_audit(position, placedb)
+        scale_squared = abs(self.alignment.scale) ** 2
+        fixed_area = sum(row["overlap_area"] for row in audit["fixed_overlaps"])
+        constrained_area = sum(
+            row["overlap_area"] for row in audit["constrained_overlaps"]
+        )
+        return {
+            "keepin_violation_count": audit["keepin_invalid_count"],
+            "fixed_overlap_count": audit["fixed_overlap_count"],
+            "fixed_overlap_area_mm2": fixed_area / scale_squared,
+            "constrained_overlap_count": audit["constrained_overlap_count"],
+            "constrained_overlap_area_mm2": constrained_area / scale_squared,
+            "overlap_pair_count": (
+                audit["fixed_overlap_count"]
+                + audit["constrained_overlap_count"]
+            ),
+            "overlap_area_mm2": (fixed_area + constrained_area) / scale_squared,
+            "conflict_closure_count": audit["conflict_closure_count"],
+        }
+
     def _pack_constraint_subset(
         self,
         position,

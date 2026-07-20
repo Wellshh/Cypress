@@ -236,6 +236,14 @@ because 10-step overlaps grow from 28 to 42 and projection events from zero to
 three. Stop the `4/8/16/32` ladder and return to M336-163 footprint-scale
 collision pressure; do not use E4 repair to conceal this regression.
 
+M336-163 now has accepted-step exact observability. The unchanged scale-1
+control crosses from 0 to 11 overlaps on step 1 and reaches 28 pairs,
+`0.108631 mm2`, and a 45-component closure by step 10; overlap area rises at
+every checkpoint while keep-in violations remain zero. The placement SHA is
+unchanged, so the instrumentation is read-only. M336-169 proves the legacy
+macro-overlap kernel cannot prevent this crossing; the next experiment must use
+a nonzero-contact native collision signal, not a larger LR or E4 fallback.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

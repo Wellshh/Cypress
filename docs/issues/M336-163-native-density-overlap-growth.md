@@ -27,6 +27,22 @@ fully usable bins. This representation supplies a region-scale field but is too
 coarse to demonstrate footprint-scale separation. E0 independently ends with
 65 overlaps and 41 keep-in violations.
 
+Accepted-step exact diagnostics now localize the failure. The unchanged
+checkpoint-warm E3 10-step control starts with zero overlaps, then reports pair
+counts `11, 14, 16, 17, 18, 20, 23, 24, 28, 28`. Exact overlap area grows every
+step from `0.009920` to `0.108631 mm2`, while the conflict closure grows from 19
+to 45 constrained components. Constrained-to-frozen-obstacle collisions first
+appear at step 4 and reach two pairs. All checkpoints retain zero keep-in
+violations.
+
+The diagnostics are read-only: the final placement SHA remains
+`a6445d6a9818...`, identical to the committed scale-1 control, and the final
+checkpoint exactly matches the independent validator's 28 pairs and
+`0.1086312142 mm2`. Eleven checkpoints cost `0.134818 s` total and are reported
+separately from GPU optimization. The first post-serialization replay exposed a
+diagnostic-flag leak into the context-free scorer; the scorer now explicitly
+sets the interval to zero and the complete workflow succeeds.
+
 ## Impact
 
 - Native placement is not exact legal before E4 repair.
@@ -37,12 +53,12 @@ coarse to demonstrate footprint-scale separation. E0 independently ends with
 
 ## Remediation
 
-Instrument exact overlap count/area at controlled iteration checkpoints. Audit
-the usable-capacity force at finer, footprint-relevant bin resolutions and its
-normalization against usable area. If density alone cannot separate footprints,
-add a feature-gated differentiable same-side overlap signal using the existing
-Cypress objective lifecycle. Do not replace native optimization with an exact
-checkpoint fallback or unbounded discrete legalization.
+Exact overlap count/area instrumentation is complete. Audit the usable-capacity
+force at finer, footprint-relevant bin resolutions and its normalization against
+usable area. If density alone cannot separate footprints, add a feature-gated
+differentiable same-side overlap signal using the existing Cypress objective
+lifecycle. Do not replace native optimization with an exact checkpoint fallback
+or unbounded discrete legalization.
 
 The M336-169 audit rejects enabling the legacy `MacroOverlap` objective as that
 signal: although it covers all 140 M336 physical nodes and separates sides, its

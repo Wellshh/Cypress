@@ -173,7 +173,7 @@ append-only audit ledger.
 | [M336-160](M336-160-cold-runtime-misclassified-as-warm-gate.md) | Medium | Resolved | Cold runtime remains diagnostic while only warm-cache summaries evaluate the 2x gate |
 | [M336-161](M336-161-feature-off-overflow-filler-regression.md) | Critical | Resolved | Side overflow restores the legacy zero-filler contract and exact feature-off metric parity |
 | [M336-162](M336-162-feature-off-nesterov-state-regression.md) | Critical | Resolved | Nesterov bootstrap projection and state cleanup are confined to active constraint contexts |
-| [M336-163](M336-163-native-density-overlap-growth.md) | Critical | Open | A legal warm start grows to 66/71 overlaps despite zero keep-in projection pressure |
+| [M336-163](M336-163-native-density-overlap-growth.md) | Critical | Open | Exact checkpoints show overlap starts on Adam step 1 and grows monotonically in area |
 | [M336-164](M336-164-warm-repair-quality-runtime-collapse.md) | Critical | Open | An 83-component warm fallback restores legality but destroys score and the 2x runtime gate |
 | [M336-165](M336-165-cold-e4-bounded-repair-infeasible.md) | Critical | Open | Cold E4 fails closed when every bounded packing strategy rejects MHC8602 |
 | [M336-166](M336-166-cublas-determinism-workspace-missing.md) | High | Resolved | Native subprocesses freeze and record a repeat-proven CuBLAS workspace contract |

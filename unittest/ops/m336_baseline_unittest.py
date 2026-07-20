@@ -125,6 +125,7 @@ from run_matrix import (  # noqa: E402
     EXPERIMENTS,
     _configured_anchor_control,
     _native_subprocess_environment,
+    _serialized_native_score_config,
     _warm_runtime_gate,
     constraint_config,
     parse_anchor_weight_updates,
@@ -331,6 +332,7 @@ class M336BaselineTest(unittest.TestCase):
         self.assertTrue(
             enabled["diagnostic_validation_on_high_overflow_flag"]
         )
+        self.assertEqual(enabled["exact_overlap_diagnostic_interval"], 1)
 
     def test_learning_rate_scale_is_bounded_and_default_off(self):
         arguments = (
@@ -370,6 +372,29 @@ class M336BaselineTest(unittest.TestCase):
                     source_placement=Path("/tmp/m336.pl"),
                     learning_rate_scale=invalid,
                 )
+
+    def test_serialized_native_score_disables_context_diagnostics(self):
+        optimization_config = {
+            "anchor_keepin_flag": True,
+            "exact_overlap_diagnostic_interval": 1,
+        }
+
+        score_config = _serialized_native_score_config(
+            optimization_config,
+            Path("/tmp/replay.aux"),
+            Path("/tmp/native-score"),
+        )
+
+        self.assertTrue(optimization_config["anchor_keepin_flag"])
+        self.assertEqual(
+            optimization_config["exact_overlap_diagnostic_interval"], 1
+        )
+        self.assertFalse(score_config["anchor_keepin_flag"])
+        self.assertFalse(score_config["keepin_projection_flag"])
+        self.assertFalse(score_config["exact_repair_flag"])
+        self.assertEqual(score_config["exact_overlap_diagnostic_interval"], 0)
+        self.assertEqual(score_config["global_place_flag"], 0)
+        self.assertEqual(score_config["dtype"], "float64")
 
     def test_nonfinite_native_scores_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "hpwl"):

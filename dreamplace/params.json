@@ -111,6 +111,10 @@
         "description": "continue finite high-overflow runs through validation and native scoring",
         "default": false
     },
+    "exact_overlap_diagnostic_interval": {
+        "description": "accepted optimizer steps between exact anchor/keep-in overlap diagnostics; zero disables",
+        "default": 0
+    },
     "dtype": {
         "description": "data type, float32 | float64",
         "default": "float32"

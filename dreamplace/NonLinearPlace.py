@@ -357,6 +357,54 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         net_crossing_enabled = bool(
             params.net_crossing_flag and float(params.net_crossing_weight) != 0.0
         )
+        exact_overlap_interval = int(
+            getattr(params, "exact_overlap_diagnostic_interval", 0)
+        )
+        if exact_overlap_interval < 0:
+            raise ValueError("exact overlap diagnostic interval must be non-negative")
+        if exact_overlap_interval and self.anchor_keepin_context is None:
+            raise ValueError(
+                "exact overlap diagnostics require anchor/keep-in context"
+            )
+        if exact_overlap_interval:
+            native_execution.update(
+                {
+                    "exact_overlap_diagnostic_interval": exact_overlap_interval,
+                    "exact_overlap_diagnostic_seconds": 0.0,
+                    "exact_overlap_checkpoints": [],
+                }
+            )
+
+        def record_exact_overlap(stage, accepted_iteration, phase):
+            started = time.perf_counter()
+            report = self.anchor_keepin_context.exact_overlap_report(
+                self.data_collections.pos[0], placedb
+            )
+            elapsed = time.perf_counter() - started
+            checkpoint = {
+                "stage": int(stage),
+                "iteration": int(accepted_iteration),
+                "step": native_execution["optimizer_step_count"],
+                "phase": phase,
+                "elapsed_seconds": elapsed,
+                **report,
+            }
+            native_execution["exact_overlap_checkpoints"].append(checkpoint)
+            native_execution["exact_overlap_diagnostic_seconds"] += elapsed
+            timing = self.anchor_keepin_context.timing
+            timing["exact_overlap_diagnostic_seconds"] = (
+                timing.get("exact_overlap_diagnostic_seconds", 0.0) + elapsed
+            )
+            logging.info(
+                "exact overlap checkpoint: step=%d overlaps=%d area=%.6g mm^2 "
+                "closure=%d keepin_violations=%d",
+                checkpoint["step"],
+                checkpoint["overlap_pair_count"],
+                checkpoint["overlap_area_mm2"],
+                checkpoint["conflict_closure_count"],
+                checkpoint["keepin_violation_count"],
+            )
+
         optimization_started = time.perf_counter()
         # global placement
         if params.global_place_flag:
@@ -518,6 +566,11 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     initialize_learning_rate(
                         model.data_collections.pos[0], "initial"
                     )
+                    if (
+                        exact_overlap_interval
+                        and not native_execution["exact_overlap_checkpoints"]
+                    ):
+                        record_exact_overlap(stage_index, iteration, "initial")
                     if (
                         optimizer_name.lower()
                         in [
@@ -876,6 +929,15 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                                 },
                             }
                         )
+                        if (
+                            exact_overlap_interval
+                            and native_execution["optimizer_step_count"]
+                            % exact_overlap_interval
+                            == 0
+                        ):
+                            record_exact_overlap(
+                                stage_index, iteration, "accepted_step"
+                            )
                         logging.info(
                             "native optimizer evidence: optimizer=%s step=%d "
                             "device=%s proposal_changed_nodes=%d "
@@ -1511,6 +1573,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 torch.cuda.synchronize()
             self.anchor_keepin_context.timing["gpu_optimization_seconds"] = (
                 time.perf_counter() - optimization_started
+                - native_execution.get("exact_overlap_diagnostic_seconds", 0.0)
             )
         if net_crossing_enabled:
             processed_metrics["net_crossing"] = net_crossing

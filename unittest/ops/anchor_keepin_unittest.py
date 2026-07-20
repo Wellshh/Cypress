@@ -500,6 +500,26 @@ class AnchorKeepInTest(unittest.TestCase):
             )
         )
 
+    def test_exact_overlap_report_uses_exact_constrained_and_fixed_geometry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, position = self._initialization_context(
+                directory, positions_overlap=True
+            )
+            position[3] = 2.5
+
+            report = context.exact_overlap_report(
+                torch.as_tensor(position), placedb
+            )
+
+        self.assertEqual(report["keepin_violation_count"], 0)
+        self.assertEqual(report["constrained_overlap_count"], 1)
+        self.assertAlmostEqual(report["constrained_overlap_area_mm2"], 1.0)
+        self.assertEqual(report["fixed_overlap_count"], 1)
+        self.assertAlmostEqual(report["fixed_overlap_area_mm2"], 0.5)
+        self.assertEqual(report["overlap_pair_count"], 2)
+        self.assertAlmostEqual(report["overlap_area_mm2"], 1.5)
+        self.assertEqual(report["conflict_closure_count"], 3)
+
     def test_preserve_legal_repairs_only_overlap_closure(self):
         with tempfile.TemporaryDirectory() as directory:
             context, placedb, position = self._initialization_context(

@@ -485,6 +485,7 @@ def placement_config(
                     spec["irregular_density"] and irregular_density
                 ),
                 "diagnostic_validation_on_high_overflow_flag": True,
+                "exact_overlap_diagnostic_interval": 1,
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
                 "constraint_grid_mm": grid_mm,
@@ -583,6 +584,34 @@ def require_finite_native_scores(ppa):
         )
 
 
+def _serialized_native_score_config(config, replay_aux, native_dir):
+    score_config = dict(config)
+    score_config.update(
+        {
+            "anchor_keepin_config": "",
+            "anchor_keepin_flag": False,
+            "anchor_loss_flag": False,
+            "keepin_soft_loss_flag": False,
+            "irregular_density_flag": False,
+            "keepin_projection_flag": False,
+            "exact_repair_flag": False,
+            "exact_overlap_diagnostic_interval": 0,
+            "aux_input": str(replay_aux.resolve()),
+            "dtype": "float64",
+            "evaluate_pl": 0,
+            "global_place_flag": 0,
+            "legalize_flag": 0,
+            "detailed_place_flag": 0,
+            "initial_placement_file": "",
+            "initial_placement_role": "serialized_native_replay",
+            "plot_flag": 0,
+            "random_center_init_flag": 0,
+            "result_dir": str(native_dir.resolve()),
+        }
+    )
+    return score_config
+
+
 def score_serialized_placement(
     config,
     placement_path,
@@ -605,28 +634,8 @@ def score_serialized_placement(
         "m336.serialized.pl m336.scl\n"
     )
 
-    score_config = dict(config)
-    score_config.update(
-        {
-            "anchor_keepin_config": "",
-            "anchor_keepin_flag": False,
-            "anchor_loss_flag": False,
-            "keepin_soft_loss_flag": False,
-            "irregular_density_flag": False,
-            "keepin_projection_flag": False,
-            "exact_repair_flag": False,
-            "aux_input": str(replay_aux.resolve()),
-            "dtype": "float64",
-            "evaluate_pl": 0,
-            "global_place_flag": 0,
-            "legalize_flag": 0,
-            "detailed_place_flag": 0,
-            "initial_placement_file": "",
-            "initial_placement_role": "serialized_native_replay",
-            "plot_flag": 0,
-            "random_center_init_flag": 0,
-            "result_dir": str(native_dir.resolve()),
-        }
+    score_config = _serialized_native_score_config(
+        config, replay_aux, native_dir
     )
     config_path = output_dir / "placement.json"
     write_json(config_path, score_config)

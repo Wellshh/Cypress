@@ -40,6 +40,12 @@ The M336 native log reports wirelength gradient L1 norms of about `5.83` and
 starts at `8e-6`, its multiplier defaults to `1`, and a legal initial placement
 has zero overlap gradient, precluding ordinary initial gradient matching.
 
+Iteration-level exact evidence confirms that a preventive signal is required:
+the scale-1 control crosses from zero to 11 overlap pairs on its first accepted
+Adam step, then reaches 28 pairs and `0.108631 mm2` by step 10. The overlap area
+increases at every observed step; waiting for a late, shallow legacy penalty is
+not compatible with preserving the legal warm start.
+
 ## Impact
 
 - Enabling `macro_overlap_flag` at its legacy defaults cannot satisfy M336-163.
@@ -49,12 +55,13 @@ has zero overlap gradient, precluding ordinary initial gradient matching.
 
 ## Remediation
 
-Do not enable the legacy objective blindly. First add controlled iteration-level
-exact overlap diagnostics. Then implement a separate feature-gated, side-local
-clearance/overlap signal with nonzero inward gradient at contact, per-pair
-normalization, all constrained-to-constrained and constrained-to-frozen obstacle
-pairs, bounded dynamic weighting, and no Shapely or CPU transfer in `forward()`.
-Keep exact Shapely geometry outside autograd for diagnostics and final gates.
+Do not enable the legacy objective blindly. Controlled iteration-level exact
+overlap diagnostics are now available. Implement a separate feature-gated,
+side-local clearance/overlap signal with nonzero inward gradient at contact,
+per-pair normalization, all constrained-to-constrained and
+constrained-to-frozen obstacle pairs, bounded dynamic weighting, and no Shapely
+or CPU transfer in `forward()`. Keep exact Shapely geometry outside autograd for
+diagnostics and final gates.
 
 ## Acceptance Criteria
 
