@@ -32,6 +32,7 @@ class FeasibleDomain:
     y_values: np.ndarray
     valid_mask: np.ndarray
     valid_centers: np.ndarray
+    inside_distance: np.ndarray
     outside_distance: np.ndarray
     _tree: cKDTree = field(repr=False)
     footprint_local: object = field(default=None, repr=False)
@@ -94,6 +95,13 @@ class FeasibleDomain:
         valid_centers = np.column_stack(
             (x_values[valid_columns], y_values[valid_rows])
         )
+        padded_valid_mask = np.pad(valid_mask, 1, constant_values=False)
+        inside_distance = ndimage.distance_transform_edt(
+            padded_valid_mask, sampling=(grid, grid)
+        )[1:-1, 1:-1]
+        # Treat each valid site as a grid cell and estimate distance to the
+        # cell boundary, not to the center of the nearest invalid site.
+        inside_distance = np.maximum(inside_distance - grid / 2, 0.0)
         outside_distance = ndimage.distance_transform_edt(
             ~valid_mask, sampling=(grid, grid)
         )
@@ -107,6 +115,7 @@ class FeasibleDomain:
             y_values=y_values,
             valid_mask=valid_mask,
             valid_centers=valid_centers,
+            inside_distance=inside_distance,
             outside_distance=outside_distance,
             _tree=cKDTree(valid_centers),
             footprint_local=footprint_local,

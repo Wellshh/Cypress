@@ -701,7 +701,9 @@ class BasicPlace(nn.Module):
                 )
             )
             self.op_collections.keepin_soft_loss_op = (
-                self.anchor_keepin_context.build_soft_loss(placedb).to(self.device)
+                self.anchor_keepin_context.build_soft_loss(
+                    self.data_collections, placedb
+                ).to(self.device)
             )
             self.anchor_keepin_context.log_summary()
         logging.debug("build op_collections takes %.2f seconds" % (time.time() - tt))

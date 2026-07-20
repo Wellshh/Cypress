@@ -2,6 +2,7 @@ import math
 import os
 import sys
 import unittest
+from unittest import mock
 
 import numpy as np
 import torch
@@ -41,7 +42,7 @@ from dreamplace.constraints.anchor_keepin import (
     _overlap_metrics,
     _pack_region,
 )
-from dreamplace.ops.anchor_keepin.anchor_keepin import AnchorKeepInLoss
+from dreamplace.ops.anchor_keepin.anchor_keepin import AnchorKeepInLoss, SoftKeepInLoss
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -123,6 +124,99 @@ class AnchorKeepInTest(unittest.TestCase):
         self.assertTrue(domain.contains((0.5, 2.0)))
         self.assertFalse(domain.contains((1.5, 1.5)))
         self.assertGreater(len(domain.valid_centers), 0)
+        self.assertEqual(domain.inside_distance.shape, domain.valid_mask.shape)
+        self.assertGreater(domain.inside_distance[domain.valid_mask].min(), 0)
+
+    @staticmethod
+    def _soft_keepin_loss(device="cpu"):
+        domain = FeasibleDomain.build(box(0, 0, 4, 4), 0.4, 0.4, 0.1)
+        constraint = NodeConstraint(
+            node_id=0,
+            refdes="U1",
+            side="TOP",
+            group_id="G",
+            subgroup_id="G__top",
+            region_id="top_0",
+            domain=domain,
+            target_center=(2.0, 2.0),
+            node_width=0.4,
+            node_height=0.4,
+        )
+        return SoftKeepInLoss(
+            constraints=[constraint],
+            num_nodes=1,
+            margin=0.3,
+            tau=0.05,
+            dtype=torch.float64,
+        ).to(device)
+
+    def test_soft_keepin_margin_is_inward_and_negligible_deep_inside(self):
+        loss_op = self._soft_keepin_loss()
+        deep = torch.tensor([1.8, 1.8], dtype=torch.float64, requires_grad=True)
+        near = torch.tensor([0.0, 1.8], dtype=torch.float64, requires_grad=True)
+
+        deep_loss = loss_op(deep)
+        near_loss = loss_op(near)
+        outside_loss = loss_op(
+            torch.tensor([-0.1, 1.8], dtype=torch.float64)
+        )
+        near_loss.backward()
+
+        self.assertLess(deep_loss.item(), 1e-12)
+        self.assertGreater(near_loss.item(), 1.0)
+        self.assertGreater(outside_loss.item(), near_loss.item())
+        self.assertTrue(torch.isfinite(near.grad).all())
+        self.assertLess(near.grad[0].item(), 0.0)
+        self.assertAlmostEqual(near.grad[1].item(), 0.0, places=10)
+
+    def test_soft_keepin_forward_does_not_query_cpu_geometry(self):
+        loss_op = self._soft_keepin_loss()
+        pos = torch.tensor([0.05, 1.8], dtype=torch.float64)
+        with mock.patch.object(
+            FeasibleDomain,
+            "contains",
+            side_effect=AssertionError("forward queried exact geometry"),
+        ), mock.patch.object(
+            FeasibleDomain,
+            "project",
+            side_effect=AssertionError("forward projected on CPU"),
+        ):
+            self.assertTrue(torch.isfinite(loss_op(pos)))
+
+    def test_soft_keepin_margin_matches_finite_difference(self):
+        loss_op = self._soft_keepin_loss()
+        pos = torch.tensor([0.05, 1.8], dtype=torch.float64, requires_grad=True)
+        loss_op(pos).backward()
+        analytical = pos.grad[0].item()
+        epsilon = 1e-6
+        with torch.no_grad():
+            offset = torch.tensor([epsilon, 0.0], dtype=pos.dtype)
+            upper = loss_op(pos + offset).item()
+            lower = loss_op(pos - offset).item()
+        finite_difference = (upper - lower) / (2 * epsilon)
+        self.assertAlmostEqual(analytical, finite_difference, places=5)
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
+    def test_soft_keepin_margin_cpu_gpu_consistency(self):
+        cpu_op = self._soft_keepin_loss()
+        gpu_op = self._soft_keepin_loss("cuda")
+        cpu_pos = torch.tensor(
+            [0.05, 1.8], dtype=torch.float64, requires_grad=True
+        )
+        gpu_pos = cpu_pos.detach().clone().cuda().requires_grad_(True)
+
+        cpu_loss = cpu_op(cpu_pos)
+        gpu_loss = gpu_op(gpu_pos)
+        cpu_loss.backward()
+        gpu_loss.backward()
+
+        self.assertAlmostEqual(cpu_loss.item(), gpu_loss.item(), places=10)
+        np.testing.assert_allclose(
+            cpu_pos.grad.detach().numpy(),
+            gpu_pos.grad.detach().cpu().numpy(),
+            rtol=1e-9,
+            atol=1e-9,
+        )
 
     def test_projected_anchor_target(self):
         domain = FeasibleDomain.build(box(0, 0, 2, 2), 0.5, 0.5, 0.1)

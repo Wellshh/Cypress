@@ -232,7 +232,9 @@ def input_hashes(args):
     )
 
 
-def constraint_config(run_dir, spec, assignment, grid_mm, clearance_mm):
+def constraint_config(
+    run_dir, spec, assignment, grid_mm, clearance_mm, margin_mm, margin_tau_mm
+):
     cluster_path = REPO_ROOT / "experiments/m336/input/m336_clusters.json"
     cluster_manifest = json.loads(cluster_path.read_text())
     return {
@@ -257,6 +259,8 @@ def constraint_config(run_dir, spec, assignment, grid_mm, clearance_mm):
             "placement_region_field": "component_placeable_regions",
             "constraint_grid_mm": grid_mm,
             "clearance_mm": clearance_mm,
+            "keepin_margin_mm": margin_mm,
+            "keepin_margin_tau_mm": margin_tau_mm,
             "alignment_max_residual_mm": 0.05,
             "no_board_bbox_fallback": True,
         },
@@ -280,6 +284,8 @@ def placement_config(
     anchor_weight,
     grid_mm,
     clearance_mm,
+    margin_mm,
+    margin_tau_mm,
     aux_input,
     initial_placement=None,
 ):
@@ -342,6 +348,8 @@ def placement_config(
                 "keepin_projection_flag": spec["projection"],
                 "constraint_grid_mm": grid_mm,
                 "keepin_clearance_mm": clearance_mm,
+                "keepin_margin_mm": margin_mm,
+                "keepin_margin_tau_mm": margin_tau_mm,
                 "freeze_anchor_nodes": spec["freeze_anchors"],
                 "allow_region_reassignment": False,
                 "exact_repair_flag": spec["repair"],
@@ -532,6 +540,8 @@ def score_manual_baseline(args):
             args.assignment,
             args.grid_mm,
             args.clearance_mm,
+            args.keepin_margin_mm,
+            args.keepin_margin_tau_mm,
         ),
     )
     config = placement_config(
@@ -544,6 +554,8 @@ def score_manual_baseline(args):
         args.anchor_weight,
         args.grid_mm,
         args.clearance_mm,
+        args.keepin_margin_mm,
+        args.keepin_margin_tau_mm,
         args.bookshelf_dir / "m336.aux",
     )
     config.update(
@@ -664,6 +676,12 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         result["anchor_weight_scale"] = effective_weight
         result["constraint_grid_mm"] = float(args.grid_mm)
         result["keepin_clearance_mm"] = float(args.clearance_mm)
+        result["keepin_margin_mm"] = float(
+            config.get("keepin_margin_mm", args.keepin_margin_mm)
+        )
+        result["keepin_margin_tau_mm"] = float(
+            config.get("keepin_margin_tau_mm", args.keepin_margin_tau_mm)
+        )
         result["input_sha256"] = args.input_identity
         result["source_state"] = args.source_identity
         preflight_path = run_dir / "constraints" / "preflight.json"
@@ -680,6 +698,8 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
                 ),
                 "infeasible_domain_count": len(preflight["infeasible_domains"]),
                 "alignment": preflight["alignment"],
+                "keepin_margin_mm": preflight.get("keepin_margin_mm"),
+                "keepin_margin_tau_mm": preflight.get("keepin_margin_tau_mm"),
             }
         write_per_group_csv(run_dir / "per_group.csv", legality["per_group"])
         result["artifacts"] = stable_artifacts(
@@ -706,7 +726,13 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
     write_json(
         constraint_path,
         constraint_config(
-            run_dir, spec, args.assignment, args.grid_mm, args.clearance_mm
+            run_dir,
+            spec,
+            args.assignment,
+            args.grid_mm,
+            args.clearance_mm,
+            args.keepin_margin_mm,
+            args.keepin_margin_tau_mm,
         ),
     )
     config = placement_config(
@@ -719,6 +745,8 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         anchor_weight,
         args.grid_mm,
         args.clearance_mm,
+        args.keepin_margin_mm,
+        args.keepin_margin_tau_mm,
         args.bookshelf_dir / "m336.aux",
         initial_placement=args.baseline_pl,
     )
@@ -764,8 +792,13 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
     write_per_group_csv(run_dir / "per_group.csv", legality["per_group"])
 
     result = {
-        "run_id": "%s-aw-%s-seed-%d"
-        % (experiment_id.lower(), format(anchor_weight, "g"), seed),
+        "run_id": "%s-aw-%s-margin-%s-seed-%d"
+        % (
+            experiment_id.lower(),
+            format(anchor_weight, "g"),
+            format(args.keepin_margin_mm, "g"),
+            seed,
+        ),
         "git_sha": git_sha(),
         "experiment_id": experiment_id,
         "experiment_name": spec["name"],
@@ -773,6 +806,8 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         "anchor_weight_scale": float(anchor_weight),
         "constraint_grid_mm": float(args.grid_mm),
         "keepin_clearance_mm": float(args.clearance_mm),
+        "keepin_margin_mm": float(args.keepin_margin_mm),
+        "keepin_margin_tau_mm": float(args.keepin_margin_tau_mm),
         "command": command,
         "config": config,
         "input_sha256": args.input_identity,
@@ -788,6 +823,8 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
             ),
             "infeasible_domain_count": len(preflight["infeasible_domains"]),
             "alignment": preflight["alignment"],
+            "keepin_margin_mm": preflight.get("keepin_margin_mm"),
+            "keepin_margin_tau_mm": preflight.get("keepin_margin_tau_mm"),
         },
         "runtime_seconds": runtime,
         "device": (
@@ -1369,9 +1406,23 @@ def render_report(summary):
     )
     if len([row for row in summary["runs"] if row["experiment_id"] == "E4"]) == 3:
         lines.append("- E4 exact legality was evaluated for all three seeds.")
+    soft_diagnostics = [
+        row["metrics"].get("soft_keepin_loss_diagnostics")
+        for row in summary["runs"]
+    ]
+    soft_diagnostics = [row for row in soft_diagnostics if row is not None]
+    if any(row["constraint_gradient_l1"] > 0 for row in soft_diagnostics):
+        lines.append(
+            "- The interior keep-in margin produced a nonzero GPU gradient; "
+            "projection pressure and quality still require a controlled ablation."
+        )
+    elif soft_diagnostics:
+        lines.append(
+            "- The configured soft keep-in term produced zero gradient and is "
+            "not evidence of stabilization."
+        )
     lines.extend(
         [
-            "- The soft keep-in gradient is zero after mandatory pre-objective hard projection; it is currently a diagnostic no-op, not evidence of stabilization.",
             "- End-to-end runtime misses the target because each subprocess rebuilds 100 Shapely feasible domains and E4 performs exact packing repair.",
             "- Full configs, hashes, logs, placements, per-group CSV files, legality reports, and E4 repair reports are indexed by `summary.json`.",
             "",
@@ -1438,6 +1489,10 @@ def reproduction_command(args, weights=None):
         format(args.grid_mm, "g"),
         "--clearance-mm",
         format(args.clearance_mm, "g"),
+        "--keepin-margin-mm",
+        format(args.keepin_margin_mm, "g"),
+        "--keepin-margin-tau-mm",
+        format(args.keepin_margin_tau_mm, "g"),
         "--site-mm",
         format(args.site_mm, "g"),
         "--assignment",
@@ -1508,6 +1563,8 @@ def main():
     )
     parser.add_argument("--grid-mm", type=float, default=0.1)
     parser.add_argument("--clearance-mm", type=float, default=0.0)
+    parser.add_argument("--keepin-margin-mm", type=float, default=0.1)
+    parser.add_argument("--keepin-margin-tau-mm", type=float, default=0.05)
     parser.add_argument("--site-mm", type=float, default=0.05)
     parser.add_argument("--summary-path", type=Path)
     parser.add_argument("--report-path", type=Path)
@@ -1539,6 +1596,8 @@ def main():
         args.anchor_weight <= 0
         or args.grid_mm <= 0
         or args.clearance_mm < 0
+        or args.keepin_margin_mm < 0
+        or args.keepin_margin_tau_mm <= 0
         or args.site_mm <= 0
     ):
         parser.error("weights/grid must be positive and clearance non-negative")
@@ -1596,6 +1655,8 @@ def main():
             "anchor_weight_scales": weights,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
+            "keepin_margin_mm": args.keepin_margin_mm,
+            "keepin_margin_tau_mm": args.keepin_margin_tau_mm,
             "invocation": invocation,
             "reproduction_command": reproduction_command(args, weights),
             "manual_baseline": args.manual_baseline,
@@ -1629,6 +1690,8 @@ def main():
             "iterations": args.iterations,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
+            "keepin_margin_mm": args.keepin_margin_mm,
+            "keepin_margin_tau_mm": args.keepin_margin_tau_mm,
             "device": results[0]["device"] if results else "unknown",
             "invocation": invocation,
             "reproduction_command": reproduction_command(args),

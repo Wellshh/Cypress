@@ -1235,6 +1235,8 @@ class AnchorKeepInContext:
         exact_repair_enabled,
         initialization_mode,
         grid,
+        keepin_margin,
+        keepin_margin_tau,
     ):
         self.config = config
         self.geometry = geometry
@@ -1255,6 +1257,8 @@ class AnchorKeepInContext:
         self.exact_repair_enabled = bool(exact_repair_enabled)
         self.initialization_mode = str(initialization_mode)
         self.grid = float(grid)
+        self.keepin_margin = float(keepin_margin)
+        self.keepin_margin_tau = float(keepin_margin_tau)
         self.projector = RegionProjector(
             num_nodes=self.num_nodes,
             constraints=self.constraints,
@@ -1336,8 +1340,18 @@ class AnchorKeepInContext:
 
         grid_mm = float(getattr(params, "constraint_grid_mm", 0.1))
         clearance_mm = float(getattr(params, "keepin_clearance_mm", 0.0))
+        keepin_margin_mm = float(getattr(params, "keepin_margin_mm", 0.1))
+        keepin_margin_tau_mm = float(
+            getattr(params, "keepin_margin_tau_mm", 0.05)
+        )
+        if keepin_margin_mm < 0:
+            raise ValueError("keepin_margin_mm must be non-negative")
+        if keepin_margin_tau_mm <= 0:
+            raise ValueError("keepin_margin_tau_mm must be positive")
         grid = grid_mm * abs(alignment.scale)
         clearance = clearance_mm * abs(alignment.scale)
+        keepin_margin = keepin_margin_mm * abs(alignment.scale)
+        keepin_margin_tau = keepin_margin_tau_mm * abs(alignment.scale)
         domain_cache = {}
         constraints = []
         frozen_lower_left = {}
@@ -1521,6 +1535,8 @@ class AnchorKeepInContext:
             exact_repair_enabled=getattr(params, "exact_repair_flag", False),
             initialization_mode=initialization_mode,
             grid=grid,
+            keepin_margin=keepin_margin,
+            keepin_margin_tau=keepin_margin_tau,
         )
         context.write_preflight(infeasible)
         return context
@@ -1538,6 +1554,9 @@ class AnchorKeepInContext:
                 name: _sha256(path) for name, path in self.input_paths.items()
             },
             "alignment": self.alignment.to_dict(),
+            "keepin_margin_mm": self.keepin_margin / abs(self.alignment.scale),
+            "keepin_margin_tau_mm": self.keepin_margin_tau
+            / abs(self.alignment.scale),
         }
         with (self.output_dir / "preflight.json").open("w") as stream:
             json.dump(report, stream, indent=2, sort_keys=True)
@@ -1641,12 +1660,23 @@ class AnchorKeepInContext:
             board_diagonal=diagonal,
         ).to(data_collections.pos[0].device)
 
-    def build_soft_loss(self, placedb):
-        return SoftKeepInLoss(
+    def build_soft_loss(self, data_collections, placedb):
+        loss = SoftKeepInLoss(
             constraints=self.constraints,
             num_nodes=placedb.num_nodes,
-            tau=max(self.grid, np.finfo(float).eps),
+            margin=self.keepin_margin,
+            tau=self.keepin_margin_tau,
+            dtype=data_collections.pos[0].dtype,
         )
+        scale = abs(self.alignment.scale)
+        logging.info(
+            "soft keep-in interior margin = %.6g mm, tau = %.6g mm, "
+            "%d cached distance fields",
+            self.keepin_margin / scale,
+            self.keepin_margin_tau / scale,
+            len(loss.distance_fields),
+        )
+        return loss
 
     def zero_frozen_gradients(self, gradient):
         if gradient is None or not self.frozen_lower_left:

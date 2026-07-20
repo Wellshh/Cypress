@@ -348,8 +348,16 @@
         "default": false
     },
     "keepin_soft_loss_weight_scale": {
-        "description": "scale applied to gradient-norm-matched soft keep-in loss weight",
+        "description": "scale applied to gradient-norm-matched interior keep-in margin weight",
         "default": 1.0
+    },
+    "keepin_margin_mm": {
+        "description": "interior keep-in safety margin in millimeters",
+        "default": 0.1
+    },
+    "keepin_margin_tau_mm": {
+        "description": "softplus transition width for the keep-in margin in millimeters",
+        "default": 0.05
     },
     "keepin_projection_flag": {
         "description": "project constrained components into footprint-aware feasible domains",

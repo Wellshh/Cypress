@@ -1,7 +1,7 @@
 # M336-002: Soft Keep-In Has Zero Gradient After Projection
 
 **Severity:** High
-**Status:** Open
+**Status:** Mitigated
 **Found:** 2026-07-17
 **Affected commit:** `d9e7674`
 
@@ -54,3 +54,13 @@ loss `0`, gradient L1 `0`, and matched weight `1.0`.
 - Runtime logs separately report pre-projection displacement and soft loss.
 - A controlled ablation demonstrates either measurable benefit or justified
   removal; no result may claim soft keep-in guidance while its gradient is zero.
+
+## Resolution Evidence
+
+M336-144 replaces the detached outside-only term with a footprint-aware
+interior distance-field barrier. Unit tests prove inward finite gradients,
+finite-difference agreement, and CPU/GPU consistency. A controlled same-grid
+native E3 sweep records nonzero gradient for every tested margin and reduces
+projection pressure and overlap substantially versus this issue's zero-gradient
+baseline. Native HPWL/RSMT regresses slightly, so the term is retained only as
+a stabilization mechanism pending the final integrated ablation.

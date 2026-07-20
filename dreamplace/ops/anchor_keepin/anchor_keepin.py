@@ -1,8 +1,6 @@
-"""Small PyTorch reference losses for feature-gated PCB constraints."""
+"""PyTorch losses for feature-gated PCB constraints."""
 
 from __future__ import annotations
-
-import math
 
 import torch
 import torch.nn as nn
@@ -62,36 +60,99 @@ class AnchorKeepInLoss(nn.Module):
         return (losses * self.weights.to(device=pos.device, dtype=pos.dtype)).mean()
 
 
-class SoftKeepInLoss(nn.Module):
-    """Piecewise differentiable distance penalty outside feasible domains."""
+class _InsideDistanceField(nn.Module):
+    """Batched sampler for nodes sharing one footprint-aware feasible domain."""
 
-    def __init__(self, constraints, num_nodes, tau):
+    def __init__(self, constraints, dtype):
         super().__init__()
-        self.constraints = tuple(constraints)
+        domain = constraints[0].domain
+        self.register_buffer(
+            "node_ids",
+            torch.as_tensor(
+                [constraint.node_id for constraint in constraints], dtype=torch.long
+            ),
+        )
+        self.register_buffer(
+            "node_widths",
+            torch.as_tensor(
+                [constraint.node_width for constraint in constraints], dtype=dtype
+            ),
+        )
+        self.register_buffer(
+            "node_heights",
+            torch.as_tensor(
+                [constraint.node_height for constraint in constraints], dtype=dtype
+            ),
+        )
+        self.register_buffer(
+            "distance_field",
+            torch.as_tensor(domain.inside_distance, dtype=dtype)[None, None].contiguous(),
+        )
+        x_span = float(domain.x_values[-1] - domain.x_values[0])
+        y_span = float(domain.y_values[-1] - domain.y_values[0])
+        self.x_origin = float(domain.x_values[0])
+        self.y_origin = float(domain.y_values[0])
+        self.x_scale = 2.0 / x_span if x_span > 0 else 0.0
+        self.y_scale = 2.0 / y_span if y_span > 0 else 0.0
+
+    def forward(self, pos, num_nodes):
+        center_x = pos[self.node_ids] + self.node_widths / 2
+        center_y = pos[num_nodes + self.node_ids] + self.node_heights / 2
+        if self.x_scale:
+            normalized_x = (center_x - self.x_origin) * self.x_scale - 1
+        else:
+            normalized_x = torch.zeros_like(center_x)
+        if self.y_scale:
+            normalized_y = (center_y - self.y_origin) * self.y_scale - 1
+        else:
+            normalized_y = torch.zeros_like(center_y)
+        sampling_grid = torch.stack((normalized_x, normalized_y), dim=1).view(
+            -1, 1, 1, 2
+        )
+        distances = functional.grid_sample(
+            self.distance_field.expand(len(self.node_ids), -1, -1, -1),
+            sampling_grid,
+            mode="bilinear",
+            padding_mode="zeros",
+            align_corners=True,
+        )
+        return distances[:, 0, 0, 0]
+
+
+class SoftKeepInLoss(nn.Module):
+    """Differentiable interior-margin barrier over feasible-domain fields."""
+
+    def __init__(self, constraints, num_nodes, margin, tau, dtype=torch.float32):
+        super().__init__()
+        constraints = tuple(constraints)
         self.num_nodes = int(num_nodes)
+        self.margin = float(margin)
         self.tau = float(tau)
+        if self.margin < 0:
+            raise ValueError("soft keep-in margin must be non-negative")
         if self.tau <= 0:
             raise ValueError("soft keep-in tau must be positive")
 
-    def forward(self, pos):
-        losses = []
-        for constraint in self.constraints:
-            node_id = constraint.node_id
-            center = torch.stack(
-                (
-                    pos[node_id] + constraint.node_width / 2,
-                    pos[self.num_nodes + node_id] + constraint.node_height / 2,
-                )
+        constraints_by_domain = {}
+        for constraint in constraints:
+            constraints_by_domain.setdefault(id(constraint.domain), []).append(
+                constraint
             )
-            detached_center = tuple(center.detach().cpu().tolist())
-            if constraint.domain.contains(detached_center):
-                losses.append(center.sum() * 0)
-                continue
-            projected, _ = constraint.domain.project(detached_center)
-            target = center.new_tensor(projected)
-            distance = torch.linalg.vector_norm(center - target)
-            stabilized = functional.softplus(distance / self.tau) - math.log(2.0)
-            losses.append(stabilized.square())
-        if not losses:
+        self.distance_fields = nn.ModuleList(
+            _InsideDistanceField(group, dtype)
+            for group in constraints_by_domain.values()
+        )
+
+    def sampled_inside_distances(self, pos):
+        if not self.distance_fields:
+            return pos.new_empty(0)
+        return torch.cat(
+            [field(pos, self.num_nodes) for field in self.distance_fields]
+        )
+
+    def forward(self, pos):
+        distances = self.sampled_inside_distances(pos)
+        if not distances.numel():
             return pos.sum() * 0
-        return torch.stack(losses).mean()
+        normalized_margin = (self.margin - distances) / self.tau
+        return functional.softplus(normalized_margin).square().mean()
