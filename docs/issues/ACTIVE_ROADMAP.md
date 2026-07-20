@@ -230,6 +230,12 @@ displacement deficit `32.15x`. Only `6.53%` of net movement becomes anchor gain,
 so bounded LR experiments must gate direction quality and overlap, not merely
 produce larger steps.
 
+The bounded runner control confirms scale `2` nearly doubles effective LR,
+path, and net displacement and slightly improves native quality. It is rejected
+because 10-step overlaps grow from 28 to 42 and projection events from zero to
+three. Stop the `4/8/16/32` ladder and return to M336-163 footprint-scale
+collision pressure; do not use E4 repair to conceal this regression.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

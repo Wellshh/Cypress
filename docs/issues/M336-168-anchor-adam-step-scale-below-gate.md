@@ -60,6 +60,20 @@ anchor-distance improvement. The optimizer therefore has both a scale deficit
 and weak anchor-direction yield; increasing LR alone is not sufficient evidence
 of progress.
 
+A runner-level scale control now bounds the configured native learning-rate
+multiplier to `[1, 32]`, defaults to `1`, and serializes the value in config,
+run identity, summary, and reproduction command. Scale `1` remains byte-identical
+to the 10-step control. Scale `2` raises effective LR from `0.02308556` to
+`0.04538150`; constrained path/net grow by `1.964x/1.954x`. HPWL/RSMT improve
+from `15632.686698/17325.676` to `15630.966773/17319.109`, score rises from
+`0.9281007795` to `0.9283287979`, and mean anchor distance improves by another
+`0.003116 mm`.
+
+This is not promotable: exact overlaps rise from 28 to 42 in only 10 steps and
+projection events rise from zero to three. The `4/8/16/32` ladder is stopped
+until M336-163 supplies footprint-scale collision pressure. Larger motion alone
+would hand a larger conflict closure to E4.
+
 ## Impact
 
 - The 25%/15% anchor gate is unattainable under the measured step envelope.
@@ -69,10 +83,9 @@ of progress.
 
 ## Remediation
 
-The required instrumentation and unchanged 50-step control are complete. Add a
-feature-gated, bounded initial-LR scale and test `2/4/8/16/32` on seed 1000,
-stopping on non-finite objectives, keep-in failure, or unacceptable overlap and
-native-score regression. Candidate changes must remain inside
+The required instrumentation, unchanged 50-step control, and bounded scale
+mechanism are complete. Scale `2` hit the overlap stop condition, so resolve
+M336-163 before resuming larger values. Candidate changes must remain inside
 `NonLinearPlace -> PlaceObj -> backward -> optimizer.step`; no coordinate
 teleport, checkpoint fallback, or exact-site closure may count as improvement.
 

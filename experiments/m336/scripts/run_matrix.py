@@ -34,6 +34,9 @@ DEFAULT_M336_CHECKPOINT_PL = (
 )
 DEFAULT_M336_CONSTRAINT_GRID_MM = 0.05
 DEFAULT_M336_TARGET_DENSITY = 0.85
+DEFAULT_M336_LEARNING_RATE = 0.01
+MIN_M336_LEARNING_RATE_SCALE = 1.0
+MAX_M336_LEARNING_RATE_SCALE = 32.0
 DEFAULT_CUBLAS_WORKSPACE_CONFIG = ":4096:8"
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
 IMPLEMENTATION_FILES = (
@@ -376,7 +379,18 @@ def placement_config(
     irregular_density=True,
     initialization_track="cold_source",
     feasible_domain_cache_dir=None,
+    learning_rate_scale=1.0,
 ):
+    learning_rate_scale = float(learning_rate_scale)
+    if (
+        not math.isfinite(learning_rate_scale)
+        or learning_rate_scale < MIN_M336_LEARNING_RATE_SCALE
+        or learning_rate_scale > MAX_M336_LEARNING_RATE_SCALE
+    ):
+        raise ValueError(
+            "learning-rate scale must be finite and within [%g, %g]"
+            % (MIN_M336_LEARNING_RATE_SCALE, MAX_M336_LEARNING_RATE_SCALE)
+        )
     initialization_modes = {
         "cold_source": "preserve_legal",
         "checkpoint_warm_start": "checkpoint_warm_start",
@@ -407,7 +421,9 @@ def placement_config(
                 "num_bins_x": 64,
                 "num_bins_y": 32,
                 "iteration": iterations,
-                "learning_rate": 0.01,
+                "learning_rate": (
+                    DEFAULT_M336_LEARNING_RATE * learning_rate_scale
+                ),
                 "wirelength": "weighted_average",
                 "optimizer": "adam",
                 "Llambda_density_weight_iteration": 1,
@@ -1074,6 +1090,20 @@ def run_one(
                 "cannot reevaluate with changed input hashes: %s" % result_path
             )
         config = result["config"]
+        configured_learning_rate_scale = (
+            float(config["global_place_stages"][0]["learning_rate"])
+            / DEFAULT_M336_LEARNING_RATE
+        )
+        if not math.isclose(
+            configured_learning_rate_scale,
+            args.learning_rate_scale,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise RuntimeError(
+                "cannot reevaluate with changed learning-rate scale: %s"
+                % result_path
+            )
         constraint_path = run_dir / "anchor_keepin.json"
         placement_dir = run_dir / "m336"
         placement_path = placement_dir / "m336.gp.pl"
@@ -1143,6 +1173,7 @@ def run_one(
         result["irregular_density_enabled"] = bool(
             config.get("irregular_density_flag", False)
         )
+        result["learning_rate_scale"] = configured_learning_rate_scale
         result["input_sha256"] = args.input_identity
         result.setdefault("source_state", args.source_identity)
         result["environment"] = args.environment_identity
@@ -1238,6 +1269,16 @@ def run_one(
         return result
     if args.resume and result_path.exists():
         result = json.loads(result_path.read_text())
+        if not math.isclose(
+            float(result.get("learning_rate_scale", 1.0)),
+            args.learning_rate_scale,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise RuntimeError(
+                "cannot resume with changed learning-rate scale: %s"
+                % result_path
+            )
         result["manual_baseline_comparison"] = compare_with_manual_baseline(
             result["metrics"], args.manual_baseline
         )
@@ -1283,6 +1324,7 @@ def run_one(
         irregular_density=args.irregular_density,
         initialization_track=initialization_track,
         feasible_domain_cache_dir=args.feasible_domain_cache_dir,
+        learning_rate_scale=args.learning_rate_scale,
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -1342,13 +1384,21 @@ def run_one(
         preflight_path = serialized_dir / "constraints" / "preflight.json"
     preflight = json.loads(preflight_path.read_text())
     write_per_group_csv(run_dir / "per_group.csv", legality["per_group"])
+    learning_rate_tag = (
+        ""
+        if math.isclose(
+            args.learning_rate_scale, 1.0, rel_tol=0.0, abs_tol=1e-12
+        )
+        else "-lr-%s" % format(args.learning_rate_scale, "g")
+    )
 
     result = {
-        "run_id": "%s-%s-ar-%s-margin-%s-seed-%d"
+        "run_id": "%s-%s-ar-%s%s-margin-%s-seed-%d"
         % (
             initialization_track,
             experiment_id.lower(),
             format(anchor_gradient_ratio, "g"),
+            learning_rate_tag,
             format(args.keepin_margin_mm, "g"),
             seed,
         ),
@@ -1358,6 +1408,7 @@ def run_one(
         "initialization_track": initialization_track,
         "seed": seed,
         "anchor_gradient_ratio": float(anchor_gradient_ratio),
+        "learning_rate_scale": float(args.learning_rate_scale),
         "constraint_grid_mm": float(args.grid_mm),
         "keepin_clearance_mm": float(args.clearance_mm),
         "keepin_margin_mm": float(args.keepin_margin_mm),
@@ -2120,6 +2171,8 @@ def reproduction_command(args, weights=None):
         *map(str, args.seeds),
         "--iterations",
         str(args.iterations),
+        "--learning-rate-scale",
+        format(args.learning_rate_scale, "g"),
         "--gpu" if args.gpu else "--no-gpu",
         (
             "--irregular-density"
@@ -2188,6 +2241,12 @@ def main():
     parser.add_argument("--experiments", nargs="+", default=list(DEFAULT_EXPERIMENTS))
     parser.add_argument("--seeds", nargs="+", type=int, default=[1000, 1001, 1002])
     parser.add_argument("--iterations", type=int, default=5)
+    parser.add_argument(
+        "--learning-rate-scale",
+        type=float,
+        default=1.0,
+        help="bounded multiplier for the native stage learning rate",
+    )
     parser.add_argument("--gpu", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
         "--irregular-density",
@@ -2295,6 +2354,9 @@ def main():
         )
     if (
         args.anchor_gradient_ratio <= 0
+        or not math.isfinite(args.learning_rate_scale)
+        or args.learning_rate_scale < MIN_M336_LEARNING_RATE_SCALE
+        or args.learning_rate_scale > MAX_M336_LEARNING_RATE_SCALE
         or args.grid_mm <= 0
         or args.clearance_mm < 0
         or args.keepin_margin_mm < 0
@@ -2303,7 +2365,9 @@ def main():
     ):
         parser.error(
             "anchor ratio, grid, margin tau, and site size must be positive; "
-            "clearance and margin must be non-negative"
+            "learning-rate scale must be within [%g, %g]; clearance and "
+            "margin must be non-negative"
+            % (MIN_M336_LEARNING_RATE_SCALE, MAX_M336_LEARNING_RATE_SCALE)
         )
     if args.anchor_gradient_ratio_sweep and any(
         ratio <= 0 for ratio in args.anchor_gradient_ratio_sweep
@@ -2357,6 +2421,7 @@ def main():
             "experiments": args.experiments,
             "seeds": args.seeds,
             "iterations": args.iterations,
+            "learning_rate_scale": args.learning_rate_scale,
             "anchor_gradient_ratios": ratios,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
@@ -2402,6 +2467,7 @@ def main():
             "experiments": args.experiments,
             "seeds": args.seeds,
             "iterations": args.iterations,
+            "learning_rate_scale": args.learning_rate_scale,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
             "keepin_margin_mm": args.keepin_margin_mm,

@@ -332,6 +332,45 @@ class M336BaselineTest(unittest.TestCase):
             enabled["diagnostic_validation_on_high_overflow_flag"]
         )
 
+    def test_learning_rate_scale_is_bounded_and_default_off(self):
+        arguments = (
+            Path("/tmp/m336-run"),
+            Path("/tmp/m336-constraints.json"),
+            EXPERIMENTS["E3"],
+            1000,
+            10,
+            True,
+            0.1,
+            0.05,
+            0.0,
+            0.1,
+            0.05,
+            Path("/tmp/m336.aux"),
+        )
+
+        default = placement_config(
+            *arguments, source_placement=Path("/tmp/m336.pl")
+        )
+        scaled = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            learning_rate_scale=4.0,
+        )
+
+        self.assertEqual(
+            default["global_place_stages"][0]["learning_rate"], 0.01
+        )
+        self.assertEqual(
+            scaled["global_place_stages"][0]["learning_rate"], 0.04
+        )
+        for invalid in (0.5, 33.0, float("inf")):
+            with self.assertRaisesRegex(ValueError, "learning-rate scale"):
+                placement_config(
+                    *arguments,
+                    source_placement=Path("/tmp/m336.pl"),
+                    learning_rate_scale=invalid,
+                )
+
     def test_nonfinite_native_scores_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "hpwl"):
             require_finite_native_scores({"hpwl": float("inf"), "rsmt": 1.0})
