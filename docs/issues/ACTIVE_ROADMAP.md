@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-173`
+**Evidence through:** `M336-174`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (D2 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-171 passes warm scale-1 D1; M336-172 stops scale-2 because broad contact scope and negative E3 anchor direction fail D2 |
+| N6 (D2 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-174 must bound cumulative consensus corrections without hiding M336-172 endpoint pressure; D1 and D2 must then requalify |
 
 ## Paused Exact-Site Priorities
 
@@ -358,6 +358,19 @@ drop and installed-module anchor/config/reproducibility/contact/guard suites all
 pass. This is not a promotion result: do not run another D2 until its gates are
 authorized, and do not use the schedule fix to relax the genuine 32-active-node
 boundary found by M336-172.
+
+M336-174 separates broad native contact pressure from the actual bounded
+consensus intervention. Current all-active components average and overwrite
+every member proposal, so the 32-node endpoint pre-check also charges one node
+that could remain at its native proposal in every disconnected component. In
+the M336-172 artifact, active endpoint counts reach `34`, while a static
+one-representative-per-component estimate reaches only `22`; this estimate is
+not replay or promotion evidence. The proposed invariant retains the numeric
+cap at 32 but applies it to the cumulative union of active IDs selected for
+consensus writes across all closure iterations. Endpoint counts remain an
+independent pressure metric, inactive-authority components charge every active
+member, and cap checks occur before mutation. Implement and test this contract,
+then requalify D1 before the one predeclared D2 replay. D3 remains prohibited.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
