@@ -1,13 +1,13 @@
 # M336 Native Cypress Recovery — Durable Goal
 
-Repository: `Wellshh/Cypress`
-Branch: `experiment`
-Reference head at task creation: `f0e4cb9` (`M336-140`)
+Repository: `Wellshh/Cypress`  
+Branch: `experiment`  
+Current reference head: `239b668` (`M336-168`)  
 Primary board: `M336`
 
 ## Objective
 
-Move the M336 project’s active optimization path back from the offline exact-site
+Move the M336 project’s active optimization path from the offline exact-site
 CP-SAT reference optimizer to Cypress/DREAMPlace’s native GPU global-placement
 pipeline.
 
@@ -16,9 +16,10 @@ The task is successful only when actual runs execute:
 ```text
 dreamplace/NonLinearPlace.py
   -> dreamplace/PlaceObj.py
-  -> differentiable wirelength/density/anchor/keep-in objectives
+  -> differentiable wirelength/density/anchor/keep-in/collision objectives
   -> CUDA/PyTorch backward
   -> optimizer updates
+  -> explicit hard projection and accepted-step checks
   -> exact validation
   -> native HPWL and FLUTE RSMT scoring
 ```
@@ -31,53 +32,241 @@ fails, and must not be presented as evidence that Cypress itself improved.
 ## Frozen factual baseline
 
 - M336-118 remains the accepted exact-legal reference checkpoint.
-- Its HPWL-only score upper bound is approximately `0.9760733`.
-- A final repeated native RSMT gate has not yet been run for that checkpoint.
-- M336-140 is committed at `f0e4cb9`.
-- `experiments/m336/guides/M336-141/` is user-owned, untracked partial evidence.
-  Preserve it exactly; do not delete, overwrite, commit, or resume its pair scan.
-- Current exact-site work may be paused in the roadmap, but its append-only issue
-  history and portable checkpoints must remain intact.
+- Repeated float-preserving native evaluation reports HPWL
+  `15634.45047733283`, FLUTE RSMT `17333.037`, and normalized score
+  `0.9278501538723687`.
+- M336-140 is the final committed exact-site quality milestone; that search
+  track remains paused.
+- `experiments/m336/guides/M336-141/` is user-owned partial evidence. Preserve
+  it exactly; do not delete, overwrite, commit, or resume its pair scan.
+- Objective purity, explicit projection, differentiable keep-in margin,
+  subgroup-balanced adaptive anchor control, irregular side-specific density,
+  float64 native scoring, cold/warm tracks, bounded repair, and deterministic
+  CuBLAS execution are implemented and retained.
+- A legal checkpoint-warm placement still develops `66/71` same-side overlap
+  pairs after 50 native E2/E3 steps. Learning-rate scale `2` improves HPWL/RSMT
+  slightly but increases 10-step overlaps from `28` to `42`. Larger LR or
+  anchor-ratio ladders are prohibited until native collision pressure is fixed.
 
 ## Required native-algorithm outcomes
 
-1. Establish a reproducible native GPU baseline and repeated native HPWL/RSMT
-   score for M336-118 before claiming any algorithmic improvement.
-2. Make `PlaceObj.obj_fn()` pure with respect to placement coordinates; projection
-   must occur only at explicit optimizer/line-search boundaries.
-3. Replace the current outside-only soft keep-in no-op with a differentiable
-   interior-margin signal, or remove the term if a controlled ablation shows no
-   benefit.
-4. Make anchor attraction group-balanced, scheduled, bounded, and observable
-   instead of relying on one unbounded, initialization-only gradient match.
-5. Make TOP/BOTTOM density aware of irregular usable placement capacity so the
-   continuous optimizer receives an inward force before hard projection.
-6. Preserve legal warm starts and repair only illegal/conflicting closures; do
-   not repack every constrained component by default.
-7. Separate cold preprocessing, warm-cache initialization, GPU optimization,
-   validation, repair, and native scoring in runtime reports.
-8. Re-run E0-E4 with three seeds using the same input hashes, device, iteration
-   budget, and scoring path.
+1. Preserve the reproducible native GPU and native HPWL/RSMT scoring contract.
+2. Keep `PlaceObj.obj_fn()` pure with projection only at explicit optimizer and
+   line-search boundaries.
+3. Retain the differentiable interior keep-in margin as a stabilization signal,
+   with hard projection as the final region guarantee.
+4. Keep anchor attraction subgroup-balanced, scheduled, bounded, and observable.
+5. Keep TOP/BOTTOM density aware of conservative irregular usable capacity.
+6. Prevent a legal native placement from developing same-side footprint
+   overlaps during accepted optimizer steps.
+7. Preserve legal warm starts and repair only small measured illegal/conflicting
+   closures; never repack the full constrained placement by default.
+8. Separate preprocessing, cache, initialization, GPU optimization, validation,
+   repair, serialization, and native scoring in runtime reports.
+9. Run the final cold/warm E0-E4 matrix only after the native overlap gate passes.
+
+## Current critical milestone: N6 native same-side collision control
+
+The next critical step is to solve M336-163 upstream. Increasing learning rate,
+anchor weight, E4 repair scope, density bins, or CP-SAT effort before this gate
+passes is out of scope.
+
+### A. Add a differentiable pre-contact footprint barrier
+
+Implement a default-off, side-specific collision objective for constrained
+movable components. It must become nonzero before positive-area contact, so a
+legal placement receives an avoidance gradient rather than waiting until two
+footprints already overlap.
+
+Preferred footprint-aware construction for the fixed-orientation M336 phase:
+
+1. Rasterize each unique local footprint conservatively on an explicit
+   `collision_grid_mm`, initially `0.05 mm`.
+2. For each unique same-side footprint-pair class, build the relative-center
+   configuration-space collision mask using binary mask correlation/convolution.
+3. Convert that mask into a signed or outside-clearance distance field and cache
+   it by footprint hashes, side, grid, margin, and orientation.
+4. Build a conservative same-side broadphase pair list using expanded AABBs and
+   a skin at least equal to collision margin plus the maximum allowed proposal
+   distance. Refresh the list at explicit accepted-step boundaries.
+5. In `forward()`, sample only PyTorch tensors on the active device, preferably
+   with `grid_sample`, using the relative component-center vector. Do not call
+   Shapely, NumPy geometry, `.cpu()`, or detached collision decisions in the
+   autograd path.
+
+For pair clearance `d_ij`, positive outside the collision configuration and
+negative inside it, use a barrier of the form:
+
+```text
+L_collision = mean(softplus((collision_margin - d_ij) / tau)^2)
+```
+
+Requirements:
+
+- Handle concave footprints and unequal component dimensions to the declared
+  raster tolerance; an AABB-only objective is not sufficient as the final
+  implementation.
+- Use separate TOP and BOTTOM pair sets.
+- Exclude frozen/fixed pairs from trainable pair-pair loss, while retaining them
+  as fixed-obstacle barriers for movable components.
+- Cache repeated footprint-pair fields; do not build O(N²) geometry during every
+  objective call.
+- Add bounded, accepted-iteration weight control with serialized raw gradient
+  norms, effective weight, active pair count, minimum clearance, and loss.
+- E2 and E3 must use identical collision settings; anchor loss remains their
+  only behavioral difference.
+
+### B. Add an exact accepted-step overlap guard
+
+A differentiable approximation is not the final legality guarantee. After every
+optimizer proposal and keep-in projection, run a bounded exact same-side
+broadphase/narrowphase check outside autograd.
+
+For a run whose accepted starting position has zero exact overlaps:
+
+```text
+an accepted step must also have zero positive-area same-side overlaps
+```
+
+If a candidate crosses the collision boundary:
+
+1. reject the candidate;
+2. restore the complete pre-step position;
+3. restore the optimizer state, including Adam moments or Nesterov histories;
+4. reduce the current learning rate by a configurable backoff, initially `0.5`;
+5. retry the native step up to a small explicit limit, initially `4`;
+6. fail closed with a structured artifact if no legal native step is found.
+
+Do not clear only selected momentum entries after a rejected step; the rejected
+optimizer transition must be rolled back consistently. The guard is a native
+trust-region/acceptance mechanism, not a legalizer and not a checkpoint
+fallback.
+
+Serialize for every accepted or rejected attempt:
+
+- step and retry index;
+- requested/effective LR;
+- exact overlap pair count and area before/proposal/accepted;
+- first newly crossing pairs and their areas;
+- collision-barrier value, minimum clearance, and gradient norm;
+- proposal, accepted-path, and net displacement;
+- rollback and optimizer-state restoration status.
+
+### C. Tests required before GPU experiments
+
+Add focused CPU tests and GPU tests where available:
+
+1. configuration-space mask agrees with exact Shapely collision decisions on
+   contact, separation, and penetration samples;
+2. pair field is symmetric under component-order reversal;
+3. gradient descent points toward increasing clearance near every tested side;
+4. concave and unequal-footprint cases have no false-negative collision cells;
+5. broadphase includes every pair within margin plus skin;
+6. forward performs no runtime geometry calls or device transfers;
+7. exact accepted-step guard rejects a crossing proposal;
+8. Adam and Nesterov position/state rollback is byte-consistent;
+9. feature-off objective, placement, and legacy benchmark metrics remain
+   byte-identical to the `f0e4cb9` contract;
+10. repeated deterministic CUDA runs retain identical hashes and native scores.
+
+### D. Experiment sequence and promotion gates
+
+Run only seed `1000` until every gate below passes.
+
+#### D1 — warm 10-step collision smoke
+
+Run checkpoint-warm E2 and E3 with LR scale `1`:
+
+```text
+collision feature off
+collision barrier only
+collision barrier + exact step guard
+```
+
+Promotion requirements:
+
+- `100/100` contained and zero keep-in violations;
+- zero exact overlap after every accepted step for barrier+guard;
+- finite objective and gradients;
+- no broad E4 repair;
+- native HPWL/RSMT regression no worse than `0.5%` versus the same-run
+  feature-off control;
+- per-step overhead reported and no more than `2x` before optimization work is
+  expanded.
+
+#### D2 — bounded motion recovery
+
+Only after D1 passes, repeat warm E2/E3 at learning-rate scale `2`.
+
+Promotion requirements:
+
+- zero accepted-step overlaps;
+- projection pressure does not exceed the scale-1 control materially;
+- native score does not regress;
+- constrained net displacement increases without handing a large closure to E4;
+- anchor mean and p90 move in the intended direction.
+
+Do not run scales `4/8/16/32` unless scale `2` passes all gates.
+
+#### D3 — warm 50-step diagnostic
+
+Run E2, E3, and E4 at the selected safe scale.
+
+Promotion requirements:
+
+- E2/E3 remain zero-overlap throughout accepted steps;
+- E4 repair is a no-op or a measured local closure of at most `16` components;
+- E4 exact legality is `100/100`, zero keep-in violations, zero overlaps;
+- repair HPWL degradation is at most `0.5%` and replayed;
+- warm E4 end-to-end runtime remains at most `2x` E0;
+- native HPWL, FLUTE RSMT, score, hashes, and runtime stages are complete.
+
+#### D4 — cold/source diagnostic
+
+Only after warm D3 passes, run cold E2/E3/E4. Preserve fail-closed behavior and
+emit a structured repair-failure artifact if cold E4 cannot remain within its
+bounded closure.
+
+#### D5 — final matrix
+
+Only after D1-D4 pass, run E0-E4 for seeds `1000/1001/1002` on both declared
+tracks with one frozen configuration and scoring contract.
+
+## Stop conditions
+
+Stop the current experiment and report evidence rather than weakening the
+contract when:
+
+- a configuration-space field has any exact-collision false negative;
+- an accepted warm step has a positive-area overlap;
+- rollback does not restore optimizer and position hashes;
+- collision loss or gradients are non-finite;
+- runtime geometry enters the autograd path;
+- scale `2` again grows overlap pressure;
+- E4 obtains legality through broad packing or checkpoint fallback;
+- a result is scored before float64 serialization and exact replay;
+- a native failure triggers resumed open-ended CP-SAT, one-opt, or pair search.
 
 ## Hard acceptance gates
 
 - Feature-off behavior does not regress.
 - Native GPU execution is proven by actual backward/optimizer evidence; fixed
   placement evaluation alone does not count.
+- A legal warm start remains zero-overlap during native E2/E3 optimization.
 - E4 ends with `100/100` constrained containment, zero keep-in violations, and
   zero same-side overlaps.
-- Near-boundary keep-in margin tests have finite, inward, nonzero gradients.
+- Near-boundary keep-in and collision-margin tests have finite, inward, nonzero
+  gradients.
 - Repeated objective evaluation does not mutate `pos`.
-- Projection metrics include pre-projection displacement, projected count, and
-  maximum projection distance.
 - Final reports include native HPWL, native RSMT, normalized score, placement
-  hash, exact legality, convergence, and full runtime breakdown.
-- Final E3/E4 target: mean anchor distance improves at least 25% and p90 at least
-  15% versus E2, or the report supplies a per-group geometric lower-bound
-  diagnosis and an explicit acceptance decision.
-- Warm-cache E4 runtime is at most 2x E0 under the same run contract, or the
-  failure is profiled and reported without redefining the denominator.
-- No result may claim Cypress quality from CP-SAT/one-opt/pair-scan output.
+  hash, exact legality, convergence, displacement, collision, and full runtime
+  breakdown.
+- Final E3/E4 target: mean anchor distance improves at least `25%` and p90 at
+  least `15%` versus E2, or the report supplies the existing per-component
+  geometric lower bounds plus an explicit acceptance decision.
+- Warm-cache E4 runtime is at most `2x` E0 under the same run contract.
+- No result may claim Cypress quality from CP-SAT, one-opt, pair-scan, broad
+  packing, or checkpoint fallback output.
 
 ## Stretch gate
 
