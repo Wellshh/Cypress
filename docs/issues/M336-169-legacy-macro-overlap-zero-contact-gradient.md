@@ -127,3 +127,19 @@ violations), and every per-step overlap metric apart from elapsed time. The
 native execution record also contains no collision weight updates. This proves
 the new path is default-off and does not perturb the prior optimizer trajectory
 when disabled; it does not resolve the open legality defect.
+
+## Exact-Guard Diagnosis
+
+M336-170 added a transactional exact accepted-step guard around the ratio-`0.1`
+barrier. The first Adam proposal produced the same 10 pairs and `0.008031909
+mm2` seen in the barrier-only smoke. Four exact state-restored retries reduced
+the step by successive factors of `0.5`, but still produced 10, 10, 10, and 9
+overlap pairs; the final area was `0.000501145 mm2`. The run correctly failed
+closed without accepting a step.
+
+This isolates the remaining barrier defect: global L1 gradient matching at
+ratio `0.1` does not reverse every local contact direction, and step backoff
+cannot repair a direction that crosses at every positive scale. A bounded
+one-step ratio check at `0.25`, then at most `0.5`, is justified. If neither
+produces an exact-legal direction, further scalar-weight sweeps must stop in
+favor of pair-local contact-normal control.

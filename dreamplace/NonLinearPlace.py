@@ -44,6 +44,10 @@ import dreamplace.EvalMetrics as EvalMetrics
 import pdb
 import dreamplace.ops.fence_region.fence_region as fence_region
 import dreamplace.ops.place_io.place_io_cpp as place_io_cpp
+from dreamplace.constraints.exact_step_guard import (
+    ExactAcceptedStepGuard,
+    ExactStepGuardFailure,
+)
 
 
 def _placement_displacement_stats(
@@ -360,11 +364,46 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         exact_overlap_interval = int(
             getattr(params, "exact_overlap_diagnostic_interval", 0)
         )
+        exact_step_guard_enabled = bool(
+            getattr(params, "exact_step_guard_flag", False)
+        )
+        exact_step_guard_backoff = float(
+            getattr(params, "exact_step_guard_backoff", 0.5)
+        )
+        exact_step_guard_max_retries = int(
+            getattr(params, "exact_step_guard_max_retries", 4)
+        )
         if exact_overlap_interval < 0:
             raise ValueError("exact overlap diagnostic interval must be non-negative")
         if exact_overlap_interval and self.anchor_keepin_context is None:
             raise ValueError(
                 "exact overlap diagnostics require anchor/keep-in context"
+            )
+        if exact_step_guard_enabled:
+            if self.anchor_keepin_context is None:
+                raise ValueError("exact step guard requires anchor/keep-in context")
+            if not getattr(params, "footprint_collision_loss_flag", False):
+                raise ValueError("exact step guard requires footprint collision loss")
+            if getattr(params, "enable_rotation", False):
+                raise ValueError("exact step guard does not support rotation")
+            if (
+                not math.isfinite(exact_step_guard_backoff)
+                or not 0 < exact_step_guard_backoff < 1
+            ):
+                raise ValueError("exact step guard backoff must be in (0, 1)")
+            if exact_step_guard_max_retries < 0:
+                raise ValueError("exact step guard retries must be non-negative")
+            native_execution.update(
+                {
+                    "exact_step_guard_enabled": True,
+                    "exact_step_guard_backoff": exact_step_guard_backoff,
+                    "exact_step_guard_max_retries": exact_step_guard_max_retries,
+                    "exact_step_guard_attempts": [],
+                    "exact_step_guard_accepted_step_count": 0,
+                    "exact_step_guard_rejected_attempt_count": 0,
+                    "exact_step_guard_overhead_seconds": 0.0,
+                    "exact_step_guard_optimizer_attempt_seconds": 0.0,
+                }
             )
         if exact_overlap_interval:
             native_execution.update(
@@ -375,17 +414,25 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 }
             )
 
-        def record_exact_overlap(stage, accepted_iteration, phase):
-            started = time.perf_counter()
-            report = self.anchor_keepin_context.exact_overlap_report(
-                self.data_collections.pos[0], placedb
-            )
-            elapsed = time.perf_counter() - started
+        def record_exact_overlap(
+            stage, accepted_iteration, phase, report=None
+        ):
+            if report is None:
+                started = time.perf_counter()
+                report = self.anchor_keepin_context.exact_overlap_report(
+                    self.data_collections.pos[0], placedb
+                )
+                elapsed = time.perf_counter() - started
+                source = "diagnostic"
+            else:
+                elapsed = 0.0
+                source = "exact_step_guard"
             checkpoint = {
                 "stage": int(stage),
                 "iteration": int(accepted_iteration),
                 "step": native_execution["optimizer_step_count"],
                 "phase": phase,
+                "source": source,
                 "elapsed_seconds": elapsed,
                 **report,
             }
@@ -485,6 +532,88 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     )
                 else:
                     assert 0, "unknown optimizer %s" % (optimizer_name)
+
+                exact_step_guard = None
+                if exact_step_guard_enabled:
+
+                    def guard_validator(candidate):
+                        return self.anchor_keepin_context.exact_overlap_report(
+                            candidate, placedb
+                        )
+
+                    def guard_barrier_diagnostics(candidate):
+                        diagnostics = dict(
+                            self.op_collections.footprint_collision_loss_op.diagnostics(
+                                candidate
+                            )
+                        )
+                        if model.collision_weight_updates:
+                            latest = model.collision_weight_updates[-1]
+                            diagnostics.update(
+                                {
+                                    "gradient_l1": latest[
+                                        "collision_gradient_l1"
+                                    ],
+                                    "effective_weight": latest[
+                                        "effective_weight"
+                                    ],
+                                    "effective_gradient_ratio": latest[
+                                        "effective_ratio"
+                                    ],
+                                }
+                            )
+                        return diagnostics
+
+                    def guard_attempt_metadata(evidence):
+                        origin = evidence["origin_position"]
+                        proposal_position = evidence["proposal_position"]
+                        accepted_position = evidence["accepted_position"]
+
+                        def without_node_ids(statistics):
+                            return {
+                                key: value
+                                for key, value in statistics.items()
+                                if key != "node_ids"
+                            }
+
+                        return {
+                            "proposal_displacement": without_node_ids(
+                                _placement_displacement_stats(
+                                    origin,
+                                    proposal_position,
+                                    placedb.num_nodes,
+                                )
+                            ),
+                            "accepted_displacement": without_node_ids(
+                                _placement_displacement_stats(
+                                    origin,
+                                    accepted_position,
+                                    placedb.num_nodes,
+                                )
+                            ),
+                            "projection": {
+                                "changed_node_count": evidence[
+                                    "accepted_projection"
+                                ]["changed_node_count"],
+                                "mean_distance": evidence[
+                                    "accepted_projection"
+                                ]["mean_distance"],
+                                "max_distance": evidence[
+                                    "accepted_projection"
+                                ]["max_distance"],
+                                "event_count": evidence[
+                                    "projection_event_count"
+                                ],
+                            },
+                        }
+
+                    exact_step_guard = ExactAcceptedStepGuard(
+                        validator=guard_validator,
+                        backoff=exact_step_guard_backoff,
+                        max_retries=exact_step_guard_max_retries,
+                        barrier_diagnostics=guard_barrier_diagnostics,
+                        attempt_metadata=guard_attempt_metadata,
+                    )
 
                 if params.enable_rotation:
                     # rot_optimizer = torch.optim.SGD(orient_logits, lr=0)
@@ -844,42 +973,129 @@ class NonLinearPlace(BasicPlace.BasicPlace):
 
                     #### stop updating fence regions that are marked stop, exclude the outer cell !
                     t3 = time.time()
-                    optimizer_stepped = False
-                    constraint_projector.begin_step(pos)
-                    if model.update_mask is not None:
-                        pos_bk = pos.data.clone()
-                        optimizer.step()
-                        optimizer_stepped = True
+                    optimizer_stepped = (
+                        model.update_mask is not None or not model.freeze_pos
+                    )
+                    guard_result = None
 
-                        for region_id, fence_region_update_flag in enumerate(
-                            model.update_mask
-                        ):
-                            if fence_region_update_flag == 0:
-                                ### don't update cell location in that region
-                                mask = self.op_collections.fence_region_density_ops[
-                                    region_id
-                                ].pos_mask
-                                pos.data.masked_scatter_(mask, pos_bk[mask])
-                    else:
-                        if not model.freeze_pos:
+                    def perform_optimizer_attempt():
+                        constraint_projector.begin_step(pos)
+                        if model.update_mask is not None:
+                            pos_bk = pos.data.clone()
                             optimizer.step()
-                            optimizer_stepped = True
 
-                    if optimizer_stepped and optimizer_name.lower() != "nesterov":
-                        constraint_projector(pos)
-                    step_evidence = constraint_projector.finish_step()
-                    if optimizer_stepped:
-                        from dreamplace.constraints.region_projection import (
-                            zero_optimizer_state,
-                        )
+                            for region_id, fence_region_update_flag in enumerate(
+                                model.update_mask
+                            ):
+                                if fence_region_update_flag == 0:
+                                    ### don't update cell location in that region
+                                    mask = self.op_collections.fence_region_density_ops[
+                                        region_id
+                                    ].pos_mask
+                                    pos.data.masked_scatter_(mask, pos_bk[mask])
+                        else:
+                            optimizer.step()
 
+                        if optimizer_name.lower() != "nesterov":
+                            constraint_projector(pos)
+                        evidence = constraint_projector.finish_step()
                         if self.anchor_keepin_context is not None:
+                            from dreamplace.constraints.region_projection import (
+                                zero_optimizer_state,
+                            )
+
                             zero_optimizer_state(
                                 optimizer,
                                 pos,
-                                step_evidence["projected_node_ids"],
+                                evidence["projected_node_ids"],
                                 placedb.num_nodes,
                             )
+                        return evidence
+
+                    if optimizer_stepped and exact_step_guard is not None:
+                        try:
+                            guard_result = exact_step_guard.run(
+                                pos, optimizer, perform_optimizer_attempt
+                            )
+                        except ExactStepGuardFailure as error:
+                            failure = {
+                                "status": "failed",
+                                "reason": error.reason,
+                                "stage": stage_index,
+                                "iteration": iteration,
+                                "next_accepted_step": (
+                                    native_execution["optimizer_step_count"] + 1
+                                ),
+                                "optimizer": optimizer_name.lower(),
+                                "backoff": exact_step_guard_backoff,
+                                "max_retries": exact_step_guard_max_retries,
+                                "before": error.before,
+                                "attempts": error.attempts,
+                                "timing": error.timing,
+                            }
+                            failure_path = (
+                                self.anchor_keepin_context.output_dir
+                                / "exact_step_guard_failure.json"
+                            )
+                            failure_path.parent.mkdir(parents=True, exist_ok=True)
+                            with failure_path.open("w") as stream:
+                                json.dump(failure, stream, indent=2, sort_keys=True)
+                                stream.write("\n")
+                            logging.error(
+                                "exact accepted-step guard failed: %s",
+                                json.dumps(failure, sort_keys=True),
+                            )
+                            raise RuntimeError(
+                                "exact accepted-step guard failed closed: %s"
+                                % failure_path
+                            ) from error
+                        step_evidence = guard_result["step_evidence"]
+                        guarded_step = native_execution["optimizer_step_count"] + 1
+                        for attempt in guard_result["attempts"]:
+                            attempt.update(
+                                {
+                                    "stage": stage_index,
+                                    "iteration": iteration,
+                                    "accepted_step": guarded_step,
+                                    "optimizer": optimizer_name.lower(),
+                                }
+                            )
+                        native_execution["exact_step_guard_attempts"].extend(
+                            guard_result["attempts"]
+                        )
+                        native_execution[
+                            "exact_step_guard_accepted_step_count"
+                        ] += 1
+                        native_execution[
+                            "exact_step_guard_rejected_attempt_count"
+                        ] += sum(
+                            not attempt["accepted"]
+                            for attempt in guard_result["attempts"]
+                        )
+                        native_execution[
+                            "exact_step_guard_overhead_seconds"
+                        ] += guard_result["timing"]["guard_overhead_seconds"]
+                        native_execution[
+                            "exact_step_guard_optimizer_attempt_seconds"
+                        ] += guard_result["timing"]["optimizer_attempt_seconds"]
+                        logging.info(
+                            "exact step guard: step=%d attempts=%d rejected=%d "
+                            "overhead=%.6g seconds",
+                            guarded_step,
+                            len(guard_result["attempts"]),
+                            sum(
+                                not attempt["accepted"]
+                                for attempt in guard_result["attempts"]
+                            ),
+                            guard_result["timing"]["guard_overhead_seconds"],
+                        )
+                    elif optimizer_stepped:
+                        step_evidence = perform_optimizer_attempt()
+                    else:
+                        constraint_projector.begin_step(pos)
+                        step_evidence = constraint_projector.finish_step()
+
+                    if optimizer_stepped:
                         proposal = step_evidence["proposal"]
                         projection = step_evidence["accepted_projection"]
                         trajectory = displacement_tracker.record_step(
@@ -937,7 +1153,14 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                             == 0
                         ):
                             record_exact_overlap(
-                                stage_index, iteration, "accepted_step"
+                                stage_index,
+                                iteration,
+                                "accepted_step",
+                                (
+                                    guard_result["accepted_report"]
+                                    if guard_result is not None
+                                    else None
+                                ),
                             )
                         logging.info(
                             "native optimizer evidence: optimizer=%s step=%d "
@@ -1569,6 +1792,35 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 else None
             )
         )
+        if exact_step_guard_enabled:
+            guard_artifact = {
+                "status": "completed",
+                "backoff": exact_step_guard_backoff,
+                "max_retries": exact_step_guard_max_retries,
+                "accepted_step_count": native_execution[
+                    "exact_step_guard_accepted_step_count"
+                ],
+                "rejected_attempt_count": native_execution[
+                    "exact_step_guard_rejected_attempt_count"
+                ],
+                "guard_overhead_seconds": native_execution[
+                    "exact_step_guard_overhead_seconds"
+                ],
+                "optimizer_attempt_seconds": native_execution[
+                    "exact_step_guard_optimizer_attempt_seconds"
+                ],
+                "attempts": native_execution["exact_step_guard_attempts"],
+            }
+            guard_path = (
+                self.anchor_keepin_context.output_dir / "exact_step_guard.json"
+            )
+            guard_path.parent.mkdir(parents=True, exist_ok=True)
+            with guard_path.open("w") as stream:
+                json.dump(guard_artifact, stream, indent=2, sort_keys=True)
+                stream.write("\n")
+            self.anchor_keepin_context.timing["exact_step_guard_seconds"] = (
+                native_execution["exact_step_guard_overhead_seconds"]
+            )
         processed_metrics["native_execution"] = native_execution
         logging.info(
             "native execution summary: %s",
@@ -1580,6 +1832,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             self.anchor_keepin_context.timing["gpu_optimization_seconds"] = (
                 time.perf_counter() - optimization_started
                 - native_execution.get("exact_overlap_diagnostic_seconds", 0.0)
+                - native_execution.get("exact_step_guard_overhead_seconds", 0.0)
             )
         if net_crossing_enabled:
             processed_metrics["net_crossing"] = net_crossing

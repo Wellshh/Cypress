@@ -1,7 +1,8 @@
 # M336 Active Roadmap
 
-**Updated:** 2026-07-20  
-**Evidence through:** `M336-168`
+**Updated:** 2026-07-21
+
+**Evidence through:** `M336-170`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -74,7 +75,8 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N2 (complete) | Add a differentiable interior keep-in margin and bounded adaptive subgroup-balanced anchor control | M336-144 through M336-146 prove finite inward gradients, bounded serialized control, and an isolated E2/E3 contract; anchor quality remains below the final gate |
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
-| N5 (active) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 acceptance evidence, then exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |
+| N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
+| N6 (active) | Prevent native optimizer steps from crossing same-side footprint contacts | Differentiable pre-contact barrier plus exact transactional step guard pass D1-D4 with zero accepted overlaps before any final matrix |
 
 ## Paused Exact-Site Priorities
 
@@ -243,6 +245,16 @@ every checkpoint while keep-in violations remain zero. The placement SHA is
 unchanged, so the instrumentation is read-only. M336-169 proves the legacy
 macro-overlap kernel cannot prevent this crossing; the next experiment must use
 a nonzero-contact native collision signal, not a larger LR or E4 fallback.
+
+M336-169 adds a default-off footprint-aware pre-contact barrier and preserves
+the feature-off placement byte-for-byte. M336-170 adds a transactional exact
+accepted-step guard that restores complete Adam/Nesterov state, applies bounded
+learning-rate backoff, and fails closed without E4 or checkpoint fallback. Its
+first ratio-`0.1` probe rejects all five step-1 attempts: overlap area falls from
+`0.008031909` to `0.000501145 mm2`, but no positive step is legal. This proves
+the guard works and isolates the remaining N6 defect to local collision-force
+direction. Only bounded ratio checks at `0.25` and `0.5` are authorized before
+replacing scalar global matching with pair-local contact-normal control.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

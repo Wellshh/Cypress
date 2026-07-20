@@ -1818,6 +1818,7 @@ class AnchorKeepInContext:
             "serialization_seconds": 0.0,
             "native_scoring_seconds": 0.0,
             "collision_preprocessing_seconds": 0.0,
+            "exact_step_guard_seconds": 0.0,
         }
         self.num_nodes = int(num_nodes)
         self.output_dir = Path(output_dir)
@@ -2636,6 +2637,31 @@ class AnchorKeepInContext:
         constrained_area = sum(
             row["overlap_area"] for row in audit["constrained_overlaps"]
         )
+        overlap_pairs = [
+            {
+                "kind": "constrained_fixed",
+                "first_refdes": row["refdes"],
+                "second_refdes": row["fixed_refdes"],
+                "overlap_area_mm2": row["overlap_area"] / scale_squared,
+            }
+            for row in audit["fixed_overlaps"]
+        ]
+        overlap_pairs.extend(
+            {
+                "kind": "constrained_constrained",
+                "first_refdes": row["first_refdes"],
+                "second_refdes": row["second_refdes"],
+                "overlap_area_mm2": row["overlap_area"] / scale_squared,
+            }
+            for row in audit["constrained_overlaps"]
+        )
+        overlap_pairs.sort(
+            key=lambda row: (
+                row["kind"],
+                row["first_refdes"],
+                row["second_refdes"],
+            )
+        )
         return {
             "keepin_violation_count": audit["keepin_invalid_count"],
             "fixed_overlap_count": audit["fixed_overlap_count"],
@@ -2648,6 +2674,7 @@ class AnchorKeepInContext:
             ),
             "overlap_area_mm2": (fixed_area + constrained_area) / scale_squared,
             "conflict_closure_count": audit["conflict_closure_count"],
+            "overlap_pairs": overlap_pairs,
         }
 
     def _pack_constraint_subset(
@@ -3098,6 +3125,7 @@ class AnchorKeepInContext:
             node_size_x=data_collections.node_size_x,
             node_size_y=data_collections.node_size_y,
             num_nodes=placedb.num_nodes,
+            units_per_mm=scale,
             **data,
         ).to(data_collections.pos[0].device)
         elapsed = time.perf_counter() - started

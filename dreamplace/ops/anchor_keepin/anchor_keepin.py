@@ -355,6 +355,7 @@ class FootprintCollisionLoss(nn.Module):
         grid,
         margin,
         tau,
+        units_per_mm=1.0,
     ):
         super().__init__()
         dtype = node_size_x.dtype
@@ -389,6 +390,7 @@ class FootprintCollisionLoss(nn.Module):
         self.grid = float(grid)
         self.margin = float(margin)
         self.tau = float(tau)
+        self.units_per_mm = float(units_per_mm)
         self.normalization_count = max(len(active_node_ids), 1)
         if self.grid <= 0:
             raise ValueError("collision SDF grid must be positive")
@@ -396,6 +398,8 @@ class FootprintCollisionLoss(nn.Module):
             raise ValueError("collision margin must be non-negative")
         if self.tau <= 0:
             raise ValueError("collision tau must be positive")
+        if self.units_per_mm <= 0:
+            raise ValueError("collision units-per-mm scale must be positive")
         pair_count = len(self.first_node_ids)
         expected_pair_shapes = {
             "second_node_ids": self.second_node_ids.shape,
@@ -471,3 +475,36 @@ class FootprintCollisionLoss(nn.Module):
         return functional.softplus(normalized_margin).square().sum() / (
             self.normalization_count
         )
+
+    def diagnostics(self, pos):
+        """Synchronize bounded barrier metrics outside the autograd path."""
+        with torch.no_grad():
+            clearances = self.sampled_clearances(pos)
+            if not clearances.numel():
+                return {
+                    "evaluated_pair_count": 0,
+                    "active_pair_count": 0,
+                    "penetrating_pair_count": 0,
+                    "minimum_clearance": None,
+                    "minimum_clearance_mm": None,
+                    "loss": 0.0,
+                }
+            normalized_margin = (self.margin - clearances) / self.tau
+            loss = functional.softplus(normalized_margin).square().sum() / (
+                self.normalization_count
+            )
+            minimum_clearance = float(clearances.min().item())
+            return {
+                "evaluated_pair_count": int(clearances.numel()),
+                "active_pair_count": int(
+                    torch.count_nonzero(
+                        clearances < self.margin + 12 * self.tau
+                    ).item()
+                ),
+                "penetrating_pair_count": int(
+                    torch.count_nonzero(clearances < 0).item()
+                ),
+                "minimum_clearance": minimum_clearance,
+                "minimum_clearance_mm": minimum_clearance / self.units_per_mm,
+                "loss": float(loss.item()),
+            }

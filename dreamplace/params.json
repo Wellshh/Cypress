@@ -447,6 +447,18 @@
         "description": "accepted iterations used to ramp collision pressure",
         "default": 1
     },
+    "exact_step_guard_flag": {
+        "description": "reject exact-illegal optimizer proposals before accepting a native step",
+        "default": false
+    },
+    "exact_step_guard_backoff": {
+        "description": "multiplicative optimizer step-size backoff after an exact-illegal proposal",
+        "default": 0.5
+    },
+    "exact_step_guard_max_retries": {
+        "description": "maximum native optimizer retries after exact-illegal proposals",
+        "default": 4
+    },
     "keepin_projection_flag": {
         "description": "project constrained components into footprint-aware feasible domains",
         "default": false

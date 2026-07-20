@@ -47,6 +47,7 @@ IMPLEMENTATION_FILES = (
     "dreamplace/Placer.py",
     "dreamplace/params.json",
     "dreamplace/constraints/anchor_keepin.py",
+    "dreamplace/constraints/exact_step_guard.py",
     "dreamplace/constraints/irregular_density.py",
     "dreamplace/constraints/pcb_geometry.py",
     "dreamplace/constraints/region_assignment.py",
@@ -71,6 +72,7 @@ IMPLEMENTATION_FILES = (
     "install/dreamplace/PlaceObj.py",
     "install/dreamplace/Placer.py",
     "install/dreamplace/constraints/anchor_keepin.py",
+    "install/dreamplace/constraints/exact_step_guard.py",
     "install/dreamplace/constraints/irregular_density.py",
     "install/dreamplace/constraints/pcb_geometry.py",
     "install/dreamplace/constraints/region_assignment.py",
@@ -384,6 +386,9 @@ def placement_config(
     collision_gradient_ratio=0.1,
     collision_margin_mm=0.0,
     collision_tau_mm=0.025,
+    exact_step_guard=False,
+    exact_step_guard_backoff=0.5,
+    exact_step_guard_max_retries=4,
 ):
     learning_rate_scale = float(learning_rate_scale)
     if (
@@ -421,6 +426,17 @@ def placement_config(
             "collision ratio and tau must be positive and finite; "
             "collision margin must be finite and non-negative"
         )
+    exact_step_guard_backoff = float(exact_step_guard_backoff)
+    exact_step_guard_max_retries = int(exact_step_guard_max_retries)
+    if (
+        not math.isfinite(exact_step_guard_backoff)
+        or not 0 < exact_step_guard_backoff < 1
+    ):
+        raise ValueError("exact-step guard backoff must be in (0, 1)")
+    if exact_step_guard_max_retries < 0:
+        raise ValueError("exact-step guard retries must be non-negative")
+    if exact_step_guard and not footprint_collision:
+        raise ValueError("exact-step guard requires footprint collision")
     initialization_modes = {
         "cold_source": "preserve_legal",
         "checkpoint_warm_start": "checkpoint_warm_start",
@@ -522,6 +538,13 @@ def placement_config(
                 "collision_gradient_ratio": float(collision_gradient_ratio),
                 "collision_margin_mm": float(collision_margin_mm),
                 "collision_tau_mm": float(collision_tau_mm),
+                "exact_step_guard_flag": bool(
+                    exact_step_guard
+                    and footprint_collision
+                    and spec["projection"]
+                ),
+                "exact_step_guard_backoff": exact_step_guard_backoff,
+                "exact_step_guard_max_retries": exact_step_guard_max_retries,
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
                 "constraint_grid_mm": grid_mm,
@@ -572,6 +595,7 @@ def evaluate_feature_off(
     params.anchor_loss_flag = False
     params.keepin_soft_loss_flag = False
     params.footprint_collision_loss_flag = False
+    params.exact_step_guard_flag = False
     params.keepin_projection_flag = False
     params.exact_repair_flag = False
     params.freeze_anchor_nodes = False
@@ -630,6 +654,7 @@ def _serialized_native_score_config(config, replay_aux, native_dir):
             "anchor_loss_flag": False,
             "keepin_soft_loss_flag": False,
             "footprint_collision_loss_flag": False,
+            "exact_step_guard_flag": False,
             "irregular_density_flag": False,
             "keepin_projection_flag": False,
             "exact_repair_flag": False,
@@ -939,6 +964,10 @@ def stable_artifacts(run_dir, placement_dir, legality_path):
         "initialization": run_dir / "constraints" / "initialization.json",
         "timing": run_dir / "constraints" / "timing.json",
         "collision_barrier": run_dir / "constraints" / "collision_barrier.json",
+        "exact_step_guard": run_dir / "constraints" / "exact_step_guard.json",
+        "exact_step_guard_failure": (
+            run_dir / "constraints" / "exact_step_guard_failure.json"
+        ),
     }
     return {
         key: repo_path(path) for key, path in artifact_paths.items() if path.exists()
@@ -1136,6 +1165,10 @@ def _require_collision_contract(config, args, spec, result_path, action):
         args.footprint_collision and spec["integrated_context"] and spec["projection"]
     )
     actual_enabled = bool(config.get("footprint_collision_loss_flag", False))
+    expected_guard = bool(
+        getattr(args, "exact_step_guard", False) and expected_enabled
+    )
+    actual_guard = bool(config.get("exact_step_guard_flag", False))
     checks = (
         ("enabled", float(actual_enabled), float(expected_enabled)),
         (
@@ -1152,6 +1185,17 @@ def _require_collision_contract(config, args, spec, result_path, action):
             "tau",
             float(config.get("collision_tau_mm", 0.025)),
             float(args.collision_tau_mm),
+        ),
+        ("guard enabled", float(actual_guard), float(expected_guard)),
+        (
+            "guard backoff",
+            float(config.get("exact_step_guard_backoff", 0.5)),
+            float(getattr(args, "exact_step_guard_backoff", 0.5)),
+        ),
+        (
+            "guard retries",
+            float(config.get("exact_step_guard_max_retries", 4)),
+            float(getattr(args, "exact_step_guard_max_retries", 4)),
         ),
     )
     mismatches = [
@@ -1308,6 +1352,20 @@ def run_one(
         )
         result["collision_tau_mm"] = float(
             config.get("collision_tau_mm", args.collision_tau_mm)
+        )
+        result["exact_step_guard_enabled"] = bool(
+            config.get("exact_step_guard_flag", False)
+        )
+        result["exact_step_guard_backoff"] = float(
+            config.get(
+                "exact_step_guard_backoff", args.exact_step_guard_backoff
+            )
+        )
+        result["exact_step_guard_max_retries"] = int(
+            config.get(
+                "exact_step_guard_max_retries",
+                args.exact_step_guard_max_retries,
+            )
         )
         result["irregular_density_enabled"] = bool(
             config.get("irregular_density_flag", False)
@@ -1471,6 +1529,9 @@ def run_one(
         collision_gradient_ratio=args.collision_gradient_ratio,
         collision_margin_mm=args.collision_margin_mm,
         collision_tau_mm=args.collision_tau_mm,
+        exact_step_guard=args.exact_step_guard,
+        exact_step_guard_backoff=args.exact_step_guard_backoff,
+        exact_step_guard_max_retries=args.exact_step_guard_max_retries,
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -1543,15 +1604,18 @@ def run_one(
         if collision_enabled
         else ""
     )
+    exact_step_guard_enabled = bool(config.get("exact_step_guard_flag", False))
+    guard_tag = "-guard" if exact_step_guard_enabled else ""
 
     result = {
-        "run_id": "%s-%s-ar-%s%s%s-margin-%s-seed-%d"
+        "run_id": "%s-%s-ar-%s%s%s%s-margin-%s-seed-%d"
         % (
             initialization_track,
             experiment_id.lower(),
             format(anchor_gradient_ratio, "g"),
             learning_rate_tag,
             collision_tag,
+            guard_tag,
             format(args.keepin_margin_mm, "g"),
             seed,
         ),
@@ -1570,6 +1634,11 @@ def run_one(
         "collision_gradient_ratio": float(args.collision_gradient_ratio),
         "collision_margin_mm": float(args.collision_margin_mm),
         "collision_tau_mm": float(args.collision_tau_mm),
+        "exact_step_guard_enabled": exact_step_guard_enabled,
+        "exact_step_guard_backoff": float(args.exact_step_guard_backoff),
+        "exact_step_guard_max_retries": int(
+            args.exact_step_guard_max_retries
+        ),
         "irregular_density_enabled": bool(
             config.get("irregular_density_flag", False)
         ),
@@ -2356,6 +2425,15 @@ def reproduction_command(args, weights=None):
         format(args.collision_margin_mm, "g"),
         "--collision-tau-mm",
         format(args.collision_tau_mm, "g"),
+        (
+            "--exact-step-guard"
+            if args.exact_step_guard
+            else "--no-exact-step-guard"
+        ),
+        "--exact-step-guard-backoff",
+        format(args.exact_step_guard_backoff, "g"),
+        "--exact-step-guard-max-retries",
+        str(args.exact_step_guard_max_retries),
         "--initialization-track",
         args.initialization_track,
         "--checkpoint-placement",
@@ -2440,6 +2518,16 @@ def main():
     parser.add_argument("--collision-gradient-ratio", type=float, default=0.1)
     parser.add_argument("--collision-margin-mm", type=float, default=0.0)
     parser.add_argument("--collision-tau-mm", type=float, default=0.025)
+    parser.add_argument(
+        "--exact-step-guard",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="reject exact-illegal native steps and retry with bounded backoff",
+    )
+    parser.add_argument("--exact-step-guard-backoff", type=float, default=0.5)
+    parser.add_argument(
+        "--exact-step-guard-max-retries", type=int, default=4
+    )
     parser.add_argument(
         "--initialization-track",
         choices=("cold_source", "checkpoint_warm_start"),
@@ -2546,6 +2634,9 @@ def main():
         or not math.isfinite(args.collision_margin_mm)
         or args.collision_tau_mm <= 0
         or not math.isfinite(args.collision_tau_mm)
+        or not math.isfinite(args.exact_step_guard_backoff)
+        or not 0 < args.exact_step_guard_backoff < 1
+        or args.exact_step_guard_max_retries < 0
         or not math.isfinite(args.learning_rate_scale)
         or args.learning_rate_scale < MIN_M336_LEARNING_RATE_SCALE
         or args.learning_rate_scale > MAX_M336_LEARNING_RATE_SCALE
@@ -2557,10 +2648,13 @@ def main():
     ):
         parser.error(
             "anchor/collision ratios, grid, margin taus, and site size must be positive; "
+            "guard backoff must be in (0, 1) and retries non-negative; "
             "learning-rate scale must be within [%g, %g]; clearance and "
             "margin must be non-negative"
             % (MIN_M336_LEARNING_RATE_SCALE, MAX_M336_LEARNING_RATE_SCALE)
         )
+    if args.exact_step_guard and not args.footprint_collision:
+        parser.error("exact-step guard requires --footprint-collision")
     if args.anchor_gradient_ratio_sweep and any(
         ratio <= 0 for ratio in args.anchor_gradient_ratio_sweep
     ):
@@ -2618,6 +2712,11 @@ def main():
             "collision_gradient_ratio": args.collision_gradient_ratio,
             "collision_margin_mm": args.collision_margin_mm,
             "collision_tau_mm": args.collision_tau_mm,
+            "exact_step_guard": args.exact_step_guard,
+            "exact_step_guard_backoff": args.exact_step_guard_backoff,
+            "exact_step_guard_max_retries": (
+                args.exact_step_guard_max_retries
+            ),
             "anchor_gradient_ratios": ratios,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
@@ -2668,6 +2767,11 @@ def main():
             "collision_gradient_ratio": args.collision_gradient_ratio,
             "collision_margin_mm": args.collision_margin_mm,
             "collision_tau_mm": args.collision_tau_mm,
+            "exact_step_guard": args.exact_step_guard,
+            "exact_step_guard_backoff": args.exact_step_guard_backoff,
+            "exact_step_guard_max_retries": (
+                args.exact_step_guard_max_retries
+            ),
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
             "keepin_margin_mm": args.keepin_margin_mm,

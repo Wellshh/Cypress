@@ -488,6 +488,7 @@ class BasicPlace(nn.Module):
             getattr(params, "keepin_projection_flag", False),
             getattr(params, "exact_repair_flag", False),
             getattr(params, "footprint_collision_loss_flag", False),
+            getattr(params, "exact_step_guard_flag", False),
         )
         if any(constraint_subflags) and not getattr(params, "anchor_keepin_flag", False):
             raise ValueError(

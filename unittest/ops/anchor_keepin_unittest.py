@@ -10,6 +10,7 @@ from unittest import mock
 
 import numpy as np
 import torch
+from shapely import affinity
 from shapely.geometry import Polygon, box
 
 sys.path.append(
@@ -316,9 +317,15 @@ class AnchorKeepInTest(unittest.TestCase):
         loss_op, diagnostics = self._collision_loss()
         self.assertEqual(diagnostics["pair_count"], 1)
         self.assertEqual(diagnostics["pair_count_by_side"], {"TOP": 1})
-        for second_x in (1.0, 0.975):
+        for second_x, second_y in (
+            (1.0, 0.0),
+            (-1.0, 0.0),
+            (0.0, 1.0),
+            (0.0, -1.0),
+            (0.975, 0.0),
+        ):
             pos = torch.tensor(
-                [0.0, second_x, 0.0, 0.0],
+                [0.0, second_x, 0.0, second_y],
                 dtype=torch.float64,
                 requires_grad=True,
             )
@@ -327,8 +334,77 @@ class AnchorKeepInTest(unittest.TestCase):
             self.assertTrue(torch.isfinite(loss))
             self.assertTrue(torch.isfinite(pos.grad).all())
             self.assertGreater(loss.item(), 0.0)
-            self.assertGreater(pos.grad[0].item(), 0.0)
-            self.assertLess(pos.grad[1].item(), 0.0)
+            descent = -torch.stack((pos.grad[1], pos.grad[3]))
+            relative_center = torch.tensor(
+                [second_x, second_y], dtype=torch.float64
+            )
+            self.assertGreater(torch.dot(descent, relative_center).item(), 0.0)
+
+    def test_collision_field_agrees_with_exact_contact_and_penetration(self):
+        loss_op, _ = self._collision_loss()
+        first = box(0.0, 0.0, 1.0, 1.0)
+        for second_x in (0.975, 1.0, 1.1):
+            pos = torch.tensor(
+                [0.0, second_x, 0.0, 0.0], dtype=torch.float64
+            )
+            clearance = loss_op.sampled_clearances(pos).item()
+            second = box(second_x, 0.0, second_x + 1.0, 1.0)
+            overlap_area = first.intersection(second).area
+            if overlap_area > 1e-12:
+                self.assertLessEqual(clearance, 0.0)
+            elif math.isclose(second_x, 1.0):
+                self.assertLessEqual(clearance, 0.0)
+            else:
+                self.assertGreater(clearance, 0.0)
+
+    def test_collision_field_is_symmetric_under_component_reversal(self):
+        footprints = {
+            0: box(-0.5, -0.5, 0.5, 0.5),
+            1: box(-1.0, -0.25, 1.0, 0.25),
+        }
+
+        def build(shapes):
+            data, _ = _build_footprint_collision_data(
+                footprints=shapes,
+                node_sides={0: "TOP", 1: "TOP"},
+                active_node_ids=[0, 1],
+                num_physical_nodes=2,
+                grid=0.05,
+                margin=0.0,
+                tau=0.025,
+            )
+            widths = torch.tensor(
+                [shape.bounds[2] - shape.bounds[0] for shape in shapes.values()],
+                dtype=torch.float64,
+            )
+            heights = torch.tensor(
+                [shape.bounds[3] - shape.bounds[1] for shape in shapes.values()],
+                dtype=torch.float64,
+            )
+            return FootprintCollisionLoss(
+                node_size_x=widths,
+                node_size_y=heights,
+                num_nodes=2,
+                **data,
+            )
+
+        forward = build(footprints)
+        reversed_loss = build({0: footprints[1], 1: footprints[0]})
+        forward_pos = torch.tensor(
+            [0.0, 0.6, 0.0, 0.25], dtype=torch.float64
+        )
+        reversed_pos = torch.tensor(
+            [0.6, 0.0, 0.25, 0.0], dtype=torch.float64
+        )
+
+        self.assertAlmostEqual(
+            forward.sampled_clearances(forward_pos).item(),
+            reversed_loss.sampled_clearances(reversed_pos).item(),
+            places=12,
+        )
+        self.assertAlmostEqual(
+            forward(forward_pos).item(), reversed_loss(reversed_pos).item(), places=12
+        )
 
     def test_collision_barrier_excludes_cross_side_pairs(self):
         loss_op, diagnostics = self._collision_loss(second_side="BOTTOM")
@@ -378,6 +454,67 @@ class AnchorKeepInTest(unittest.TestCase):
 
         self.assertLess(loss_op(separated).item(), loss_op(colliding).item())
 
+    def test_concave_unequal_collision_samples_have_no_false_negative(self):
+        frame = Polygon(
+            [(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)],
+            holes=[
+                [(-1.0, -1.0), (-1.0, 1.0), (1.0, 1.0), (1.0, -1.0)]
+            ],
+        )
+        loss_op, diagnostics = self._collision_loss(second_shape=frame)
+        samples = (
+            (0.75, 0.0),
+            (1.0, 0.0),
+            (1.25, 0.0),
+            (2.25, 0.0),
+            (0.0, 1.25),
+            (1.25, 1.25),
+            (2.25, 2.25),
+            (-2.25, 0.0),
+        )
+        for center_x, center_y in samples:
+            exact_area = box(-0.5, -0.5, 0.5, 0.5).intersection(
+                affinity.translate(frame, xoff=center_x, yoff=center_y)
+            ).area
+            self.assertGreater(exact_area, 0.0)
+            pos = torch.tensor(
+                [-0.5, center_x - 2.0, -0.5, center_y - 2.0],
+                dtype=torch.float64,
+            )
+            self.assertLessEqual(loss_op.sampled_clearances(pos).item(), 0.0)
+        self.assertEqual(diagnostics["pair_count"], 1)
+
+    def test_collision_pair_list_is_a_conservative_full_broadphase(self):
+        footprints = {
+            node_id: box(-0.5, -0.5, 0.5, 0.5) for node_id in range(4)
+        }
+        _, diagnostics = _build_footprint_collision_data(
+            footprints=footprints,
+            node_sides={0: "TOP", 1: "TOP", 2: "TOP", 3: "BOTTOM"},
+            active_node_ids=[0, 1],
+            num_physical_nodes=4,
+            grid=0.05,
+            margin=0.0,
+            tau=0.025,
+        )
+
+        # Every TOP pair containing an active node is retained; no distance
+        # broadphase can omit a future near-contact pair.
+        self.assertEqual(diagnostics["pair_count"], 3)
+        self.assertEqual(diagnostics["pair_count_by_side"], {"TOP": 3})
+
+    def test_collision_diagnostics_report_clearance_and_active_pairs(self):
+        loss_op, _ = self._collision_loss()
+        pos = torch.tensor([0.0, 0.975, 0.0, 0.0], dtype=torch.float64)
+
+        diagnostics = loss_op.diagnostics(pos)
+
+        self.assertEqual(diagnostics["evaluated_pair_count"], 1)
+        self.assertEqual(diagnostics["active_pair_count"], 1)
+        self.assertEqual(diagnostics["penetrating_pair_count"], 1)
+        self.assertLess(diagnostics["minimum_clearance"], 0.0)
+        self.assertGreater(diagnostics["loss"], 0.0)
+
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
     def test_collision_barrier_cpu_gpu_consistency(self):
         cpu_loss, _ = self._collision_loss()
@@ -396,6 +533,27 @@ class AnchorKeepInTest(unittest.TestCase):
         np.testing.assert_allclose(
             cpu_pos.grad.numpy(), gpu_pos.grad.cpu().numpy(), atol=1e-10, rtol=1e-10
         )
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
+    def test_collision_barrier_cuda_repeat_is_byte_identical(self):
+        loss_op, _ = self._collision_loss(device="cuda")
+
+        def evaluate():
+            pos = torch.tensor(
+                [0.0, 0.975, 0.0, 0.0],
+                dtype=torch.float64,
+                device="cuda",
+                requires_grad=True,
+            )
+            value = loss_op(pos)
+            value.backward()
+            return value.detach().clone(), pos.grad.detach().clone()
+
+        first_value, first_gradient = evaluate()
+        second_value, second_gradient = evaluate()
+
+        self.assertTrue(torch.equal(first_value, second_value))
+        self.assertTrue(torch.equal(first_gradient, second_gradient))
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
     def test_soft_keepin_margin_cpu_gpu_consistency(self):
