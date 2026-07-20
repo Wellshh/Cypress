@@ -185,6 +185,7 @@ append-only audit ledger.
 | [M336-172](M336-172-scale2-contact-budget-anchor-direction.md) | Critical | Open | Scale-2 remains legal but exceeds the bounded contact scope, collapses LR, and leaves E3 anchor direction negative |
 | [M336-173](M336-173-stale-anchor-gradient-ratio-ramp.md) | Critical | Open | A five-step refresh reuses a 15.3x-stale wirelength norm during the early anchor ramp and misreports effective pressure |
 | [M336-174](M336-174-contact-consensus-overcorrects-active-components.md) | Critical | Open | Contact consensus overwrites every active proposal and conflates crossing endpoints with bounded correction scope |
+| [M336-175](M336-175-output-dir-does-not-scope-summary.md) | High | Open | Native matrix output-dir leaves summary/report at mutable global defaults unless both paths are repeated explicitly |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |
