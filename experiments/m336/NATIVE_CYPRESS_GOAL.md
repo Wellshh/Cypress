@@ -52,7 +52,12 @@ fails, and must not be presented as evidence that Cypress itself improved.
   CUDA Adam steps with zero overlap after every accepted step. Candidate-side
   contact projection plus the exact guard costs `1.675x/1.535x` the matching
   feature-off GPU optimization path and stays within the `0.5%` HPWL/RSMT
-  quality gate. D2 scale `2` is the next active boundary.
+  quality gate. This authorized exactly one D2 scale-2 probe.
+- M336-172 stops D2 after its single authorized scale-2 run. Exact accepted
+  positions remain legal and native quality improves slightly, but both E2/E3
+  hit the global 32-node contact budget three times, finish at LR
+  `0.00567269`, and E3 worsens anchor mean/p90 versus E2. D3 is blocked until
+  broad crossing support is reduced without increasing the safety budget.
 
 ## Required native-algorithm outcomes
 
@@ -200,7 +205,7 @@ Promotion requirements:
 - per-step overhead reported and no more than `2x` before optimization work is
   expanded.
 
-#### D2 — bounded motion recovery
+#### D2 — bounded motion recovery (blocked by M336-172)
 
 Only after D1 passes, repeat warm E2/E3 at learning-rate scale `2`.
 

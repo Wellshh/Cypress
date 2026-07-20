@@ -313,9 +313,9 @@ barrier-only summary
 ee9e71df180fa922d34777fa91edd908f803e24a03735acfb8245d3ae38ec9cc
 ```
 
-M336-171 is resolved for its stated D1 acceptance criteria. N6 remains active
-at D2; this resolution does not authorize larger LR, scalar-weight, seed, or
-repair ladders.
+M336-171 is resolved for its stated D1 acceptance criteria. M336-172 records
+the subsequent D2 stop; this resolution does not authorize larger LR,
+scalar-weight, seed, or repair ladders.
 
 ## Root Cause
 
