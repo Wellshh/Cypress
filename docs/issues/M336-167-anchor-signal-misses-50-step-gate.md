@@ -27,6 +27,24 @@ its effective lambda converges near `1.0`. E3 improves HPWL/RSMT slightly over
 E2 (`15632.496/17356.650` versus `15634.590/17374.695`), so the loss is active,
 but its anchor displacement signal is far too weak.
 
+The required bounded sweep was then run with the same checkpoint-warm seed,
+50-step budget, GPU, inputs, and CuBLAS contract:
+
+| Ratio | Physical mean / p90 (mm) | Projected mean / p90 (mm) | HPWL / RSMT | Overlaps | Runtime (s) | Final lambda |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `0.05` | `6.513834 / 12.031537` | `2.414351 / 4.445862` | `15633.244 / 17357.762` | 69 | `14.909` | `0.498571` |
+| `0.10` | `6.512543 / 12.030223` | `2.412928 / 4.444917` | `15632.496 / 17356.650` | 71 | `14.519` | `0.997797` |
+| `0.25` | `6.509923 / 12.026315` | `2.410085 / 4.442583` | `15631.455 / 17358.943` | 71 | `14.927` | `2.498321` |
+| `0.50` | `6.506966 / 12.020804` | `2.406940 / 4.439739` | `15630.603 / 17357.859` | 70 | `14.431` | `5.007344` |
+
+Ratio `0.50` is monotonic but still improves physical mean/p90 only
+`0.1364%/0.0997%` and projected mean/p90 only `0.4044%/0.1611%` versus E2.
+It improves HPWL/RSMT by `3.987/16.836`, but increases exact overlaps from 66
+to 70. Every run records 53 backward calls, 50 changing Adam steps, no keep-in
+violations, and a distinct placement hash. The controller therefore responds
+correctly; this sweep does not justify a larger ratio or satisfy the anchor gate.
+The next required evidence is the per-component feasible-domain lower bound.
+
 ## Remediation
 
 Run the specified controlled ratios `0.05, 0.10, 0.25, 0.50` at the same

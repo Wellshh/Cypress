@@ -196,6 +196,15 @@ remain unaccepted M336-163 evidence. The final three-seed matrix remains blocked
 on M336-163 through M336-165 and M336-167; no checkpoint fallback or broad
 repair output may be promoted as native Cypress evidence.
 
+The M336-167 checkpoint-warm 50-step sweep tests the complete bounded ratio set
+`0.05/0.10/0.25/0.50`. Effective lambda scales as requested and ratio `0.50`
+gives the strongest response, but physical anchor mean/p90 improve only
+`0.1364%/0.0997%` versus E2, far below `25%/15%`; projected-target mean/p90
+improve only `0.4044%/0.1611%`. HPWL/RSMT improve by `3.987/16.836`, while exact
+overlaps rise from 66 to 70. Larger ratios are not authorized by this evidence.
+M336-167 now requires a serialized per-component feasible-domain lower bound to
+separate unreachable anchors from optimizer displacement-scale failure.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls
