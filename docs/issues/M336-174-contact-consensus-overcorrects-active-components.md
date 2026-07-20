@@ -243,3 +243,74 @@ This remains implementation evidence only. D1 must be rerun after this semantic
 change, committed, pushed, and pulled before the single predeclared D2 effect
 test. No M336 GPU placement experiment, E4 repair, CP-SAT path, fallback, or
 parameter ladder has run for this candidate.
+
+## Post-Implementation D1 Replay
+
+Commit `0d2cae5d2994e3a982214deed0a84e4f1aec317c` was signed,
+pushed, pulled, installed, and then evaluated on physical GPU 2. The run keeps
+the M336-171 scale-1 contract unchanged: checkpoint-warm E2/E3, seed `1000`,
+ten iterations, deterministic CuBLAS, irregular density, collision ratio
+`0.1`, zero collision margin, exact accepted-step guard, and the unchanged
+eight-iteration/32-correction contact bound. E4, CP-SAT placement, repair,
+fallback, and parameter ladders were disabled.
+
+```text
+results/m336/native-cypress/
+  m336-174-representative-d1-warm-10-scale1/
+summary SHA-256
+2d61a48d8284f126e43832dd09ed58dceaf2c55726255203ff74ef8bcac646e4
+E2 exact-guard SHA-256
+6cbacf6aa0184a2da853b9584e396f88b4c4d7eee7d36c8e61fc5e94f5144725
+E3 exact-guard SHA-256
+648362f8c21a2006a1944732e5f24121264b3bc5c08d3fa3df7a88f51abbe037
+```
+
+Both arms execute `NonLinearPlace`, `PlaceObj`, 13 backward calls, and ten
+changing CUDA Adam steps. Every proposal is accepted at retry zero; every
+accepted-step exact report and both post-serialization reports have 100/100
+containment, zero keep-in violations, and zero overlaps. Float64 scoring
+replays each serialized placement with zero coordinate error and an identical
+input/replay placement hash.
+
+| Metric | E2 | E3 |
+| --- | ---: | ---: |
+| Accepted / rejected attempts | `10 / 0` | `10 / 0` |
+| Initial / final LR | `0.0230855606 / 0.0230855606` | `0.0230855606 / 0.0230855606` |
+| Maximum active contact endpoints | `37` | `44` |
+| Maximum cumulative corrected scope | `24` | `26` |
+| Maximum component active/corrected scope | `4 / 4` | `4 / 4` |
+| Maximum contact correction (`mm`) | `0.00326420` | `0.00326420` |
+| Native HPWL | `15633.109790` | `15633.019091` |
+| FLUTE RSMT | `17328.300` | `17328.207` |
+| Normalized native score | `0.9280174763` | `0.9280226571` |
+| Anchor mean / p90 (`mm`) | `6.524105003 / 12.047651992` | `6.523985389 / 12.047594765` |
+| Constrained path / net displacement (`mm`) | `0.011246011 / 0.010669671` | `0.011314802 / 0.010724053` |
+| GPU optimization / end-to-end (`s`) | `1.82268 / 13.4417` | `2.14319 / 13.4405` |
+
+The new distinction is active in real proposals rather than only unit tests.
+Endpoint pressure exceeds 32 in both arms, but the actual cumulative correction
+union remains below the unchanged cap. No proposal uses broad correction or
+backoff. Relative to the retained M336-171 feature-off controls:
+
+| Gate | E2 | E3 | Limit |
+| --- | ---: | ---: | ---: |
+| HPWL regression | `0.000810%` | `0.002126%` | `<= 0.5%` |
+| RSMT regression | `0.007053%` | `0.014608%` | `<= 0.5%` |
+| GPU optimization ratio | `1.686x` | `1.590x` | `<= 2x` |
+| End-to-end ratio | `1.144x` | `1.133x` | `<= 2x` |
+
+E3 is also strictly better than E2 by `0.001833%` in anchor mean and
+`0.000475%` in p90; HPWL/RSMT improve by `0.090698/0.093`, respectively.
+These changes are small and are not a final anchor-quality promotion, but the
+predeclared D1 safety gate passes.
+
+The original command omitted explicit summary/report paths. As documented in
+M336-175, the runner wrote those two files to mutable global defaults; after
+verifying their commit, run IDs, timestamps, and artifact roots, they were
+copied byte-for-byte into this run directory. This archival correction did not
+rerun either arm or alter any metric. Future commands must set both paths.
+
+One scale-2 D2 replay is now authorized after this evidence commit is pushed
+and pulled. Its matching D1 correction limit is `0.00326420 mm`, so the
+predeclared `2x` ceiling is `0.00652841 mm`. D3 remains prohibited unless D2
+passes every M336-174 gate.

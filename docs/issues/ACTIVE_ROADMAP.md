@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-174`
+**Evidence through:** `M336-175`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (D2 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-174 must bound cumulative consensus corrections without hiding M336-172 endpoint pressure; D1 and D2 must then requalify |
+| N6 (D2 authorized) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-174 passes scale-1 D1 with bounded cumulative corrections; run the single predeclared scale-2 D2 gate, while D3 remains prohibited |
 
 ## Paused Exact-Site Priorities
 
@@ -383,6 +383,27 @@ including float32/float64 CPU/GPU identity and source/install parity. The
 aggregate runner's independent ten-error/zero-exit defect is tracked as
 TEST-001 and is not called a pass. This candidate has no effect evidence yet;
 rerun D1 before any D2 attempt, and keep D3 prohibited.
+
+The post-implementation M336-174 D1 replay at `0d2cae5` passes its declared
+scale-1 gate. E2 and E3 each execute 13 backward calls and ten changing CUDA
+Adam steps, accept all ten proposals without backoff, preserve the initial
+`0.0230855606` learning rate, and finish 100/100 contained with zero keep-in
+violations and overlaps. Maximum active endpoint pressure is `37/44`, while
+the separately bounded cumulative correction scopes are only `24/26`; the cap
+remains 32. Relative to the retained feature-off controls, HPWL regressions are
+`0.000810%/0.002126%`, RSMT regressions are `0.007053%/0.014608%`, and GPU
+runtime ratios are `1.686x/1.590x`, within the `0.5%` and `2x` gates. E3 also
+has strictly lower anchor mean and p90 than E2, although only by
+`0.001833%/0.000475%`. This authorizes exactly one predeclared scale-2 D2
+replay; it does not promote N6 or authorize D3.
+
+M336-175 records an independent evidence-routing defect exposed by that run.
+`--output-dir` scopes per-arm artifacts but not the top-level summary/report;
+without explicit path flags, the runner overwrites `results/m336/summary.json`
+and `results/m336/REPORT.md`. The D1 files were verified against commit and
+run IDs, then archived byte-identically under their run root. Until the default
+is fixed, all future promoted commands must pass both `--summary-path` and
+`--report-path`.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
