@@ -314,3 +314,56 @@ One scale-2 D2 replay is now authorized after this evidence commit is pushed
 and pulled. Its matching D1 correction limit is `0.00326420 mm`, so the
 predeclared `2x` ceiling is `0.00652841 mm`. D3 remains prohibited unless D2
 passes every M336-174 gate.
+
+## Scale-2 D2 Replay and Stop
+
+The single authorized D2 replay ran at
+`d4fddbbaddf828df4d0544e4d3f4abdf36694f73` after the D1 evidence was
+pushed and pulled. It used the frozen scale-2 contract and explicit
+output-specific summary/report paths required by M336-175. The old global D1
+summary/report hashes remained unchanged.
+
+Both arms prove the native Cypress chain with 13 backward calls and ten
+changing CUDA Adam steps. Each has one rejected iteration-7 proposal followed
+by an accepted half-LR retry; transaction rollback restores position and Adam
+state hashes exactly. All accepted steps and both float64 post-serialization
+replays remain 100/100 contained with zero keep-in violations, zero overlaps,
+and zero coordinate replay error.
+
+| Gate | E2 | E3 | Result |
+| --- | ---: | ---: | :---: |
+| Accepted / rejected attempts | `10 / 1` | `10 / 1` | pass |
+| Final LR / initial LR | `0.5` | `0.5` | pass |
+| Maximum active endpoints | `51` | `51` | reported |
+| Maximum applied / required correction scope | `32 / 33` | `32 / 33` | **fail** |
+| Maximum correction vs D1 | `1.96694x` | `1.96694x` | pass |
+| Net displacement vs M336-171 D1 | `+69.81%` | `+106.93%` | pass |
+| Anchor mean/p90, E3 vs E2 | `6.522501064 / 12.043654952` | `6.522317506 / 12.043574216` | pass |
+| HPWL delta vs current D1 | `+0.087139` | `+0.086948` | **fail** |
+| RSMT delta vs current D1 | `-1.700` | `-1.730` | pass |
+
+The correction implementation therefore does what it claims but does not pass
+the D2 promotion contract. A representative per component keeps broad endpoint
+pressure separate and permits much larger native motion, yet one proposal in
+each arm still needs 33 actual correction writes. The guard correctly rejects
+rather than increasing the cap or accepting an illegal candidate. Native RSMT
+and normalized score improve, but the contract requires both HPWL and RSMT not
+to regress; the small HPWL increase is still a failure.
+
+M336-173 is resolved because its per-step ratio is current and E3 now gives a
+strictly positive anchor signal. M336-172 and M336-174 remain open. No D3,
+E4, CP-SAT placement, fallback, cap increase, seed ladder, LR ladder, or scalar
+weight ladder is authorized.
+
+Evidence:
+
+```text
+results/m336/native-cypress/
+  m336-174-representative-d2-warm-10-scale2/
+summary SHA-256
+8126ab17063f3c183a85566cfe4fa07409ea541e6e9591d0c00653fe16eef8d7
+E2 exact-guard SHA-256
+92345bcefbe1ae608b0703570596e6c3db8b0a46c1b9abfb84733de3fd8de999
+E3 exact-guard SHA-256
+647ccc7efbd9c8ec0f36fa9bdd1525efb6f3a9b036e718e27813be72b473e67e
+```

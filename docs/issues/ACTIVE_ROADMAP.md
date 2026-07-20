@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (D2 authorized) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-174 passes scale-1 D1 with bounded cumulative corrections; run the single predeclared scale-2 D2 gate, while D3 remains prohibited |
+| N6 (D2 failed; D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-174 D2 requires 33 cumulative corrections and regresses HPWL; preserve the exact guard and redesign proposal-side contact control before a new authorization |
 
 ## Paused Exact-Site Priorities
 
@@ -404,6 +404,19 @@ and `results/m336/REPORT.md`. The D1 files were verified against commit and
 run IDs, then archived byte-identically under their run root. Until the default
 is fixed, all future promoted commands must pass both `--summary-path` and
 `--report-path`.
+
+The single M336-174 scale-2 D2 replay at `d4fddbb` fails its conjunction of
+predeclared gates, so D3 remains prohibited. E2/E3 each execute ten changing
+CUDA Adam steps and finish exact legal, but one iteration-7 proposal per arm
+has 51 active contact endpoints and requires 33 cumulative corrections. The
+unchanged cap rejects it transactionally and halves LR from `0.0453815013` to
+`0.0226907507`. Maximum applied correction is `0.00642050 mm`, below its `2x`
+D1 ceiling, and net motion rises `69.81%/106.93%` over M336-171 D1. Per-step
+anchor refresh is current and E3 improves anchor mean/p90 over E2, resolving
+M336-173's stale-ratio defect. However, HPWL regresses from matching current D1
+by `0.087139/0.086948` for E2/E3 even though RSMT improves. The true
+correction-scope failure and HPWL failure keep M336-172/M336-174 open. Do not
+run D3, raise the cap, or start another seed/LR/ratio/E4 ladder.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

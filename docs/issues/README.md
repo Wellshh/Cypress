@@ -182,9 +182,9 @@ append-only audit ledger.
 | [M336-169](M336-169-legacy-macro-overlap-zero-contact-gradient.md) | Critical | Open | Legacy macro-overlap has zero contact gradient and negligible shallow-collision force |
 | [M336-170](M336-170-exact-accepted-step-overlap-guard-missing.md) | Critical | Open | Native optimizer records exact overlaps only after accepting the crossing step |
 | [M336-171](M336-171-global-collision-weight-misses-local-contact-direction.md) | Critical | Resolved | Bounded contact-component projection plus exact guard passes warm scale-1 D1; scalar barrier alone remains insufficient |
-| [M336-172](M336-172-scale2-contact-budget-anchor-direction.md) | Critical | Open | Scale-2 remains legal but exceeds the bounded contact scope, collapses LR, and leaves E3 anchor direction negative |
-| [M336-173](M336-173-stale-anchor-gradient-ratio-ramp.md) | Critical | Open | A five-step refresh reuses a 15.3x-stale wirelength norm during the early anchor ramp and misreports effective pressure |
-| [M336-174](M336-174-contact-consensus-overcorrects-active-components.md) | Critical | Open | Contact consensus overwrites every active proposal and conflates crossing endpoints with bounded correction scope |
+| [M336-172](M336-172-scale2-contact-budget-anchor-direction.md) | Critical | Open | Scale-2 still exceeds the bounded correction scope and regresses HPWL after anchor direction recovers |
+| [M336-173](M336-173-stale-anchor-gradient-ratio-ramp.md) | Critical | Resolved | Per-step M336 refresh reports current bounded ratios and restores a positive E3 anchor-direction signal |
+| [M336-174](M336-174-contact-consensus-overcorrects-active-components.md) | Critical | Open | Representative consensus bounds writes, but D2 still requires 33 corrections and regresses HPWL |
 | [M336-175](M336-175-output-dir-does-not-scope-summary.md) | High | Open | Native matrix output-dir leaves summary/report at mutable global defaults unless both paths are repeated explicitly |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |

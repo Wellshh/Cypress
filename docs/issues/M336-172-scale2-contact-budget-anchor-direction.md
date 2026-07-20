@@ -312,3 +312,64 @@ E2 placement
 E3 placement
 1574669cd1bba21ccdba154ad4727f53a408cf8c409febefc22ffa0eb1cbd562
 ```
+
+## Representative-Scope D2 Replay
+
+M336-174 replaces all-active averaging with one deterministic native
+representative per component and bounds the cumulative union of selected
+correction IDs. After its D1 gate passed, the single authorized scale-2 replay
+ran at `d4fddbbaddf828df4d0544e4d3f4abdf36694f73` with the unchanged
+seed, iteration, LR, collision, guard, and cap contract.
+
+The narrower intervention materially improves scale-2 motion and anchor
+direction, but it does not eliminate the real global scope boundary:
+
+| Metric | E2 | E3 |
+| --- | ---: | ---: |
+| Accepted / rejected attempts | `10 / 1` | `10 / 1` |
+| Maximum active / total contact endpoints | `51 / 53` | `51 / 53` |
+| Maximum applied / required correction scope | `32 / 33` | `32 / 33` |
+| Initial / final LR | `0.0453815013 / 0.0226907507` | `0.0453815013 / 0.0226907507` |
+| Maximum correction (`mm`) | `0.00642050` | `0.00642050` |
+| Constrained path / net (`mm`) | `0.018706298 / 0.017160281` | `0.018773225 / 0.017195781` |
+| Native HPWL / RSMT | `15633.196929 / 17326.600` | `15633.106040 / 17326.477` |
+| Anchor mean / p90 (`mm`) | `6.522501064 / 12.043654952` | `6.522317506 / 12.043574216` |
+
+At iteration 7 in each arm, retry zero requires 33 cumulative correction IDs
+across components whose largest active scope is only four. The projector fails
+closed with `contact_node_limit`; the exact guard restores position and
+optimizer hashes exactly, halves the LR once, and accepts retry one. All ten
+accepted steps and both serialized placements remain 100/100 contained with
+zero keep-in violations and overlaps.
+
+The following gates pass:
+
+- final LR is exactly half the initial scale-2 LR;
+- maximum correction is `1.96694x` D1, below the `2x` ceiling;
+- net displacement is `69.81%/106.93%` above the original M336-171 D1 values;
+- E3 anchor mean and p90 are strictly lower than E2;
+- RSMT improves from current D1 by `1.700/1.730` for E2/E3.
+
+Two mandatory gates fail:
+
+- required cumulative scope reaches 33, above the unchanged cap of 32;
+- HPWL regresses from current D1 by `0.087139/0.086948` for E2/E3.
+
+M336-173's anchor-direction defect is resolved independently, but M336-172
+remains open on genuine simultaneous crossing pressure and quality retention.
+D3, cap growth, E4 repair, and parameter ladders remain prohibited.
+
+Evidence SHA-256 values:
+
+```text
+summary
+8126ab17063f3c183a85566cfe4fa07409ea541e6e9591d0c00653fe16eef8d7
+E2 exact guard
+92345bcefbe1ae608b0703570596e6c3db8b0a46c1b9abfb84733de3fd8de999
+E3 exact guard
+647ccc7efbd9c8ec0f36fa9bdd1525efb6f3a9b036e718e27813be72b473e67e
+E2 placement
+7b200b6b8fc786411960c3930fa33ba5353f036ddbb3ce484c647266b703ae7e
+E3 placement
+7267600f9200d668a31ae943d13205088867346af2c82813d6499d5e436f49b2
+```

@@ -1,9 +1,10 @@
 # M336-173: Anchor Gradient Ratio Is Stale During Ramp
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Resolved
 **Found:** 2026-07-21
 **Affected commit:** `d69b582`
+**Resolved by:** `9b4f164`, validated at `d4fddbb`
 
 ## Problem
 
@@ -173,3 +174,46 @@ failures.
 
 This is implementation evidence only. M336-173 remains open and no post-change
 D2 run has been authorized.
+
+## Post-Fix D2 Validation
+
+The one explicitly authorized M336-174 D2 replay at
+`d4fddbbaddf828df4d0544e4d3f4abdf36694f73` closes this issue's
+controller and causal-direction criteria. It uses checkpoint-warm E2/E3, seed
+`1000`, ten iterations, LR scale `2`, and the same collision, exact guard, and
+contact-projection contract in both arms.
+
+All ten E3 updates refresh both gradient norms. Every row reports
+`gradient_age = 0`, `effective_ratio_basis = current_gradients`, and
+`effective_ratio_is_current = true`. The maximum absolute error between
+`effective_ratio` and `target_ratio * ramp` is
+`1.3877787807814457e-17`. The nonzero schedule is therefore the intended
+`0.01, 0.02, ..., 0.08`, not the stale `0.153-0.459` pressure observed at
+iterations 2-4 in the affected run.
+
+Under otherwise identical D2 settings, E3 is strictly closer to anchors than
+E2:
+
+| Metric | E2 | E3 | E3 reduction |
+| --- | ---: | ---: | ---: |
+| Anchor mean (`mm`) | `6.522501064` | `6.522317506` | `0.002814%` |
+| Anchor p90 (`mm`) | `12.043654952` | `12.043574216` | `0.000670%` |
+
+The absolute signal is small and does not meet the final 25%/15% anchor gate,
+but it is positive under an isolated E2/E3 contract. M336-173 concerns stale
+ratio accounting and direction, not the magnitude gate, so its acceptance
+criteria are satisfied.
+
+The overall D2 promotion still fails M336-172 and M336-174: each arm has one
+proposal requiring 33 corrections under the unchanged cap of 32, and native
+HPWL regresses from the matching D1 arm. Resolving this controller issue does
+not authorize D3, weaken exact legality, or permit another parameter ladder.
+
+Evidence:
+
+```text
+results/m336/native-cypress/
+  m336-174-representative-d2-warm-10-scale2/summary.json
+SHA-256
+8126ab17063f3c183a85566cfe4fa07409ea541e6e9591d0c00653fe16eef8d7
+```
