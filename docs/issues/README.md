@@ -133,6 +133,7 @@ append evidence rather than replacing prior observations.
 | [M336-123](M336-123-grid005-page7-rank-barriers.md) | Critical | Open | Exact rank and HPWL closures preserve the incumbent and best certified page-7 escape layers |
 | [M336-124](M336-124-page7-quality-blocker-boundary.md) | Critical | Open | Exact quality-hybrid overlap graphs identify B402/L401 and the frozen MIC401 boundary |
 | [M336-125](M336-125-grid005-page7-blocker-release-stall.md) | Critical | Open | Releasing the exact B402/L401 blocker boundary changes the K4096 bound but retains M336-118 |
+| [M336-126](M336-126-expanded-guide-single-move-barrier.md) | Critical | Open | Expanded-guided single-component escape reproduces only the three existing page-7 families |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
