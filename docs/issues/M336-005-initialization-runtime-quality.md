@@ -47,6 +47,21 @@ reverted. This is a negative result: min-conflicts remains a bounded fallback,
 not the default path. Candidate-limited forward checking is also explicitly
 reported as heuristic exhaustion, never as a proof of packing infeasibility.
 
+## Update: Preserved Warm Start and Cold Closure
+
+The N4 warm seed-1000 10-step matrix now preserves all 100 M336-118 components
+in `0.0180 s`. E4's bounded same-run restore takes `0.0628 s`; end-to-end E4 is
+`13.8934 s` versus E0 `9.4035 s`, passing the applicable warm runtime gate at
+`1.4775x` without destructive packing.
+
+The float cold/source placement is structurally different: exact preflight
+preserves only four constrained components and the illegal/conflict closure
+contains the other 96. Initialization still takes `53.20–54.93 s`, compared
+with `1.20–1.32 s` of GPU optimization. Cold E4 is exact legal but ends at
+native HPWL/RSMT `19745.9814/21389.876` and score `0.743234`. This remains an
+open cold-start performance and quality limitation; it is not the warm-cache
+2x acceptance gate.
+
 ## Remediation
 
 1. Profile each region/trial and cache candidate footprint conflict indices.

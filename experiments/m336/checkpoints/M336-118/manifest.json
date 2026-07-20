@@ -13,6 +13,9 @@
     "placement.pl": {
       "sha256": "32f814e4b4f49a1450f4d02cc4d197f668ca0ddadc45b6cf523f049ae968cbf7"
     },
+    "placement.float64.pl": {
+      "sha256": "3d3d3ef72bab1f279e9906ada249a724a451c8f415d777f98f84adfa1d93cdbc"
+    },
     "quality-guide.json": {
       "sha256": "64634cd629a516a2efc7c47e8beb5cd9443f83caed4eb3b3671269f71b506081"
     }

@@ -372,8 +372,12 @@
         "default": 10
     },
     "anchor_keepin_initialization": {
-        "description": "anchor/keep-in packing preference: anchor or current",
-        "default": "anchor"
+        "description": "anchor/keep-in initialization mode: legacy_pack_all, preserve_legal, project_illegal, or checkpoint_warm_start",
+        "default": "legacy_pack_all"
+    },
+    "feasible_domain_cache_dir": {
+        "description": "optional persistent cache directory for footprint-aware feasible domains",
+        "default": ""
     },
     "keepin_soft_loss_flag": {
         "description": "enable soft distance penalty outside component feasible domains",
@@ -381,6 +385,10 @@
     },
     "irregular_density_flag": {
         "description": "make side-specific electric density consume irregular keep-in capacity",
+        "default": false
+    },
+    "irregular_density_require_feasible_target": {
+        "description": "fail when irregular usable area cannot support target density",
         "default": false
     },
     "keepin_soft_loss_weight_scale": {

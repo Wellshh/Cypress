@@ -197,6 +197,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         net_crossing_enabled = bool(
             params.net_crossing_flag and float(params.net_crossing_weight) != 0.0
         )
+        optimization_started = time.perf_counter()
         # global placement
         if params.global_place_flag:
             # global placement may run in multiple stages according to user specification
@@ -268,6 +269,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         lr=0,
                         obj_and_grad_fn=model.obj_and_grad_fn,
                         constraint_fn=constraint_projector,
+                        project_initial_state=(
+                            self.anchor_keepin_context is not None
+                        ),
                     )
                 else:
                     assert 0, "unknown optimizer %s" % (optimizer_name)
@@ -638,12 +642,13 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                             zero_optimizer_state,
                         )
 
-                        zero_optimizer_state(
-                            optimizer,
-                            pos,
-                            step_evidence["projected_node_ids"],
-                            placedb.num_nodes,
-                        )
+                        if self.anchor_keepin_context is not None:
+                            zero_optimizer_state(
+                                optimizer,
+                                pos,
+                                step_evidence["projected_node_ids"],
+                                placedb.num_nodes,
+                            )
                         proposal = step_evidence["proposal"]
                         projection = step_evidence["accepted_projection"]
                         native_execution["optimizer_step_count"] += 1
@@ -1287,6 +1292,12 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             "native execution summary: %s",
             json.dumps(native_execution, sort_keys=True),
         )
+        if self.anchor_keepin_context is not None:
+            if params.gpu:
+                torch.cuda.synchronize()
+            self.anchor_keepin_context.timing["gpu_optimization_seconds"] = (
+                time.perf_counter() - optimization_started
+            )
         if net_crossing_enabled:
             processed_metrics["net_crossing"] = net_crossing
 
@@ -1432,8 +1443,11 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         if self.anchor_keepin_context is not None:
             context = self.anchor_keepin_context
             repair_report = None
+            validation_seconds = 0.0
             if context.exact_repair_enabled:
+                validation_started = time.perf_counter()
                 exact_before = context.exact_report(self.pos[0], placedb)
+                validation_seconds += time.perf_counter() - validation_started
                 hpwl_before = float(self.op_collections.hpwl_op(self.pos[0]))
                 already_legal = (
                     exact_before["keepin_violation_count"] == 0
@@ -1451,7 +1465,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     if already_legal
                     else context.repair_positions(self.pos[0], placedb)
                 )
+                validation_started = time.perf_counter()
                 exact_after = context.exact_report(self.pos[0], placedb)
+                validation_seconds += time.perf_counter() - validation_started
                 hpwl_after = float(self.op_collections.hpwl_op(self.pos[0]))
                 repair_report = {
                     "before": exact_before,
@@ -1471,7 +1487,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     hpwl_before,
                     hpwl_after,
                 )
+            validation_started = time.perf_counter()
             exact_report = context.exact_report(self.pos[0], placedb)
+            validation_seconds += time.perf_counter() - validation_started
+            context.timing["exact_validation_seconds"] += validation_seconds
             exact_report["total_projected_nodes"] = context.projector.total_projected
             processed_metrics["anchor_keepin"] = {
                 "total_projected_nodes": context.projector.total_projected,
@@ -1488,6 +1507,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 exact_report["keepin_violation_count"],
                 exact_report["overlap_pair_count"],
             )
+            context.write_timing()
 
         # save results
         cur_pos = self.pos[0].data.clone().cpu().numpy()
@@ -1523,6 +1543,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         # if params.plot_flag:
         self.plot(params, placedb, iteration, cur_pos)
 
+        scoring_started = time.perf_counter()
         # run RSMT
         with torch.no_grad():
             tt = time.time()
@@ -1534,6 +1555,14 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         with torch.no_grad():
             hpwl = self.op_collections.hpwl_op(self.pos[0])
             logging.info("unweighted hpwl %.6E" % hpwl)
+
+        if self.anchor_keepin_context is not None:
+            context = self.anchor_keepin_context
+            context.timing["native_scoring_seconds"] += (
+                time.perf_counter() - scoring_started
+            )
+            context.write_timing()
+            processed_metrics["timing"] = dict(context.timing)
 
         # get net crossing
         with torch.no_grad():

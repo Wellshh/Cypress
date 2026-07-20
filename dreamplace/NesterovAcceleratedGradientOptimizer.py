@@ -37,7 +37,12 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
     """
 
     def __init__(
-        self, params, lr=required, obj_and_grad_fn=required, constraint_fn=None
+        self,
+        params,
+        lr=required,
+        obj_and_grad_fn=required,
+        constraint_fn=None,
+        project_initial_state=False,
     ):
         """
         @brief initialization
@@ -74,6 +79,7 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
         super(NesterovAcceleratedGradientOptimizer, self).__init__(params, defaults)
         self.obj_and_grad_fn = obj_and_grad_fn
         self.constraint_fn = constraint_fn
+        self.project_initial_state = bool(project_initial_state)
 
         # I do not know how to get generator's length
         if len(self.param_groups) != 1:
@@ -128,7 +134,7 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
             constraint_fn = self.constraint_fn
             for i, p in enumerate(group["params"]):
                 if not group["u_k"]:
-                    if constraint_fn is not None:
+                    if self.project_initial_state and constraint_fn is not None:
                         constraint_fn(p)
                     group["u_k"].append(p.data.clone())
                     # directly use p as v_k to save memory
@@ -155,7 +161,7 @@ class NesterovAcceleratedGradientOptimizer(Optimizer):
                         )
                     )
                     group["v_k_1"][i].data.copy_(group["v_k"][i] - group["lr"] * g_k)
-                    if constraint_fn is not None:
+                    if self.project_initial_state and constraint_fn is not None:
                         constraint_fn(group["v_k_1"][i])
                     obj, grad = obj_and_grad_fn(group["v_k_1"][i])
                     if not self._all_finite(obj, grad):

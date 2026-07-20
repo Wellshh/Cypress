@@ -205,9 +205,12 @@ class AdaptiveAnchorWeight:
             self.last_raw_weight = raw_weight
             self.last_bounded_weight = bounded_weight
 
+        # EMA should delay an upward weight change, not preserve stale pressure
+        # after the freshly matched weight drops.
+        controlled_weight = min(self.ema_weight, self.last_bounded_weight)
         ramp = self._ramp(iteration)
         effective_weight = min(
-            max(self.ema_weight * ramp, 0.0), self.max_weight
+            max(controlled_weight * ramp, 0.0), self.max_weight
         )
         if self.last_wirelength_gradient_l1 > epsilon:
             effective_ratio = (
@@ -226,6 +229,7 @@ class AdaptiveAnchorWeight:
             "raw_weight": self.last_raw_weight,
             "bounded_weight": self.last_bounded_weight,
             "ema_weight": self.ema_weight,
+            "controlled_weight": controlled_weight,
             "ramp": ramp,
             "effective_weight": effective_weight,
             "effective_ratio": effective_ratio,

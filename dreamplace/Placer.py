@@ -295,7 +295,14 @@ class PlacementEngine:
         # print(p.key_averages().table(sort_by="self_cuda_time_total", row_limit=20))
         # print(p.key_averages().table(sort_by="self_cpu_time_total", row_limit=20))
         self.placedb.update_node_orient(self.placer.data_collections.best_orient_choice.cpu().numpy())
+        serialization_started = time.perf_counter()
         self.save_placement()
+        if self.placer.anchor_keepin_context is not None:
+            context = self.placer.anchor_keepin_context
+            context.timing["serialization_seconds"] += (
+                time.perf_counter() - serialization_started
+            )
+            context.write_timing()
 
         if self.rsmt != float("inf"):            
             self.density = float(self.params.target_density)

@@ -117,12 +117,21 @@ from score_exact_site_result import (  # noqa: E402
     _require_objective_replay_audit,
 )
 from run_matrix import (  # noqa: E402
+    DEFAULT_M336_ASSIGNMENT,
+    DEFAULT_M336_CHECKPOINT_PL,
+    DEFAULT_M336_CONSTRAINT_GRID_MM,
+    DEFAULT_M336_TARGET_DENSITY,
     EXPERIMENTS,
     _configured_anchor_control,
+    _warm_runtime_gate,
+    constraint_config,
     parse_anchor_weight_updates,
     parse_native_execution,
+    parse_placement,
     parse_weight_diagnostics,
     placement_config,
+    preflight_summary,
+    require_exact_e4_legality,
     require_finite_native_scores,
 )
 from exact_site_checkpoint import (  # noqa: E402
@@ -194,6 +203,50 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_native_runner_defaults_to_frozen_constraint_grid(self):
+        self.assertEqual(DEFAULT_M336_CONSTRAINT_GRID_MM, 0.05)
+
+    def test_native_runner_uses_one_feasible_density_contract(self):
+        self.assertEqual(DEFAULT_M336_TARGET_DENSITY, 0.85)
+
+    def test_runtime_gate_applies_only_to_checkpoint_warm_track(self):
+        warm = [{"initialization_track": "checkpoint_warm_start"}]
+        cold = [{"initialization_track": "cold_source"}]
+
+        self.assertTrue(_warm_runtime_gate(warm, 1.5))
+        self.assertFalse(_warm_runtime_gate(warm, 2.1))
+        self.assertIsNone(_warm_runtime_gate(cold, 6.8))
+
+    def test_native_runner_defaults_to_checkpoint_assignment(self):
+        assignment = json.loads(DEFAULT_M336_ASSIGNMENT.read_text())
+        selected = {
+            row["subgroup_id"]: row["proposed_region_id"]
+            for row in assignment["assignments"]
+        }
+
+        self.assertEqual(
+            DEFAULT_M336_ASSIGNMENT.resolve(),
+            (
+                REPO_ROOT
+                / "experiments/m336/checkpoints/M336-118/assignment.json"
+            ).resolve(),
+        )
+        self.assertEqual(selected["page_7_J701__bottom"], "bottom_0")
+        self.assertEqual(selected["page_86_U8601__bottom"], "bottom_2")
+
+    def test_native_runner_defaults_to_float64_checkpoint_placement(self):
+        self.assertEqual(
+            DEFAULT_M336_CHECKPOINT_PL.resolve(),
+            (
+                REPO_ROOT
+                / "experiments/m336/checkpoints/M336-118/placement.float64.pl"
+            ).resolve(),
+        )
+        self.assertEqual(
+            parse_placement(DEFAULT_M336_CHECKPOINT_PL)["Q601"],
+            (669.3345033915735, 540.623738829674),
+        )
+
     def test_anchor_control_preserves_legacy_scale_semantics(self):
         self.assertEqual(
             _configured_anchor_control({"anchor_loss_weight_scale": 2.0}, 0.1),
@@ -235,11 +288,26 @@ class M336BaselineTest(unittest.TestCase):
             Path("/tmp/m336.aux"),
         )
 
-        enabled = placement_config(*arguments, irregular_density=True)
-        disabled = placement_config(*arguments, irregular_density=False)
+        enabled = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            irregular_density=True,
+        )
+        disabled = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            irregular_density=False,
+        )
 
         self.assertTrue(enabled["irregular_density_flag"])
+        self.assertEqual(enabled["target_density"], 0.85)
+        self.assertTrue(
+            enabled["irregular_density_require_feasible_target"]
+        )
         self.assertFalse(disabled["irregular_density_flag"])
+        self.assertFalse(
+            disabled["irregular_density_require_feasible_target"]
+        )
         self.assertTrue(
             enabled["diagnostic_validation_on_high_overflow_flag"]
         )
@@ -247,6 +315,108 @@ class M336BaselineTest(unittest.TestCase):
     def test_nonfinite_native_scores_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "hpwl"):
             require_finite_native_scores({"hpwl": float("inf"), "rsmt": 1.0})
+
+    def test_e4_post_serialization_legality_is_fail_closed(self):
+        legality = {
+            "constrained_component_count": 100,
+            "full_containment_count": 100,
+            "keepin_violation_count": 0,
+            "keepin_violation_area_mm2": 0.0,
+            "overlap_pair_count": 0,
+            "overlap_area_mm2": 0.0,
+            "area_epsilon_mm2": 1e-5,
+        }
+
+        require_exact_e4_legality("E4", legality)
+        require_exact_e4_legality(
+            "E3", dict(legality, overlap_pair_count=1)
+        )
+        with self.assertRaisesRegex(RuntimeError, "post-serialization"):
+            require_exact_e4_legality(
+                "E4", dict(legality, overlap_pair_count=1)
+            )
+
+    def test_preflight_summary_preserves_input_identity(self):
+        preflight = {
+            "resolved_member_count": 125,
+            "movable_non_anchor_constraint_count": 100,
+            "frozen_anchor_count": 25,
+            "infeasible_domains": [],
+            "input_paths": {"assignments": "/tmp/assignment.json"},
+            "input_sha256": {"assignments": "abc"},
+            "alignment": {"scale_cypress_units_per_mm": 20.0},
+        }
+
+        summary = preflight_summary(preflight)
+
+        self.assertEqual(summary["input_paths"], preflight["input_paths"])
+        self.assertEqual(summary["input_sha256"], preflight["input_sha256"])
+
+    def test_initialization_tracks_are_explicit_and_fail_closed(self):
+        arguments = (
+            Path("/tmp/m336-run"),
+            Path("/tmp/m336-constraints.json"),
+            EXPERIMENTS["E2"],
+            1000,
+            10,
+            True,
+            0.1,
+            0.05,
+            0.0,
+            0.1,
+            0.05,
+            Path("/tmp/m336.aux"),
+        )
+        cold = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            initialization_track="cold_source",
+        )
+        warm = placement_config(
+            *arguments,
+            initial_placement=Path("/tmp/M336-118.pl"),
+            initialization_track="checkpoint_warm_start",
+        )
+
+        self.assertEqual(cold["initialization_track"], "cold_source")
+        self.assertEqual(cold["anchor_keepin_initialization"], "preserve_legal")
+        self.assertTrue(cold["initial_placement_file"].endswith("m336.pl"))
+        self.assertEqual(cold["initial_placement_role"], "runtime_float_source")
+        self.assertEqual(
+            warm["anchor_keepin_initialization"], "checkpoint_warm_start"
+        )
+        self.assertTrue(warm["initial_placement_file"].endswith("M336-118.pl"))
+        self.assertEqual(warm["initial_placement_role"], "m336_118_checkpoint")
+        with self.assertRaisesRegex(ValueError, "cannot load"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                initial_placement=Path("/tmp/manual.pl"),
+                initialization_track="cold_source",
+            )
+        with self.assertRaisesRegex(ValueError, "float source"):
+            placement_config(*arguments, initialization_track="cold_source")
+
+    def test_constraint_config_serializes_mixed_endpoint_policy(self):
+        config = constraint_config(
+            Path("/tmp/m336-run"),
+            EXPERIMENTS["E2"],
+            Path("/tmp/assignment.json"),
+            0.05,
+            0.0,
+            0.1,
+            0.05,
+            Path("/tmp/manual.pl"),
+            Path("/tmp/runtime.pl"),
+        )
+
+        self.assertEqual(config["schema"], "m336_anchor_keepin_config_v2")
+        self.assertEqual(
+            config["endpoint_policy"]["manual_endpoints"], ["EMI601"]
+        )
+        self.assertEqual(
+            config["endpoint_policy"]["runtime_endpoints"], ["Q601"]
+        )
 
     def test_anchor_weight_updates_parse_structured_diagnostics(self):
         first = {

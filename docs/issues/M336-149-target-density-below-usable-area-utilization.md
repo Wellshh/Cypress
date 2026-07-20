@@ -1,7 +1,7 @@
 # M336-149: Target Density Is Below Side Utilization
 
 **Severity:** High
-**Status:** Open
+**Status:** Resolved
 **Found:** 2026-07-20
 **Affected commit:** `91fb33c` plus uncommitted M336-147 work
 
@@ -44,3 +44,19 @@ configured target is below a side's aggregate utilization.
 - A focused test rejects or warns on an infeasible target.
 - Overflow and stopping thresholds are documented in the same normalization.
 - No result is relabeled by silently changing target density after execution.
+
+## Resolution
+
+The native M336 runner now freezes one `target_density = 0.85` contract for all
+E0-E4 cold and warm comparisons. It does not derive a target from a seed or
+track. The irregular-density path additionally enables a default-off strict
+capacity check that fails before optimization if either conservative side map
+cannot support the configured target.
+
+In the corrected seed-1000 warm E4 10-step smoke, TOP utilization is `0.805984`
+and BOTTOM utilization is `0.711810`; both maps report
+`target_density_feasible = true`, zero unavoidable area overflow, and zero
+minimum normalized-overflow floor. The run completed 13 backward calls and 10
+coordinate-changing GPU optimizer steps with finite side overflow metrics.
+Focused tests retain infeasible diagnostics in non-strict mode and reject the
+same `0.7` contract when strict mode is enabled.

@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -13,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import shapely
 import torch
+from scipy.spatial import cKDTree
 from shapely import affinity
 from shapely.geometry import box
 
@@ -58,6 +60,281 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _load_placement_source(path, placedb):
+    """Load a complete, identity-safe physical-node position source."""
+    path = Path(path).resolve()
+    names = [
+        _decode_name(name)
+        for name in placedb.node_names[: placedb.num_physical_nodes]
+    ]
+    expected = {name: node_id for node_id, name in enumerate(names)}
+    orientations = [
+        _decode_name(orientation)
+        for orientation in placedb.node_orient[: placedb.num_physical_nodes]
+    ]
+    rows = {}
+    unknown = []
+    with path.open() as stream:
+        for line_number, line in enumerate(stream, start=1):
+            fields = line.split()
+            if not fields or fields[0].startswith("#") or fields[0] == "UCLA":
+                continue
+            refdes = fields[0]
+            if refdes not in expected:
+                unknown.append(refdes)
+                continue
+            if refdes in rows:
+                raise ValueError(
+                    "duplicate endpoint source row for %s at line %d"
+                    % (refdes, line_number)
+                )
+            if len(fields) < 3:
+                raise ValueError(
+                    "invalid endpoint source row at line %d" % line_number
+                )
+            try:
+                lower_left = (float(fields[1]), float(fields[2]))
+            except ValueError as error:
+                raise ValueError(
+                    "invalid endpoint source coordinates for %s" % refdes
+                ) from error
+            if not all(math.isfinite(value) for value in lower_left):
+                raise ValueError(
+                    "non-finite endpoint source coordinates for %s" % refdes
+                )
+            orientation = None
+            if ":" in fields:
+                marker = fields.index(":")
+                if marker + 1 < len(fields):
+                    orientation = fields[marker + 1]
+            node_id = expected[refdes]
+            if orientation != orientations[node_id]:
+                raise ValueError(
+                    "endpoint source orientation mismatch for %s: %s != %s"
+                    % (refdes, orientation, orientations[node_id])
+                )
+            rows[refdes] = lower_left
+    missing = sorted(set(expected) - set(rows))
+    if missing or unknown:
+        raise ValueError(
+            "endpoint source identity mismatch: missing=%s unknown=%s"
+            % (missing, sorted(set(unknown)))
+        )
+    return rows
+
+
+_PLACEDB_SOURCE_QUANTIZATION_TOLERANCE_MM = 0.500001
+
+
+def _audit_runtime_source(runtime_positions, runtime_position, placedb):
+    """Verify a float PL against the integer-quantized native Bookshelf DB."""
+    runtime_position = np.asarray(runtime_position)
+    if runtime_position.shape != (placedb.num_nodes * 2,):
+        raise ValueError("runtime_position has an invalid shape")
+
+    mismatches = []
+    max_abs_delta = 0.0
+    quantized_components = 0
+    names = [
+        _decode_name(name)
+        for name in placedb.node_names[: placedb.num_physical_nodes]
+    ]
+    for node_id, refdes in enumerate(names):
+        expected_lower_left = runtime_positions[refdes]
+        actual_lower_left = (
+            float(runtime_position[node_id]),
+            float(runtime_position[placedb.num_nodes + node_id]),
+        )
+        delta = max(
+            abs(actual_lower_left[axis] - expected_lower_left[axis])
+            for axis in (0, 1)
+        )
+        max_abs_delta = max(max_abs_delta, delta)
+        if delta > 1e-3:
+            quantized_components += 1
+        if delta > _PLACEDB_SOURCE_QUANTIZATION_TOLERANCE_MM:
+            mismatches.append(refdes)
+    if mismatches:
+        raise ValueError(
+            "runtime endpoint source disagrees with PlaceDB beyond native "
+            "Bookshelf quantization tolerance: %s" % sorted(mismatches)
+        )
+    return {
+        "native_bookshelf_quantization_tolerance_mm": (
+            _PLACEDB_SOURCE_QUANTIZATION_TOLERANCE_MM
+        ),
+        "max_abs_delta_mm": max_abs_delta,
+        "quantized_component_count": quantized_components,
+        "physical_component_count": len(names),
+    }
+
+
+def _parse_endpoint_policy(endpoint_config, anchor_refdes):
+    """Validate explicit manual/runtime declarations for frozen anchors."""
+    if not isinstance(endpoint_config, dict):
+        raise ValueError("endpoint_policy must be an object")
+    default_source = endpoint_config.get("default", "runtime")
+    if default_source != "runtime":
+        raise ValueError("endpoint_policy.default must be runtime")
+
+    def endpoint_names(field):
+        values = endpoint_config.get(field, [])
+        if (
+            not isinstance(values, list)
+            or any(not isinstance(value, str) or not value for value in values)
+            or len(values) != len(set(values))
+        ):
+            raise ValueError(
+                "endpoint_policy.%s must contain unique refdes" % field
+            )
+        return frozenset(values)
+
+    manual_endpoints = endpoint_names("manual_endpoints")
+    runtime_endpoints = endpoint_names("runtime_endpoints")
+    if not manual_endpoints:
+        raise ValueError("endpoint policy must declare a manual endpoint")
+    if not runtime_endpoints:
+        raise ValueError("endpoint policy must declare a runtime endpoint")
+    if manual_endpoints & runtime_endpoints:
+        raise ValueError("manual and runtime endpoint declarations overlap")
+    unknown_endpoints = sorted(
+        (manual_endpoints | runtime_endpoints) - set(anchor_refdes)
+    )
+    if unknown_endpoints:
+        raise ValueError(
+            "endpoint policy names non-anchor components: %s"
+            % unknown_endpoints
+        )
+    return default_source, manual_endpoints, runtime_endpoints
+
+
+def _native_alignment_targets(runtime_position, placedb):
+    """Build geometry registration targets from the untouched native PlaceDB."""
+    runtime_position = np.asarray(runtime_position)
+    if runtime_position.shape != (placedb.num_nodes * 2,):
+        raise ValueError("runtime_position has an invalid shape")
+    targets = {}
+    for node_id in range(placedb.num_physical_nodes):
+        name = _decode_name(placedb.node_names[node_id])
+        center = (
+            float(runtime_position[node_id])
+            + float(placedb.node_size_x[node_id]) / 2,
+            float(runtime_position[placedb.num_nodes + node_id])
+            + float(placedb.node_size_y[node_id]) / 2,
+        )
+        if not all(math.isfinite(value) for value in center):
+            raise ValueError("non-finite native alignment target for %s" % name)
+        targets[name] = center
+    return targets
+
+
+_DOMAIN_CACHE_SCHEMA = "m336_feasible_domain_cache_v1"
+
+
+def _domain_cache_digest(
+    input_hashes,
+    endpoint_policy,
+    side,
+    region_id,
+    region,
+    width,
+    height,
+    grid,
+    clearance,
+    orientation,
+    footprint_local,
+):
+    payload = {
+        "schema": _DOMAIN_CACHE_SCHEMA,
+        "input_sha256": dict(sorted(input_hashes.items())),
+        "endpoint_policy": endpoint_policy,
+        "side": side,
+        "region_id": region_id,
+        "region_sha256": hashlib.sha256(region.wkb).hexdigest(),
+        "width": float(width),
+        "height": float(height),
+        "grid": float(grid),
+        "clearance": float(clearance),
+        "orientation": orientation,
+        "footprint_sha256": hashlib.sha256(footprint_local.wkb).hexdigest(),
+    }
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _load_cached_domain(
+    path,
+    digest,
+    region,
+    width,
+    height,
+    clearance,
+    grid,
+    footprint_local,
+):
+    try:
+        with np.load(path, allow_pickle=False) as cached:
+            schema = str(cached["schema"].item())
+            cached_digest = str(cached["digest"].item())
+            if schema != _DOMAIN_CACHE_SCHEMA or cached_digest != digest:
+                raise ValueError("cache identity mismatch")
+            x_values = cached["x_values"]
+            y_values = cached["y_values"]
+            valid_mask = cached["valid_mask"]
+            valid_centers = cached["valid_centers"]
+            inside_distance = cached["inside_distance"]
+            outside_distance = cached["outside_distance"]
+    except Exception as error:
+        raise RuntimeError(
+            "cannot load feasible-domain cache %s: %s" % (path, error)
+        ) from error
+    if (
+        valid_mask.shape != (len(y_values), len(x_values))
+        or inside_distance.shape != valid_mask.shape
+        or outside_distance.shape != valid_mask.shape
+        or valid_centers.ndim != 2
+        or valid_centers.shape[1:] != (2,)
+        or not len(valid_centers)
+    ):
+        raise RuntimeError("invalid feasible-domain cache arrays: %s" % path)
+    return FeasibleDomain(
+        region=region,
+        width=float(width),
+        height=float(height),
+        clearance=float(clearance),
+        grid=float(grid),
+        x_values=x_values,
+        y_values=y_values,
+        valid_mask=valid_mask,
+        valid_centers=valid_centers,
+        inside_distance=inside_distance,
+        outside_distance=outside_distance,
+        _tree=cKDTree(valid_centers),
+        footprint_local=footprint_local,
+    )
+
+
+def _write_cached_domain(path, digest, domain):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(
+        "%s.%d.tmp.npz" % (path.name, os.getpid())
+    )
+    np.savez_compressed(
+        temporary,
+        schema=np.asarray(_DOMAIN_CACHE_SCHEMA),
+        digest=np.asarray(digest),
+        x_values=domain.x_values,
+        y_values=domain.y_values,
+        valid_mask=domain.valid_mask,
+        valid_centers=domain.valid_centers,
+        inside_distance=domain.inside_distance,
+        outside_distance=domain.outside_distance,
+    )
+    os.replace(temporary, path)
 
 
 def _ordered_constraints(constraints, mode):
@@ -1227,6 +1504,10 @@ class AnchorKeepInContext:
         anchor_centers,
         resolved_members,
         input_paths,
+        endpoint_policy,
+        endpoint_records,
+        domain_cache_stats,
+        preprocessing_seconds,
         num_nodes,
         output_dir,
         projection_enabled,
@@ -1237,6 +1518,7 @@ class AnchorKeepInContext:
         grid,
         keepin_margin,
         keepin_margin_tau,
+        require_feasible_density_target=False,
     ):
         self.config = config
         self.geometry = geometry
@@ -1249,6 +1531,27 @@ class AnchorKeepInContext:
         self.anchor_centers = dict(anchor_centers)
         self.resolved_members = tuple(resolved_members)
         self.input_paths = dict(input_paths)
+        self.endpoint_policy = dict(endpoint_policy)
+        self.endpoint_records = tuple(endpoint_records)
+        self.domain_cache_stats = dict(domain_cache_stats)
+        self.timing = {
+            "preprocessing_seconds": float(preprocessing_seconds),
+            "cache_load_seconds": float(
+                self.domain_cache_stats.get("load_seconds", 0.0)
+            ),
+            "domain_build_seconds": float(
+                self.domain_cache_stats.get("build_seconds", 0.0)
+            ),
+            "cache_write_seconds": float(
+                self.domain_cache_stats.get("write_seconds", 0.0)
+            ),
+            "initialization_seconds": 0.0,
+            "gpu_optimization_seconds": 0.0,
+            "exact_validation_seconds": 0.0,
+            "bounded_repair_seconds": 0.0,
+            "serialization_seconds": 0.0,
+            "native_scoring_seconds": 0.0,
+        }
         self.num_nodes = int(num_nodes)
         self.output_dir = Path(output_dir)
         self.projection_enabled = bool(projection_enabled)
@@ -1259,7 +1562,12 @@ class AnchorKeepInContext:
         self.grid = float(grid)
         self.keepin_margin = float(keepin_margin)
         self.keepin_margin_tau = float(keepin_margin_tau)
+        self.require_feasible_density_target = bool(
+            require_feasible_density_target
+        )
         self._density_capacity_cache = {}
+        self._physical_footprint_local_cache = {}
+        self.initial_legal_centers = {}
         self.projector = RegionProjector(
             num_nodes=self.num_nodes,
             constraints=self.constraints,
@@ -1268,7 +1576,7 @@ class AnchorKeepInContext:
         )
 
     @classmethod
-    def from_params(cls, params, placedb):
+    def from_params(cls, params, placedb, runtime_position=None):
         preflight_started = time.perf_counter()
         if getattr(params, "enable_rotation", False):
             raise ValueError("anchor/keep-in phase 1 requires enable_rotation=false")
@@ -1284,9 +1592,31 @@ class AnchorKeepInContext:
         initialization_mode = str(
             getattr(params, "anchor_keepin_initialization", "anchor")
         ).lower()
-        if initialization_mode not in {"anchor", "current"}:
+        initialization_alias = {
+            "anchor": "legacy_pack_all",
+            "current": "legacy_pack_all_current",
+        }
+        initialization_mode = initialization_alias.get(
+            initialization_mode, initialization_mode
+        )
+        valid_initialization_modes = {
+            "legacy_pack_all",
+            "legacy_pack_all_current",
+            "preserve_legal",
+            "project_illegal",
+            "checkpoint_warm_start",
+        }
+        if initialization_mode not in valid_initialization_modes:
             raise ValueError(
-                "anchor_keepin_initialization must be 'anchor' or 'current'"
+                "anchor_keepin_initialization must be one of %s"
+                % sorted(valid_initialization_modes)
+            )
+        if (
+            initialization_mode == "checkpoint_warm_start"
+            and not getattr(params, "initial_placement_file", "")
+        ):
+            raise ValueError(
+                "checkpoint_warm_start requires initial_placement_file"
             )
 
         geometry_path = _resolve_path(config_path, config["geometry_file"])
@@ -1312,13 +1642,49 @@ class AnchorKeepInContext:
 
         names = [_decode_name(name) for name in placedb.node_names]
         name_to_id = {name: node_id for node_id, name in enumerate(names)}
-        target_centers = {
-            name: (
-                float(placedb.node_x[node_id] + placedb.node_size_x[node_id] / 2),
-                float(placedb.node_y[node_id] + placedb.node_size_y[node_id] / 2),
-            )
-            for node_id, name in enumerate(names[: placedb.num_physical_nodes])
+        endpoint_config = config.get("endpoint_policy")
+        anchor_refdes = {cluster.anchor_refdes for cluster in clusters}
+        (
+            default_endpoint_source,
+            manual_endpoints,
+            runtime_endpoints,
+        ) = _parse_endpoint_policy(
+            endpoint_config,
+            anchor_refdes,
+        )
+
+        manual_path_value = endpoint_config.get("manual_placement_file")
+        runtime_path_value = endpoint_config.get("runtime_placement_file")
+        if not isinstance(manual_path_value, str) or not manual_path_value:
+            raise ValueError("manual endpoint placement file is required")
+        if not isinstance(runtime_path_value, str) or not runtime_path_value:
+            raise ValueError("runtime endpoint placement file is required")
+        manual_path = _resolve_path(config_path, manual_path_value)
+        runtime_path = _resolve_path(config_path, runtime_path_value)
+        manual_positions = _load_placement_source(manual_path, placedb)
+        runtime_positions = _load_placement_source(runtime_path, placedb)
+        if runtime_position is None:
+            raise ValueError("runtime_position is required for endpoint resolution")
+        runtime_source_audit = _audit_runtime_source(
+            runtime_positions, runtime_position, placedb
+        )
+        logging.info(
+            "runtime source audit: %d/%d coordinates preserve sub-mm detail; "
+            "max native parser delta %.6g mm",
+            runtime_source_audit["quantized_component_count"],
+            runtime_source_audit["physical_component_count"],
+            runtime_source_audit["max_abs_delta_mm"],
+        )
+        endpoint_policy = {
+            "default": default_endpoint_source,
+            "manual_endpoints": sorted(manual_endpoints),
+            "runtime_endpoints": sorted(runtime_endpoints),
+            "manual_placement_file": str(manual_path),
+            "runtime_placement_file": str(runtime_path),
+            "runtime_endpoint_model": "geometry_aligned_to_native_placedb",
+            "runtime_source_audit": runtime_source_audit,
         }
+        target_centers = _native_alignment_targets(runtime_position, placedb)
         alignment_limit = float(
             config.get("geometry", {}).get("alignment_max_residual_mm", 0.05)
         )
@@ -1334,6 +1700,13 @@ class AnchorKeepInContext:
             region_id: alignment.transform_geometry(region.polygon_mm)
             for region_id, region in geometry.regions.items()
         }
+        runtime_aligned_positions = {}
+        for node_id, name in enumerate(names[: placedb.num_physical_nodes]):
+            center = alignment.transform_point(geometry.symbols[name].center_mm)
+            runtime_aligned_positions[name] = (
+                center[0] - float(placedb.node_size_x[node_id]) / 2,
+                center[1] - float(placedb.node_size_y[node_id]) / 2,
+            )
         logging.info(
             "anchor/keep-in preflight: alignment completed in %.3fs",
             time.perf_counter() - alignment_started,
@@ -1353,6 +1726,54 @@ class AnchorKeepInContext:
         clearance = clearance_mm * abs(alignment.scale)
         keepin_margin = keepin_margin_mm * abs(alignment.scale)
         keepin_margin_tau = keepin_margin_tau_mm * abs(alignment.scale)
+        input_paths = {
+            "geometry": geometry_path,
+            "clusters": cluster_path,
+            "assignments": assignment_path,
+            "manual_endpoint_placement": manual_path,
+            "runtime_endpoint_placement": runtime_path,
+        }
+        input_hashes = {
+            name: _sha256(path) for name, path in input_paths.items()
+        }
+        endpoint_policy.update(
+            {
+                "manual_placement_sha256": input_hashes[
+                    "manual_endpoint_placement"
+                ],
+                "runtime_placement_sha256": input_hashes[
+                    "runtime_endpoint_placement"
+                ],
+                "runtime_geometry_sha256": input_hashes["geometry"],
+            }
+        )
+        cache_endpoint_policy = {
+            "default": default_endpoint_source,
+            "manual_endpoints": sorted(manual_endpoints),
+            "runtime_endpoints": sorted(runtime_endpoints),
+            "manual_sha256": input_hashes["manual_endpoint_placement"],
+            "runtime_sha256": input_hashes["runtime_endpoint_placement"],
+        }
+        cache_dir_value = str(
+            getattr(params, "feasible_domain_cache_dir", "") or ""
+        )
+        domain_cache_dir = (
+            Path(cache_dir_value).expanduser().resolve()
+            if cache_dir_value
+            else None
+        )
+        domain_cache_stats = {
+            "enabled": domain_cache_dir is not None,
+            "directory": (
+                str(domain_cache_dir) if domain_cache_dir is not None else None
+            ),
+            "hits": 0,
+            "misses": 0,
+            "load_seconds": 0.0,
+            "build_seconds": 0.0,
+            "write_seconds": 0.0,
+            "schema": _DOMAIN_CACHE_SCHEMA,
+        }
         domain_cache = {}
         constraints = []
         frozen_lower_left = {}
@@ -1366,21 +1787,57 @@ class AnchorKeepInContext:
         domain_count = 0
         logging.info("anchor/keep-in preflight: constructing feasible domains")
 
-        anchor_refdes = {cluster.anchor_refdes for cluster in clusters}
+        endpoint_records = []
         for refdes in sorted(anchor_refdes):
             if refdes not in name_to_id:
                 raise KeyError("cluster anchor missing from Cypress nodes: %s" % refdes)
             node_id = name_to_id[refdes]
-            center = alignment.transform_point(geometry.symbols[refdes].center_mm)
+            source = "manual" if refdes in manual_endpoints else "runtime"
+            source_positions = (
+                manual_positions
+                if source == "manual"
+                else runtime_aligned_positions
+            )
+            lower_left = source_positions[refdes]
+            center = (
+                lower_left[0] + float(placedb.node_size_x[node_id]) / 2,
+                lower_left[1] + float(placedb.node_size_y[node_id]) / 2,
+            )
             anchor_centers[refdes] = center
+            endpoint_records.append(
+                {
+                    "refdes": refdes,
+                    "source": source,
+                    "source_key": (
+                        "manual_endpoint_placement"
+                        if source == "manual"
+                        else "runtime_geometry_alignment"
+                    ),
+                    "source_path": str(
+                        manual_path if source == "manual" else geometry_path
+                    ),
+                    "source_sha256": (
+                        input_hashes["manual_endpoint_placement"]
+                        if source == "manual"
+                        else input_hashes["geometry"]
+                    ),
+                    "identity_audit_path": (
+                        None if source == "manual" else str(runtime_path)
+                    ),
+                    "identity_audit_sha256": (
+                        None
+                        if source == "manual"
+                        else input_hashes["runtime_endpoint_placement"]
+                    ),
+                    "lower_left": list(lower_left),
+                    "center": list(center),
+                }
+            )
             if (
                 getattr(params, "freeze_anchor_nodes", True)
                 and node_id < placedb.num_movable_nodes
             ):
-                frozen_lower_left[node_id] = (
-                    center[0] - float(placedb.node_size_x[node_id]) / 2,
-                    center[1] - float(placedb.node_size_y[node_id]) / 2,
-                )
+                frozen_lower_left[node_id] = lower_left
                 frozen_anchor_ids.add(node_id)
 
         for assignment in assignments:
@@ -1413,38 +1870,79 @@ class AnchorKeepInContext:
                 footprint_width = footprint_bounds[2] - footprint_bounds[0]
                 footprint_height = footprint_bounds[3] - footprint_bounds[1]
                 orientation = _decode_name(placedb.node_orient[node_id])
-                cache_key = (
-                    subgroup.side,
-                    assignment.region_id,
-                    int(math.ceil(footprint_width / grid)),
-                    int(math.ceil(footprint_height / grid)),
-                    orientation,
-                    int(round(clearance / grid)),
-                    footprint_local.wkb_hex,
+                cache_key = _domain_cache_digest(
+                    input_hashes=input_hashes,
+                    endpoint_policy=cache_endpoint_policy,
+                    side=subgroup.side,
+                    region_id=assignment.region_id,
+                    region=region,
+                    width=footprint_width,
+                    height=footprint_height,
+                    grid=grid,
+                    clearance=clearance,
+                    orientation=orientation,
+                    footprint_local=footprint_local,
                 )
                 if cache_key not in domain_cache:
-                    try:
-                        domain_cache[cache_key] = FeasibleDomain.build(
-                            region=region,
-                            width=footprint_width,
-                            height=footprint_height,
-                            grid=grid,
-                            clearance=clearance,
-                            footprint_local=footprint_local,
+                    cache_path = (
+                        domain_cache_dir / (cache_key + ".npz")
+                        if domain_cache_dir is not None
+                        else None
+                    )
+                    if cache_path is not None and cache_path.exists():
+                        cache_started = time.perf_counter()
+                        domain_cache[cache_key] = _load_cached_domain(
+                            cache_path,
+                            cache_key,
+                            region,
+                            footprint_width,
+                            footprint_height,
+                            clearance,
+                            grid,
+                            footprint_local,
                         )
-                    except InfeasibleDomainError as error:
-                        infeasible.append(
-                            {
-                                "refdes": refdes,
-                                "side": subgroup.side,
-                                "region_id": assignment.region_id,
-                                "width": footprint_width,
-                                "height": footprint_height,
-                                "orientation": orientation,
-                                "reason": str(error),
-                            }
+                        domain_cache_stats["load_seconds"] += (
+                            time.perf_counter() - cache_started
                         )
-                        continue
+                        domain_cache_stats["hits"] += 1
+                    else:
+                        domain_cache_stats["misses"] += 1
+                        build_started = time.perf_counter()
+                        try:
+                            domain_cache[cache_key] = FeasibleDomain.build(
+                                region=region,
+                                width=footprint_width,
+                                height=footprint_height,
+                                grid=grid,
+                                clearance=clearance,
+                                footprint_local=footprint_local,
+                            )
+                        except InfeasibleDomainError as error:
+                            infeasible.append(
+                                {
+                                    "refdes": refdes,
+                                    "side": subgroup.side,
+                                    "region_id": assignment.region_id,
+                                    "width": footprint_width,
+                                    "height": footprint_height,
+                                    "orientation": orientation,
+                                    "reason": str(error),
+                                }
+                            )
+                            continue
+                        domain_cache_stats["build_seconds"] += (
+                            time.perf_counter() - build_started
+                        )
+                        if cache_path is not None:
+                            write_started = time.perf_counter()
+                            _write_cached_domain(
+                                cache_path,
+                                cache_key,
+                                domain_cache[cache_key],
+                            )
+                            domain_cache_stats["write_seconds"] += (
+                                time.perf_counter() - write_started
+                            )
                 domain = domain_cache[cache_key]
                 domain_count += 1
                 if domain_count % 10 == 0:
@@ -1498,18 +1996,16 @@ class AnchorKeepInContext:
             node_id = name_to_id[refdes]
             if node_id >= placedb.num_physical_nodes:
                 raise ValueError("fixed component is not physical: %s" % refdes)
-            center = alignment.transform_point(geometry.symbols[refdes].center_mm)
             if node_id < placedb.num_movable_nodes:
-                frozen_lower_left[node_id] = (
-                    center[0] - float(placedb.node_size_x[node_id]) / 2,
-                    center[1] - float(placedb.node_size_y[node_id]) / 2,
-                )
+                frozen_lower_left[node_id] = runtime_aligned_positions[refdes]
                 frozen_fixed_ids.add(node_id)
         logging.info(
             "anchor/keep-in preflight: resolved %d domains in %.3fs",
             domain_count,
             time.perf_counter() - domain_started,
         )
+        domain_cache_stats["unique_domain_count"] = len(domain_cache)
+        domain_cache_stats["constraint_count"] = domain_count
 
         output_dir = config.get("reporting", {}).get("output_dir", "results")
         context = cls(
@@ -1523,11 +2019,11 @@ class AnchorKeepInContext:
             frozen_fixed_ids=frozen_fixed_ids,
             anchor_centers=anchor_centers,
             resolved_members=resolved_members,
-            input_paths={
-                "geometry": geometry_path,
-                "clusters": cluster_path,
-                "assignments": assignment_path,
-            },
+            input_paths=input_paths,
+            endpoint_policy=endpoint_policy,
+            endpoint_records=endpoint_records,
+            domain_cache_stats=domain_cache_stats,
+            preprocessing_seconds=time.perf_counter() - preflight_started,
             num_nodes=placedb.num_nodes,
             output_dir=output_dir,
             projection_enabled=getattr(params, "keepin_projection_flag", False),
@@ -1538,6 +2034,11 @@ class AnchorKeepInContext:
             grid=grid,
             keepin_margin=keepin_margin,
             keepin_margin_tau=keepin_margin_tau,
+            require_feasible_density_target=getattr(
+                params,
+                "irregular_density_require_feasible_target",
+                False,
+            ),
         )
         context.write_preflight(infeasible)
         return context
@@ -1554,6 +2055,13 @@ class AnchorKeepInContext:
             "input_sha256": {
                 name: _sha256(path) for name, path in self.input_paths.items()
             },
+            "input_paths": {
+                name: str(path) for name, path in self.input_paths.items()
+            },
+            "endpoint_policy": self.endpoint_policy,
+            "resolved_endpoints": list(self.endpoint_records),
+            "domain_cache": self.domain_cache_stats,
+            "timing": dict(self.timing),
             "alignment": self.alignment.to_dict(),
             "keepin_margin_mm": self.keepin_margin / abs(self.alignment.scale),
             "keepin_margin_tau_mm": self.keepin_margin_tau
@@ -1563,90 +2071,366 @@ class AnchorKeepInContext:
             json.dump(report, stream, indent=2, sort_keys=True)
             stream.write("\n")
 
-    def initialize_positions(self, position, placedb):
-        """Place constrained nodes on non-overlapping feasible sites near anchors."""
-        for node_id, lower_left in self.frozen_lower_left.items():
-            position[node_id] = lower_left[0]
-            position[self.num_nodes + node_id] = lower_left[1]
-        if not self.projection_enabled:
-            return
+    @staticmethod
+    def _position_value(value):
+        if torch.is_tensor(value):
+            return float(value.detach().cpu())
+        return float(value)
 
-        occupied = {"TOP": [], "BOTTOM": []}
-        constrained_ids = {constraint.node_id for constraint in self.constraints}
+    def _node_lower_left(self, position, node_id):
+        return (
+            self._position_value(position[node_id]),
+            self._position_value(position[self.num_nodes + node_id]),
+        )
+
+    def _constraint_center(self, position, constraint):
+        lower_left = self._node_lower_left(position, constraint.node_id)
+        return (
+            lower_left[0] + constraint.node_width / 2,
+            lower_left[1] + constraint.node_height / 2,
+        )
+
+    def _set_constraint_center(self, position, constraint, center):
+        position[constraint.node_id] = center[0] - constraint.node_width / 2
+        position[self.num_nodes + constraint.node_id] = (
+            center[1] - constraint.node_height / 2
+        )
+
+    def _physical_footprint(self, position, placedb, node_id):
+        names = placedb.node_names
+        refdes = _decode_name(names[node_id])
+        lower_left = self._node_lower_left(position, node_id)
+        center = (
+            lower_left[0] + float(placedb.node_size_x[node_id]) / 2,
+            lower_left[1] + float(placedb.node_size_y[node_id]) / 2,
+        )
+        if refdes not in self.geometry.symbols:
+            return box(
+                lower_left[0],
+                lower_left[1],
+                lower_left[0] + float(placedb.node_size_x[node_id]),
+                lower_left[1] + float(placedb.node_size_y[node_id]),
+            )
+        if node_id not in self._physical_footprint_local_cache:
+            symbol = self.geometry.symbols[refdes]
+            source_center = self.alignment.transform_point(symbol.center_mm)
+            transformed = self.alignment.transform_geometry(symbol.footprint_mm)
+            self._physical_footprint_local_cache[node_id] = affinity.translate(
+                transformed,
+                xoff=-source_center[0],
+                yoff=-source_center[1],
+            )
+        return affinity.translate(
+            self._physical_footprint_local_cache[node_id],
+            xoff=center[0],
+            yoff=center[1],
+        )
+
+    def _position_audit(self, position, placedb):
+        """Return exact invalid/conflicting nodes using side-local STRtrees."""
+        epsilon = float(
+            self.config.get("reporting", {}).get("area_epsilon_mm2", 1e-5)
+        ) * abs(self.alignment.scale) ** 2
+        constraints_by_id = {
+            constraint.node_id: constraint for constraint in self.constraints
+        }
+        constrained_rows = {"TOP": [], "BOTTOM": []}
+        keepin_invalid = set()
+        for constraint in self.constraints:
+            footprint = constraint.domain.footprint(
+                self._constraint_center(position, constraint)
+            )
+            constrained_rows[constraint.side].append((constraint, footprint))
+            if footprint.difference(self.regions[constraint.region_id]).area > epsilon:
+                keepin_invalid.add(constraint.node_id)
+
+        fixed_rows = {"TOP": [], "BOTTOM": []}
         for node_id in range(placedb.num_physical_nodes):
-            if node_id in constrained_ids:
+            if node_id in constraints_by_id:
                 continue
             side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
-            occupied[side].append(
-                box(
-                    position[node_id],
-                    position[self.num_nodes + node_id],
-                    position[node_id] + placedb.node_size_x[node_id],
-                    position[self.num_nodes + node_id] + placedb.node_size_y[node_id],
+            fixed_rows[side].append(
+                (
+                    node_id,
+                    _decode_name(placedb.node_names[node_id]),
+                    self._physical_footprint(position, placedb, node_id),
                 )
             )
+
+        fixed_conflicts = []
+        pair_conflicts = []
+        repair_ids = set(keepin_invalid)
+        for side in ("TOP", "BOTTOM"):
+            fixed_shapes = [row[2] for row in fixed_rows[side]]
+            fixed_tree = shapely.STRtree(fixed_shapes) if fixed_shapes else None
+            for constraint, footprint in constrained_rows[side]:
+                if fixed_tree is not None:
+                    for fixed_index in fixed_tree.query(footprint):
+                        fixed_row = fixed_rows[side][int(fixed_index)]
+                        area = footprint.intersection(fixed_row[2]).area
+                        if area <= epsilon:
+                            continue
+                        repair_ids.add(constraint.node_id)
+                        fixed_conflicts.append(
+                            {
+                                "refdes": constraint.refdes,
+                                "fixed_refdes": fixed_row[1],
+                                "overlap_area": float(area),
+                            }
+                        )
+
+            rows = constrained_rows[side]
+            shapes = [row[1] for row in rows]
+            tree = shapely.STRtree(shapes) if shapes else None
+            if tree is None:
+                continue
+            for first_index, (first, footprint) in enumerate(rows):
+                for second_index in tree.query(footprint):
+                    second_index = int(second_index)
+                    if second_index <= first_index:
+                        continue
+                    second, second_footprint = rows[second_index]
+                    area = footprint.intersection(second_footprint).area
+                    if area <= epsilon:
+                        continue
+                    repair_ids.update((first.node_id, second.node_id))
+                    pair_conflicts.append(
+                        {
+                            "first_refdes": first.refdes,
+                            "second_refdes": second.refdes,
+                            "overlap_area": float(area),
+                        }
+                    )
+
+        id_to_refdes = {
+            constraint.node_id: constraint.refdes
+            for constraint in self.constraints
+        }
+        report = {
+            "keepin_invalid_count": len(keepin_invalid),
+            "keepin_invalid_refdes": [
+                id_to_refdes[node_id] for node_id in sorted(keepin_invalid)
+            ],
+            "fixed_overlap_count": len(fixed_conflicts),
+            "fixed_overlaps": fixed_conflicts,
+            "constrained_overlap_count": len(pair_conflicts),
+            "constrained_overlaps": pair_conflicts,
+            "conflict_closure_count": len(repair_ids),
+            "conflict_closure_refdes": [
+                id_to_refdes[node_id] for node_id in sorted(repair_ids)
+            ],
+        }
+        return report, repair_ids
+
+    def _pack_constraint_subset(
+        self,
+        position,
+        placedb,
+        repair_ids,
+        prefer_current=True,
+    ):
+        repair_ids = set(repair_ids)
+        constraints_by_id = {
+            constraint.node_id: constraint for constraint in self.constraints
+        }
+        occupied = {"TOP": [], "BOTTOM": []}
+        for node_id in range(placedb.num_physical_nodes):
+            if node_id in repair_ids:
+                continue
+            constraint = constraints_by_id.get(node_id)
+            if constraint is not None:
+                occupied[constraint.side].append(
+                    constraint.domain.footprint(
+                        self._constraint_center(position, constraint)
+                    )
+                )
+            else:
+                side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
+                occupied[side].append(
+                    self._physical_footprint(position, placedb, node_id)
+                )
+
         constraints_by_region = defaultdict(list)
-        for constraint in self.constraints:
+        for node_id in sorted(repair_ids):
+            constraint = constraints_by_id[node_id]
             constraints_by_region[(constraint.side, constraint.region_id)].append(
                 constraint
             )
 
         placements = {}
         packing_stats = []
+        original_centers = {
+            node_id: self._constraint_center(position, constraints_by_id[node_id])
+            for node_id in repair_ids
+        }
         for (side, region_id), region_constraints in sorted(
             constraints_by_region.items()
         ):
-            logging.info(
-                "anchor/keep-in packing %s/%s (%d components)",
-                side,
-                region_id,
-                len(region_constraints),
-            )
             preferred_centers = None
-            if self.initialization_mode == "current" or not self.anchor_loss_enabled:
-                preferred_centers = {}
-                for constraint in region_constraints:
-                    current_center = (
-                        float(position[constraint.node_id])
-                        + constraint.node_width / 2,
-                        float(position[self.num_nodes + constraint.node_id])
-                        + constraint.node_height / 2,
-                    )
-                    preferred_centers[constraint.node_id], _ = (
-                        constraint.domain.project(current_center)
-                    )
+            if prefer_current:
+                preferred_centers = {
+                    constraint.node_id: constraint.domain.project(
+                        original_centers[constraint.node_id]
+                    )[0]
+                    for constraint in region_constraints
+                }
+            started = time.perf_counter()
             region_placements, stats = _pack_region(
                 region_constraints,
                 occupied[side],
                 preferred_centers=preferred_centers,
             )
+            elapsed = time.perf_counter() - started
             placements.update(region_placements)
+            occupied[side].extend(
+                constraint.domain.footprint(
+                    region_placements[constraint.node_id]
+                )
+                for constraint in region_constraints
+            )
             packing_stats.append(
                 dict(
                     stats,
                     side=side,
                     region_id=region_id,
                     component_count=len(region_constraints),
+                    elapsed_seconds=elapsed,
                 )
             )
-            logging.info(
-                "anchor/keep-in packed %s/%s with %s/%s",
-                side,
-                region_id,
-                stats["ordering"],
-                stats["candidate_order"],
-            )
 
-        for constraint in self.constraints:
-            selected = placements[constraint.node_id]
-            position[constraint.node_id] = selected[0] - constraint.node_width / 2
-            position[self.num_nodes + constraint.node_id] = (
-                selected[1] - constraint.node_height / 2
+        moved_distances = []
+        moved_refdes = []
+        for node_id in sorted(repair_ids):
+            constraint = constraints_by_id[node_id]
+            selected = placements[node_id]
+            distance = float(
+                np.linalg.norm(np.subtract(selected, original_centers[node_id]))
             )
+            moved_distances.append(distance)
+            if distance > 1e-9:
+                moved_refdes.append(constraint.refdes)
+            self._set_constraint_center(position, constraint, selected)
+        return {
+            "component_count": len(repair_ids),
+            "moved_component_count": len(moved_refdes),
+            "moved_refdes": moved_refdes,
+            "mean_displacement": (
+                float(np.mean(moved_distances)) if moved_distances else 0.0
+            ),
+            "max_displacement": (
+                float(np.max(moved_distances)) if moved_distances else 0.0
+            ),
+            "regions": packing_stats,
+        }
+
+    def write_timing(self):
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with (self.output_dir / "timing.json").open("w") as stream:
+            json.dump(self.timing, stream, indent=2, sort_keys=True)
+            stream.write("\n")
+
+    def initialize_positions(self, position, placedb):
+        """Preserve exact-legal coordinates and repair only conflict closure."""
+        started = time.perf_counter()
+        endpoint_moved_refdes = []
+        names = [_decode_name(name) for name in placedb.node_names]
+        for node_id, lower_left in self.frozen_lower_left.items():
+            current = self._node_lower_left(position, node_id)
+            if max(
+                abs(current[axis] - lower_left[axis]) for axis in (0, 1)
+            ) > 1e-4:
+                endpoint_moved_refdes.append(names[node_id])
+            position[node_id] = lower_left[0]
+            position[self.num_nodes + node_id] = lower_left[1]
+
+        before, repair_ids = self._position_audit(position, placedb)
+        projected_refdes = []
+        touched_constraint_ids = set()
+        if self.projection_enabled:
+            if self.initialization_mode == "project_illegal":
+                constraints_by_refdes = {
+                    constraint.refdes: constraint
+                    for constraint in self.constraints
+                }
+                for refdes in before["keepin_invalid_refdes"]:
+                    constraint = constraints_by_refdes[refdes]
+                    projected = constraint.domain.project(
+                        self._constraint_center(position, constraint)
+                    )[0]
+                    self._set_constraint_center(position, constraint, projected)
+                    projected_refdes.append(refdes)
+                    touched_constraint_ids.add(constraint.node_id)
+                _, repair_ids = self._position_audit(position, placedb)
+
+            if self.initialization_mode in {
+                "legacy_pack_all",
+                "legacy_pack_all_current",
+            }:
+                repair_ids = {
+                    constraint.node_id for constraint in self.constraints
+                }
+                prefer_current = (
+                    self.initialization_mode == "legacy_pack_all_current"
+                    or not self.anchor_loss_enabled
+                )
+            else:
+                prefer_current = True
+            touched_constraint_ids.update(repair_ids)
+            repair_stats = self._pack_constraint_subset(
+                position,
+                placedb,
+                repair_ids,
+                prefer_current=prefer_current,
+            )
+        else:
+            repair_stats = {
+                "component_count": 0,
+                "moved_component_count": 0,
+                "moved_refdes": [],
+                "mean_displacement": 0.0,
+                "max_displacement": 0.0,
+                "regions": [],
+            }
+
+        after, _ = self._position_audit(position, placedb)
+        if self.projection_enabled and (
+            after["keepin_invalid_count"]
+            or after["fixed_overlap_count"]
+            or after["constrained_overlap_count"]
+        ):
+            raise RuntimeError(
+                "bounded initialization failed exact legality: %s" % after
+            )
+        if not (
+            after["keepin_invalid_count"]
+            or after["fixed_overlap_count"]
+            or after["constrained_overlap_count"]
+        ):
+            self.initial_legal_centers = {
+                constraint.node_id: self._constraint_center(position, constraint)
+                for constraint in self.constraints
+            }
+        self.timing["initialization_seconds"] = (
+            time.perf_counter() - started
+        )
+        report = {
+            "schema": "m336_initialization_v2",
+            "mode": self.initialization_mode,
+            "endpoint_moved_count": len(endpoint_moved_refdes),
+            "endpoint_moved_refdes": sorted(endpoint_moved_refdes),
+            "projected_refdes": sorted(projected_refdes),
+            "before": before,
+            "after": after,
+            "preserved_component_count": len(self.constraints)
+            - len(touched_constraint_ids),
+            "repair": repair_stats,
+            "timing": dict(self.timing),
+        }
         self.output_dir.mkdir(parents=True, exist_ok=True)
         with (self.output_dir / "initialization.json").open("w") as stream:
-            json.dump(packing_stats, stream, indent=2, sort_keys=True)
+            json.dump(report, stream, indent=2, sort_keys=True)
             stream.write("\n")
+        self.write_timing()
 
     def build_density_capacity_maps(
         self,
@@ -1739,6 +2523,7 @@ class AnchorKeepInContext:
             dtype=dtype,
             device=device,
         )
+        infeasible_sides = []
         for side in ("top", "btm"):
             node_ids = torch.as_tensor(
                 movable_ids_by_side[side],
@@ -1772,6 +2557,9 @@ class AnchorKeepInContext:
                 else (0.0 if not movable_area else float("inf"))
             )
             if not diagnostics["target_density_feasible"]:
+                infeasible_sides.append(
+                    (side, diagnostics["raw_area_utilization"])
+                )
                 logging.warning(
                     "irregular density target %.6f is below %s usable-area "
                     "utilization %.6f",
@@ -1780,6 +2568,17 @@ class AnchorKeepInContext:
                     raw_utilization,
                 )
             capacity_maps[side]["movable_node_ids"] = node_ids
+        if (
+            getattr(self, "require_feasible_density_target", False)
+            and infeasible_sides
+        ):
+            details = ", ".join(
+                "%s utilization %.6f" % item for item in infeasible_sides
+            )
+            raise ValueError(
+                "irregular density target %.6f is infeasible: %s"
+                % (target_density, details)
+            )
         self._density_capacity_cache[key] = capacity_maps
         return capacity_maps, False
 
@@ -1837,92 +2636,176 @@ class AnchorKeepInContext:
         gradient[node_ids] = 0
         gradient[[self.num_nodes + node_id for node_id in node_ids]] = 0
 
-    def repair_positions(self, pos, placedb):
-        """Repack constrained components on exact feasible sites near GP output."""
-        occupied = {"TOP": [], "BOTTOM": []}
-        constrained_ids = {constraint.node_id for constraint in self.constraints}
-        for node_id in range(placedb.num_physical_nodes):
-            if node_id in constrained_ids:
-                continue
-            side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
-            lower_left_x = float(pos[node_id].detach().cpu())
-            lower_left_y = float(pos[self.num_nodes + node_id].detach().cpu())
-            occupied[side].append(
-                box(
-                    lower_left_x,
-                    lower_left_y,
-                    lower_left_x + placedb.node_size_x[node_id],
-                    lower_left_y + placedb.node_size_y[node_id],
-                )
-            )
+    def _restore_initial_legal_subset(self, position, placedb, repair_ids):
+        """Try the same run's legal initialization before discrete repacking."""
+        initial_repair_ids = set(repair_ids)
+        restore_ids = set(initial_repair_ids)
+        missing = sorted(restore_ids - self.initial_legal_centers.keys())
+        if missing:
+            return None, {
+                "reason": "missing_initial_legal_coordinates",
+                "missing_node_ids": missing,
+            }
 
-        preferred_centers = {
-            constraint.node_id: (
-                float(pos[constraint.node_id].detach().cpu())
-                + constraint.node_width / 2,
-                float(pos[self.num_nodes + constraint.node_id].detach().cpu())
-                + constraint.node_height / 2,
-            )
-            for constraint in self.constraints
+        constraints_by_id = {
+            constraint.node_id: constraint for constraint in self.constraints
         }
-        constraints_by_region = defaultdict(list)
-        for constraint in self.constraints:
-            constraints_by_region[(constraint.side, constraint.region_id)].append(
-                constraint
+        proposal_centers = {
+            node_id: self._constraint_center(
+                position, constraints_by_id[node_id]
             )
+            for node_id in constraints_by_id
+        }
+        repair_config = self.config.get("repair", {})
+        max_components = int(repair_config.get("max_restore_components", 64))
+        max_rounds = int(repair_config.get("max_restore_rounds", 4))
+        if max_components <= 0 or max_rounds <= 0:
+            raise ValueError("restore component and round limits must be positive")
 
-        placements = {}
-        region_stats = []
-        for (side, region_id), region_constraints in sorted(
-            constraints_by_region.items()
-        ):
-            region_placements, stats = _pack_region(
-                region_constraints,
-                occupied[side],
-                preferred_centers=preferred_centers,
-            )
-            placements.update(region_placements)
-            occupied[side].extend(
-                constraint.domain.footprint(
-                    region_placements[constraint.node_id]
+        audit = None
+        expansions = []
+        failure = None
+        for round_index in range(1, max_rounds + 1):
+            for node_id in sorted(restore_ids):
+                self._set_constraint_center(
+                    position,
+                    constraints_by_id[node_id],
+                    self.initial_legal_centers[node_id],
                 )
-                for constraint in region_constraints
+            audit, remaining_ids = self._position_audit(position, placedb)
+            if not remaining_ids:
+                break
+            expansion = set(remaining_ids) - restore_ids
+            if not expansion:
+                failure = {
+                    "reason": "restore_made_no_progress",
+                    "round": round_index,
+                    "remaining_conflict_closure_refdes": audit[
+                        "conflict_closure_refdes"
+                    ],
+                }
+                break
+            if len(restore_ids | expansion) > max_components:
+                failure = {
+                    "reason": "restore_component_limit",
+                    "round": round_index,
+                    "max_restore_components": max_components,
+                    "proposed_component_count": len(restore_ids | expansion),
+                    "remaining_conflict_closure_refdes": audit[
+                        "conflict_closure_refdes"
+                    ],
+                }
+                break
+            restore_ids.update(expansion)
+            expansions.append(
+                {
+                    "round": round_index,
+                    "added_node_ids": sorted(expansion),
+                    "added_refdes": sorted(
+                        constraints_by_id[node_id].refdes
+                        for node_id in expansion
+                    ),
+                }
             )
-            region_stats.append(
-                dict(
-                    stats,
-                    side=side,
-                    region_id=region_id,
-                    component_count=len(region_constraints),
-                )
-            )
+        else:
+            failure = {
+                "reason": "restore_round_limit",
+                "max_restore_rounds": max_rounds,
+                "remaining_conflict_closure_refdes": audit[
+                    "conflict_closure_refdes"
+                ],
+            }
 
-        moved_distances = []
-        with torch.no_grad():
-            for constraint in self.constraints:
-                selected = placements[constraint.node_id]
-                moved_distances.append(
-                    float(
-                        np.linalg.norm(
-                            np.subtract(
-                                selected, preferred_centers[constraint.node_id]
-                            )
-                        )
+        if failure is not None:
+            for node_id in sorted(restore_ids):
+                self._set_constraint_center(
+                    position,
+                    constraints_by_id[node_id],
+                    proposal_centers[node_id],
+                )
+            failure["initial_component_count"] = len(initial_repair_ids)
+            failure["expanded_component_count"] = len(restore_ids)
+            failure["expansions"] = expansions
+            return None, failure
+
+        moved_distances = {
+            node_id: float(
+                np.linalg.norm(
+                    np.subtract(
+                        self.initial_legal_centers[node_id],
+                        proposal_centers[node_id],
                     )
                 )
-                pos[constraint.node_id] = selected[0] - constraint.node_width / 2
-                pos[self.num_nodes + constraint.node_id] = (
-                    selected[1] - constraint.node_height / 2
-                )
-            self.projector(pos)
-
-        return {
-            "component_count": len(self.constraints),
-            "moved_component_count": sum(distance > 1e-9 for distance in moved_distances),
-            "mean_displacement": float(np.mean(moved_distances)),
-            "max_displacement": float(np.max(moved_distances)),
-            "regions": region_stats,
+            )
+            for node_id in restore_ids
         }
+        moved_refdes = [
+            constraints_by_id[node_id].refdes
+            for node_id in sorted(restore_ids)
+            if moved_distances[node_id] > 1e-9
+        ]
+        return {
+            "strategy": "initial_legal_restore",
+            "component_count": len(restore_ids),
+            "initial_component_count": len(initial_repair_ids),
+            "expanded_component_count": len(restore_ids),
+            "expansions": expansions,
+            "restore_round_count": len(expansions) + 1,
+            "max_restore_components": max_components,
+            "max_restore_rounds": max_rounds,
+            "moved_component_count": len(moved_refdes),
+            "moved_refdes": moved_refdes,
+            "mean_displacement": (
+                float(np.mean(list(moved_distances.values())))
+                if moved_distances
+                else 0.0
+            ),
+            "max_displacement": (
+                float(np.max(list(moved_distances.values())))
+                if moved_distances
+                else 0.0
+            ),
+            "regions": [],
+            "restore_audit": audit,
+        }, None
+
+    def repair_positions(self, pos, placedb):
+        """Repair only the exact illegal/conflicting component closure."""
+        started = time.perf_counter()
+        before, repair_ids = self._position_audit(pos, placedb)
+        with torch.no_grad():
+            stats, restore_failure = self._restore_initial_legal_subset(
+                pos, placedb, repair_ids
+            )
+            if stats is None:
+                stats = self._pack_constraint_subset(
+                    pos,
+                    placedb,
+                    repair_ids,
+                    prefer_current=True,
+                )
+                stats["strategy"] = "bounded_pack"
+                stats["restore_failure"] = restore_failure
+            self.projector(pos)
+        after, _ = self._position_audit(pos, placedb)
+        if (
+            after["keepin_invalid_count"]
+            or after["fixed_overlap_count"]
+            or after["constrained_overlap_count"]
+        ):
+            raise RuntimeError("bounded repair failed exact legality: %s" % after)
+        elapsed = time.perf_counter() - started
+        self.timing["bounded_repair_seconds"] += elapsed
+        self.write_timing()
+        stats.update(
+            {
+                "bounded_conflict_closure": True,
+                "before": before,
+                "after": after,
+                "elapsed_seconds": elapsed,
+            }
+        )
+        return stats
 
     def exact_report(self, pos, placedb, constraints=None):
         active_constraints = (

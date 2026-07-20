@@ -159,7 +159,20 @@ append-only audit ledger.
 | [M336-146](M336-146-e2-e3-margin-confound.md) | High | Mitigated | E2/E3 now share keep-in features and isolate anchor loss under a tested contract |
 | [M336-147](M336-147-density-ignores-irregular-keepin.md) | Critical | Mitigated | Conservative side-specific density eliminates projection pressure, but the 50-step quality ablation regresses |
 | [M336-148](M336-148-overflow-gate-skips-native-validation.md) | Critical | Mitigated | Explicit finite high-overflow diagnostics now reach exact validation and native scoring without weakening production defaults |
-| [M336-149](M336-149-target-density-below-usable-area-utilization.md) | High | Open | The fixed 0.7 density target is below measured TOP/BOTTOM usable-area utilization |
+| [M336-149](M336-149-target-density-below-usable-area-utilization.md) | High | Resolved | One strict 0.85 target makes both conservative side-capacity contracts feasible |
+| [M336-150](M336-150-native-endpoint-policy-not-enforced.md) | Critical | Resolved | Native runs now enforce and hash manual EMI601 plus runtime Q601 endpoint sources |
+| [M336-151](M336-151-runner-lacks-cold-and-checkpoint-tracks.md) | High | Resolved | Separate cold/source and M336-118 checkpoint tracks now emit complete stage timings |
+| [M336-152](M336-152-native-bookshelf-source-quantization.md) | Critical | Resolved | Cold/source initialization preserves the float PL while auditing native Bookshelf quantization |
+| [M336-153](M336-153-runner-scores-pre-serialization-state.md) | Critical | Resolved | Every result now receives independent float64 legality and native scoring after serialization |
+| [M336-154](M336-154-float-source-refit-invalidates-checkpoint.md) | Critical | Resolved | Initial PL selection cannot refit the native geometry transform certified by M336-118 |
+| [M336-155](M336-155-runner-default-assignment-differs-from-checkpoint.md) | Critical | Resolved | Native runs use and hash the exact assignment bundled with M336-118 |
+| [M336-156](M336-156-warm-default-uses-rounded-checkpoint.md) | Critical | Resolved | A manifested float64 M336-118 placement is the portable warm-start default |
+| [M336-157](M336-157-native-runner-grid-contract-drift.md) | Critical | Resolved | Native runner and cache now enforce the frozen 0.05 mm grid contract |
+| [M336-158](M336-158-anchor-ema-gradient-ratio-windup.md) | High | Resolved | Downward anti-windup keeps adaptive anchor pressure at the ramped target ratio |
+| [M336-159](M336-159-bounded-repair-discards-legal-start.md) | Critical | Resolved | Bounded same-run restore closes E4 legality without destructive conflict repacking |
+| [M336-160](M336-160-cold-runtime-misclassified-as-warm-gate.md) | Medium | Resolved | Cold runtime remains diagnostic while only warm-cache summaries evaluate the 2x gate |
+| [M336-161](M336-161-feature-off-overflow-filler-regression.md) | Critical | Resolved | Side overflow restores the legacy zero-filler contract and exact feature-off metric parity |
+| [M336-162](M336-162-feature-off-nesterov-state-regression.md) | Critical | Resolved | Nesterov bootstrap projection and state cleanup are confined to active constraint contexts |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

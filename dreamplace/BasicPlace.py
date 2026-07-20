@@ -493,10 +493,6 @@ class BasicPlace(nn.Module):
                 "anchor_keepin_flag=true"
             )
         self.anchor_keepin_context = None
-        if getattr(params, "anchor_keepin_flag", False):
-            from dreamplace.constraints.anchor_keepin import AnchorKeepInContext
-
-            self.anchor_keepin_context = AnchorKeepInContext.from_params(params, placedb)
         self.init_pos = np.zeros(placedb.num_nodes * 2, dtype=placedb.dtype)
 
         # initial location of cells
@@ -519,6 +515,14 @@ class BasicPlace(nn.Module):
 
         # x position
         self.init_pos[0 : placedb.num_physical_nodes] = placedb.node_x
+        # y position
+        self.init_pos[
+            placedb.num_nodes : placedb.num_nodes + placedb.num_physical_nodes
+        ] = placedb.node_y
+
+        # Preserve the unmodified PlaceDB coordinates as the runtime endpoint
+        # source before random or file-based initialization changes positions.
+        runtime_position = self.init_pos.copy()
         if params.global_place_flag and params.random_center_init_flag:
             logging.info(
                 f"move cells to location {init_loc_x, init_loc_y} with random noise"
@@ -531,12 +535,6 @@ class BasicPlace(nn.Module):
                 )
                 - placedb.node_size_x[0 : placedb.num_movable_nodes] / 2
             )
-
-        # y position
-        self.init_pos[
-            placedb.num_nodes : placedb.num_nodes + placedb.num_physical_nodes
-        ] = placedb.node_y
-        if params.global_place_flag and params.random_center_init_flag:
             self.init_pos[
                 placedb.num_nodes : placedb.num_nodes + placedb.num_movable_nodes
             ] = (
@@ -646,6 +644,15 @@ class BasicPlace(nn.Module):
                     high=placedb.yh - placedb.node_size_y[-placedb.num_filler_nodes],
                     size=placedb.num_filler_nodes,
                 )
+
+        if getattr(params, "anchor_keepin_flag", False):
+            from dreamplace.constraints.anchor_keepin import AnchorKeepInContext
+
+            self.anchor_keepin_context = AnchorKeepInContext.from_params(
+                params,
+                placedb,
+                runtime_position=runtime_position,
+            )
 
         if self.anchor_keepin_context is not None:
             self.anchor_keepin_context.initialize_positions(self.init_pos, placedb)

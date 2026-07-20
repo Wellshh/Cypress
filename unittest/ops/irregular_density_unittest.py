@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 import torch
@@ -17,6 +18,7 @@ from dreamplace.constraints.irregular_density import (  # noqa: E402
     rasterize_usable_area,
 )
 from dreamplace.constraints.anchor_keepin import AnchorKeepInContext  # noqa: E402
+from dreamplace.PlaceObj import PlaceObj  # noqa: E402
 from dreamplace.ops.electric_potential.electric_overflow import (  # noqa: E402
     ElectricOverflow,
 )
@@ -191,6 +193,18 @@ class IrregularDensityTest(unittest.TestCase):
                 diagnostics["minimum_normalized_overflow"], 3.0 / 7.0
             )
 
+        context._density_capacity_cache = {}
+        context.require_feasible_density_target = True
+        with self.assertRaisesRegex(ValueError, "target 0.700000 is infeasible"):
+            context.build_density_capacity_maps(
+                placedb=placedb,
+                num_bins_x=4,
+                num_bins_y=1,
+                target_density=0.7,
+                dtype=torch.float64,
+                device="cpu",
+            )
+
     def test_potential_and_overflow_consume_identical_static_density(self):
         static = torch.zeros((4, 4), dtype=torch.float64)
         static[2:, :] = 0.7
@@ -246,6 +260,44 @@ class IrregularDensityTest(unittest.TestCase):
         self.assertEqual(
             torch.count_nonzero(overflow.initial_density_map).item(), 0
         )
+
+    def test_feature_off_side_overflow_excludes_fillers(self):
+        model = PlaceObj.__new__(PlaceObj)
+        model.irregular_density_capacity_maps = None
+        placedb = SimpleNamespace(
+            xl=0.0,
+            yl=0.0,
+            xh=4.0,
+            yh=4.0,
+            num_movable_nodes=1,
+            num_top_movable_nodes=1,
+            num_top_fixed_nodes=1,
+            num_top_filler_nodes=1,
+            top_nodes_idx=torch.tensor([0, 1, 2]),
+        )
+        data_collections = SimpleNamespace(
+            node_size_x=torch.ones(3),
+            node_size_y=torch.ones(3),
+            target_density=torch.tensor(0.7),
+            sorted_top_node_map=torch.tensor([0], dtype=torch.int32),
+            movable_macro_mask=torch.zeros(3, dtype=torch.bool),
+            bin_center_x_padded=lambda *_: torch.arange(0.5, 4.0),
+            bin_center_y_padded=lambda *_: torch.arange(0.5, 4.0),
+        )
+
+        with patch(
+            "dreamplace.PlaceObj.electric_overflow.ElectricOverflow"
+        ) as constructor:
+            model.build_electric_overflow(
+                SimpleNamespace(deterministic_flag=True),
+                placedb,
+                data_collections,
+                4,
+                4,
+                side="top",
+            )
+
+        self.assertEqual(constructor.call_args.kwargs["num_filler_nodes"], 0)
 
 
 if __name__ == "__main__":

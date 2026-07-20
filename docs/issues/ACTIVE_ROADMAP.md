@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-149`
+**Evidence through:** `M336-162`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -73,8 +73,8 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N1 (complete) | Make objective evaluation pure and projection lifecycle explicit | M336-143 tests and GPU smoke prove pure objective, explicit candidates, backward, optimizer updates, projection metrics, and state reset |
 | N2 (complete) | Add a differentiable interior keep-in margin and bounded adaptive subgroup-balanced anchor control | M336-144 through M336-146 prove finite inward gradients, bounded serialized control, and an isolated E2/E3 contract; anchor quality remains below the final gate |
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
-| N4 (active) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Exact preflight preserves legal coordinates; cold/warm timings and local-repair scope are reported |
-| N5 | Run final cold/warm E0-E4 matrix for seeds 1000, 1001, and 1002 | Exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |
+| N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
+| N5 (active) | Run 50-step diagnostics, then the final cold/warm E0-E4 matrix for seeds 1000, 1001, and 1002 | Exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |
 
 ## Paused Exact-Site Priorities
 
@@ -102,8 +102,73 @@ pairs increase from 65 to 66 and normalized native score falls from `0.611229`
 to `0.609927`. This passes only the N3 projection-pressure signal gate. M336-148
 allows explicitly finite high-overflow diagnostics to continue through exact
 validation and native scoring while preserving production defaults. M336-149
-records that `target_density=0.7` is below measured side utilization; its policy
-must be resolved before the final comparable matrix rather than silently tuned.
+resolves the infeasible `target_density=0.7` contract by freezing one explicit
+`0.85` target across all E0-E4 tracks and failing closed if either conservative
+side map remains infeasible. Fresh E4 evidence reports zero unavoidable
+overflow floor on both sides.
+
+M336-150 invalidates quality comparisons from existing native E2-E4 runs under
+the active endpoint contract: those runs freeze both `EMI601` and `Q601` at
+runtime coordinates. Their structural objective/backward/projection evidence
+remains valid. M336-151 additionally records that the runner always loads the
+artificial manual-baseline PL, so it has not yet executed either a true
+cold/source track or an M336-118 checkpoint-warm track. N4 must close both
+contracts before any new placement-quality acceptance decision.
+
+M336-152 records that the native Bookshelf reader rounds source coordinates to
+integer database units during global placement. A cold/source run must therefore
+explicitly load the hashed float `m336.pl`; the raw PlaceDB is retained only as
+a bounded quantization audit and must never redefine runtime `Q601`.
+
+M336-153 closes a runner evidence gap: in-memory legality and `Final PPA` are
+pre-serialization diagnostics only. Every promoted run must independently
+reparse the emitted PL in float64, validate exact geometry, replay native
+HPWL/FLUTE without coordinate drift, and include both replay costs in runtime.
+
+M336-154 separates two previously conflated sources. The float `m336.pl` is the
+cold initial placement, while native PlaceDB-aligned geometry remains the
+authority for certified domains and runtime endpoints. Re-fitting geometry to
+the float PL invalidated 64 warm-start components and is prohibited.
+
+M336-155 identifies a second warm-start contract drift: the former runner
+default differs from M336-118 in four page-7/page-86 subgroup assignments and
+invalidates 45 otherwise certified components. All active native tracks now use
+the assignment bundled with the checkpoint unless explicitly marked diagnostic.
+
+M336-156 promotes the already certified float64 M336-118 reconstruction into
+the portable checkpoint without overwriting the legacy rounded PL. Native warm
+runs default to the manifested float64 asset; the rounded file remains audit
+history only.
+
+M336-150 through M336-156 are now resolved by fresh seed-1000 cold and warm
+10-step E0-E4 matrices. They enforce manual `EMI601` plus runtime `Q601`, retain
+the certified native alignment, use assignment SHA
+`e6a08bf40a1f0ceeedda762ab48dcfcc404c9764b0f37a930184036fb2f72c87`,
+load the float64 checkpoint for warm runs, and independently validate and score
+every serialized PL. Warm initialization preserves all 100 constrained
+components; cold/source preserves four and repairs the measured 96-component
+illegal/conflict closure.
+
+M336-157 through M336-160 close the remaining N4 contract drift. The runner
+defaults to the frozen `0.05 mm` grid with 89/89 cache hits; adaptive-anchor
+downward anti-windup keeps the effective gradient ratio within its active ramp;
+E4 restores a bounded same-run conflict closure rather than repacking it; and
+the 2x runtime gate is evaluated only for checkpoint-warm summaries. In the
+warm 10-step matrix, E4 executes 13 backward calls and 10 changing Adam steps,
+ends 100/100 contained with zero overlaps, scores native HPWL/RSMT
+`15632.260310/17328.977` (`0.928024` normalized), and takes `1.4775x` E0
+end-to-end runtime. Anchor mean/p90 improve only `0.0071%/0.0026%` in E3 versus
+E2, so N5 must diagnose the quality gate at the full 50-step budget before the
+three-seed final matrix.
+
+M336-161 and M336-162 close two feature-off regressions found by comparing the
+native recovery branch directly with `f0e4cb9`. Side overflow again excludes
+fillers exactly as legacy Cypress did, and M336-only Nesterov bootstrap/state
+handling no longer affects ordinary runs. A deterministic 100-step CPU smoke
+has byte-identical metric records after timing removal and identical placement
+SHA-256 on both revisions. Both revisions retain the benchmark's pre-existing
+high-overflow failure; this evidence proves no regression rather than a
+successful tuned placement.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

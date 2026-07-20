@@ -1223,7 +1223,9 @@ class PlaceObj(nn.Module):
                 bin_size_y=bin_size_y,
                 num_movable_nodes=layout["num_movable_nodes"],
                 num_terminals=layout["num_terminals"],
-                num_filler_nodes=layout["num_filler_nodes"],
+                # Legacy side overflow excludes fillers even though the
+                # corresponding electric-potential objective includes them.
+                num_filler_nodes=0,
                 padding=0,
                 deterministic_flag=params.deterministic_flag,
                 sorted_node_map=layout["sorted_node_map"],

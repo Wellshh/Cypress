@@ -1,7 +1,10 @@
+import json
 import math
 import os
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -36,13 +39,19 @@ from dreamplace.constraints.region_validation import (
 )
 from dreamplace.constraints.anchor_keepin import (
     AnchorKeepInContext,
+    _audit_runtime_source,
     _batch_overlap_metrics,
+    _domain_cache_digest,
     _forward_check_rectangle_pack,
+    _load_cached_domain,
     _min_conflicts_pack,
+    _native_alignment_targets,
     _obstacle_free_candidate_indices,
     _ordered_candidate_indices,
     _overlap_metrics,
     _pack_region,
+    _parse_endpoint_policy,
+    _write_cached_domain,
 )
 from dreamplace.ops.anchor_keepin.anchor_keepin import (
     AdaptiveAnchorWeight,
@@ -76,6 +85,72 @@ class AnchorKeepInTest(unittest.TestCase):
 
     def test_geometry_dbu_to_mm(self):
         np.testing.assert_allclose(dbu_to_mm([10000, -2500], 10000), [1.0, -0.25])
+
+    def test_runtime_source_audit_allows_only_native_bookshelf_quantization(self):
+        placedb = SimpleNamespace(
+            num_nodes=2,
+            num_physical_nodes=2,
+            node_names=np.array([b"A", b"B"]),
+        )
+        runtime_positions = {"A": (1.5, 3.2), "B": (2.1, 4.0)}
+        runtime_position = np.array([1.0, 2.0, 3.0, 4.0])
+
+        audit = _audit_runtime_source(
+            runtime_positions, runtime_position, placedb
+        )
+
+        self.assertEqual(audit["quantized_component_count"], 2)
+        self.assertAlmostEqual(audit["max_abs_delta_mm"], 0.5)
+        runtime_positions["A"] = (1.50001, 3.2)
+        with self.assertRaisesRegex(ValueError, "quantization tolerance"):
+            _audit_runtime_source(runtime_positions, runtime_position, placedb)
+
+    def test_endpoint_policy_requires_explicit_valid_sources(self):
+        valid = {
+            "default": "runtime",
+            "manual_endpoints": ["EMI601"],
+            "runtime_endpoints": ["Q601"],
+        }
+
+        default_source, manual, runtime = _parse_endpoint_policy(
+            valid, {"EMI601", "Q601"}
+        )
+
+        self.assertEqual(default_source, "runtime")
+        self.assertEqual(manual, {"EMI601"})
+        self.assertEqual(runtime, {"Q601"})
+        for field in ("manual_endpoints", "runtime_endpoints"):
+            invalid = dict(valid, **{field: []})
+            with self.assertRaisesRegex(ValueError, "declare"):
+                _parse_endpoint_policy(invalid, {"EMI601", "Q601"})
+        with self.assertRaisesRegex(ValueError, "unique"):
+            _parse_endpoint_policy(
+                dict(valid, runtime_endpoints=["Q601", "Q601"]),
+                {"EMI601", "Q601"},
+            )
+        with self.assertRaisesRegex(ValueError, "non-anchor"):
+            _parse_endpoint_policy(
+                dict(valid, runtime_endpoints=["UNKNOWN"]),
+                {"EMI601", "Q601"},
+            )
+
+    def test_alignment_targets_use_untouched_native_placedb_snapshot(self):
+        placedb = SimpleNamespace(
+            num_nodes=3,
+            num_physical_nodes=2,
+            node_names=np.array([b"A", b"B", b"FILLER"]),
+            node_size_x=np.array([2.0, 4.0, 0.0]),
+            node_size_y=np.array([6.0, 8.0, 0.0]),
+        )
+        runtime_position = np.array(
+            [10.0, 20.0, 0.0, 30.0, 40.0, 0.0]
+        )
+
+        targets = _native_alignment_targets(runtime_position, placedb)
+
+        self.assertEqual(targets, {"A": (11.0, 33.0), "B": (22.0, 44.0)})
+        with self.assertRaisesRegex(ValueError, "invalid shape"):
+            _native_alignment_targets(runtime_position[:-1], placedb)
 
     def test_geometry_alignment(self):
         source = {
@@ -316,6 +391,196 @@ class AnchorKeepInTest(unittest.TestCase):
             domain.valid_centers[obstacle_free], [[1.5, 0.5]]
         )
 
+    @staticmethod
+    def _initialization_context(output_dir, positions_overlap=False):
+        region = box(0.0, 0.0, 4.0, 1.0)
+        domain = FeasibleDomain.build(
+            region, width=1.0, height=1.0, grid=0.5
+        )
+        constraints = tuple(
+            NodeConstraint(
+                node_id=node_id,
+                refdes="U%d" % (node_id + 1),
+                side="TOP",
+                group_id="G",
+                subgroup_id="G__top",
+                region_id="top_0",
+                domain=domain,
+                target_center=(node_id + 0.5, 0.5),
+                node_width=1.0,
+                node_height=1.0,
+                anchor_refdes="A1",
+            )
+            for node_id in range(3)
+        )
+        context = AnchorKeepInContext(
+            config={"reporting": {"area_epsilon_mm2": 1e-9}},
+            geometry=SimpleNamespace(symbols={}),
+            alignment=SimpleNamespace(scale=1.0),
+            regions={"top_0": region},
+            constraints=constraints,
+            frozen_lower_left={},
+            frozen_anchor_ids=set(),
+            frozen_fixed_ids=set(),
+            anchor_centers={"A1": (0.5, 0.5)},
+            resolved_members=("U1", "U2", "U3"),
+            input_paths={},
+            endpoint_policy={"default": "runtime"},
+            endpoint_records=(),
+            domain_cache_stats={},
+            preprocessing_seconds=0.0,
+            num_nodes=4,
+            output_dir=output_dir,
+            projection_enabled=True,
+            anchor_loss_enabled=False,
+            soft_loss_enabled=False,
+            exact_repair_enabled=False,
+            initialization_mode="preserve_legal",
+            grid=0.5,
+            keepin_margin=0.0,
+            keepin_margin_tau=0.1,
+        )
+        placedb = SimpleNamespace(
+            num_nodes=4,
+            num_physical_nodes=4,
+            node_names=np.asarray([b"U1", b"U2", b"U3", b"FIX"]),
+            node_side_flag=np.ones(4, dtype=np.int32),
+            node_size_x=np.ones(4),
+            node_size_y=np.ones(4),
+        )
+        x_positions = [0.0, 0.0 if positions_overlap else 1.0, 2.0, 10.0]
+        position = np.asarray(x_positions + [0.0] * 4, dtype=np.float64)
+        return context, placedb, position
+
+    def test_preserve_legal_initialization_is_coordinate_stable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, position = self._initialization_context(
+                directory
+            )
+            expected = position.copy()
+
+            context.initialize_positions(position, placedb)
+
+            np.testing.assert_array_equal(position, expected)
+            report = json.loads(
+                (Path(directory) / "initialization.json").read_text()
+            )
+            self.assertEqual(report["preserved_component_count"], 3)
+            self.assertEqual(report["repair"]["component_count"], 0)
+
+    def test_preserve_legal_repairs_only_overlap_closure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, position = self._initialization_context(
+                directory, positions_overlap=True
+            )
+            third_before = position[2]
+
+            context.initialize_positions(position, placedb)
+
+            report = json.loads(
+                (Path(directory) / "initialization.json").read_text()
+            )
+            self.assertEqual(report["before"]["conflict_closure_count"], 2)
+            self.assertEqual(report["repair"]["component_count"], 2)
+            self.assertEqual(report["preserved_component_count"], 1)
+            self.assertEqual(position[2], third_before)
+            self.assertEqual(report["after"]["constrained_overlap_count"], 0)
+
+    def test_e4_repair_restores_only_same_run_conflict_closure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, initial = self._initialization_context(directory)
+            context.initialize_positions(initial, placedb)
+            expected = torch.as_tensor(initial.copy())
+            proposal = expected.clone()
+            proposal[0] = 0.2
+
+            stats = context.repair_positions(proposal, placedb)
+
+            self.assertEqual(stats["strategy"], "initial_legal_restore")
+            self.assertEqual(stats["component_count"], 2)
+            self.assertEqual(stats["moved_component_count"], 1)
+            self.assertTrue(torch.equal(proposal, expected))
+            self.assertEqual(stats["after"]["conflict_closure_count"], 0)
+
+    def test_e4_repair_expands_restore_closure_until_legal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, initial = self._initialization_context(directory)
+            context.initialize_positions(initial, placedb)
+            proposal = torch.as_tensor(initial.copy())
+            proposal[:3] = torch.as_tensor([0.2, 0.8, 1.9])
+
+            stats = context.repair_positions(proposal, placedb)
+
+            self.assertEqual(stats["strategy"], "initial_legal_restore")
+            self.assertEqual(stats["initial_component_count"], 2)
+            self.assertEqual(stats["expanded_component_count"], 3)
+            self.assertEqual(stats["restore_round_count"], 2)
+            self.assertEqual(stats["expansions"][0]["added_refdes"], ["U3"])
+            self.assertEqual(stats["after"]["conflict_closure_count"], 0)
+            np.testing.assert_array_equal(proposal.numpy(), initial)
+
+    def test_e4_restore_respects_component_limit_and_rolls_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, initial = self._initialization_context(directory)
+            context.initialize_positions(initial, placedb)
+            context.config["repair"] = {
+                "max_restore_components": 2,
+                "max_restore_rounds": 4,
+            }
+            proposal = torch.as_tensor(initial.copy())
+            proposal[:3] = torch.as_tensor([0.2, 0.8, 1.9])
+            expected = proposal.clone()
+
+            stats, failure = context._restore_initial_legal_subset(
+                proposal, placedb, {0, 1}
+            )
+
+            self.assertIsNone(stats)
+            self.assertEqual(failure["reason"], "restore_component_limit")
+            self.assertEqual(failure["proposed_component_count"], 3)
+            self.assertTrue(torch.equal(proposal, expected))
+
+    def test_feasible_domain_cache_round_trip_is_identity_safe(self):
+        region = box(0.0, 0.0, 2.0, 2.0)
+        footprint = box(-0.25, -0.25, 0.25, 0.25)
+        domain = FeasibleDomain.build(
+            region,
+            width=0.5,
+            height=0.5,
+            grid=0.1,
+            footprint_local=footprint,
+        )
+        digest = _domain_cache_digest(
+            input_hashes={"geometry": "abc"},
+            endpoint_policy={"default": "runtime"},
+            side="TOP",
+            region_id="top_0",
+            region=region,
+            width=0.5,
+            height=0.5,
+            grid=0.1,
+            clearance=0.0,
+            orientation="N",
+            footprint_local=footprint,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / (digest + ".npz")
+            _write_cached_domain(path, digest, domain)
+            loaded = _load_cached_domain(
+                path,
+                digest,
+                region,
+                0.5,
+                0.5,
+                0.0,
+                0.1,
+                footprint,
+            )
+
+        np.testing.assert_array_equal(loaded.valid_mask, domain.valid_mask)
+        np.testing.assert_allclose(loaded.valid_centers, domain.valid_centers)
+        self.assertEqual(loaded.project((3.0, 3.0)), domain.project((3.0, 3.0)))
+
     def test_batch_overlap_metrics_match_scalar_exact_geometry(self):
         candidates = [
             box(0, 0, 2, 2),
@@ -481,7 +746,7 @@ class AnchorKeepInTest(unittest.TestCase):
             target_ratio=0.1,
             update_interval=2,
             ema_decay=0.5,
-            min_weight=1.0,
+            min_weight=0.0,
             max_weight=10.0,
             warmup_iterations=1,
             ramp_iterations=2,
@@ -496,9 +761,11 @@ class AnchorKeepInTest(unittest.TestCase):
         self.assertEqual(first["effective_weight"], 0.0)
         self.assertFalse(ramped["gradient_refreshed"])
         self.assertEqual(ramped["effective_weight"], 5.0)
-        self.assertEqual(refreshed["bounded_weight"], 1.0)
-        self.assertEqual(refreshed["ema_weight"], 5.5)
-        self.assertEqual(refreshed["effective_weight"], 5.5)
+        self.assertEqual(refreshed["bounded_weight"], 0.1)
+        self.assertEqual(refreshed["ema_weight"], 5.05)
+        self.assertEqual(refreshed["controlled_weight"], 0.1)
+        self.assertEqual(refreshed["effective_weight"], 0.1)
+        self.assertAlmostEqual(refreshed["effective_ratio"], 0.1)
         self.assertLessEqual(refreshed["effective_weight"], 10.0)
 
     def test_adaptive_anchor_weight_rejects_nonfinite_configuration(self):

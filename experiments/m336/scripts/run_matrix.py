@@ -26,6 +26,14 @@ import torch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_M336_ASSIGNMENT = (
+    REPO_ROOT / "experiments/m336/checkpoints/M336-118/assignment.json"
+)
+DEFAULT_M336_CHECKPOINT_PL = (
+    REPO_ROOT / "experiments/m336/checkpoints/M336-118/placement.float64.pl"
+)
+DEFAULT_M336_CONSTRAINT_GRID_MM = 0.05
+DEFAULT_M336_TARGET_DENSITY = 0.85
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
 IMPLEMENTATION_FILES = (
     "dreamplace/BasicPlace.py",
@@ -173,13 +181,30 @@ def source_state():
     tracked_diff = subprocess.check_output(
         ["git", "diff", "--binary", "HEAD"], cwd=REPO_ROOT
     )
+    implementation_sha256 = hash_paths(IMPLEMENTATION_FILES)
+    source_install_mismatches = []
+    for source_path, source_digest in implementation_sha256.items():
+        if not source_path.startswith("dreamplace/"):
+            continue
+        install_path = "install/" + source_path
+        install_digest = implementation_sha256.get(install_path)
+        if install_digest is not None and install_digest != source_digest:
+            source_install_mismatches.append(
+                {
+                    "source": source_path,
+                    "source_sha256": source_digest,
+                    "install": install_path,
+                    "install_sha256": install_digest,
+                }
+            )
     return {
         "branch": git_branch(),
         "git_sha": git_sha(),
         "dirty": bool(status),
         "dirty_paths": status,
         "tracked_diff_sha256": hashlib.sha256(tracked_diff).hexdigest(),
-        "implementation_sha256": hash_paths(IMPLEMENTATION_FILES),
+        "implementation_sha256": implementation_sha256,
+        "source_install_mismatches": source_install_mismatches,
     }
 
 
@@ -235,6 +260,7 @@ def input_hashes(args):
     return hash_paths(
         (
             args.baseline_geometry,
+            args.checkpoint_placement,
             REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json",
             REPO_ROOT / "experiments/m336/input/m336_clusters.json",
             args.assignment,
@@ -244,12 +270,20 @@ def input_hashes(args):
 
 
 def constraint_config(
-    run_dir, spec, assignment, grid_mm, clearance_mm, margin_mm, margin_tau_mm
+    run_dir,
+    spec,
+    assignment,
+    grid_mm,
+    clearance_mm,
+    margin_mm,
+    margin_tau_mm,
+    manual_endpoint_placement,
+    runtime_endpoint_placement,
 ):
     cluster_path = REPO_ROOT / "experiments/m336/input/m336_clusters.json"
     cluster_manifest = json.loads(cluster_path.read_text())
     return {
-        "schema": "m336_anchor_keepin_config_v1",
+        "schema": "m336_anchor_keepin_config_v2",
         "enabled": True,
         "geometry_file": str(
             (REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json").resolve()
@@ -260,11 +294,26 @@ def constraint_config(
             row["refdes"] for row in cluster_manifest.get("unclustered", [])
         ),
         "allow_region_reassignment": False,
+        "endpoint_policy": {
+            "default": "runtime",
+            "manual_endpoints": ["EMI601"],
+            "runtime_endpoints": ["Q601"],
+            "manual_placement_file": str(
+                Path(manual_endpoint_placement).resolve()
+            ),
+            "runtime_placement_file": str(
+                Path(runtime_endpoint_placement).resolve()
+            ),
+        },
         "feature_flags": {
             "enable_anchor_loss": spec["anchor_loss"],
             "enable_hard_keepin_projection": spec["projection"],
             "enable_exact_repair": spec["repair"],
             "enable_rotation": False,
+        },
+        "repair": {
+            "max_restore_components": 64,
+            "max_restore_rounds": 4,
         },
         "geometry": {
             "placement_region_field": "component_placeable_regions",
@@ -298,9 +347,31 @@ def placement_config(
     margin_mm,
     margin_tau_mm,
     aux_input,
+    source_placement=None,
     initial_placement=None,
     irregular_density=True,
+    initialization_track="cold_source",
+    feasible_domain_cache_dir=None,
 ):
+    initialization_modes = {
+        "cold_source": "preserve_legal",
+        "checkpoint_warm_start": "checkpoint_warm_start",
+    }
+    if initialization_track not in initialization_modes:
+        raise ValueError(
+            "unknown initialization track: %s" % initialization_track
+        )
+    if initialization_track == "checkpoint_warm_start" and not initial_placement:
+        raise ValueError("checkpoint track requires an initial placement")
+    if initialization_track == "cold_source" and initial_placement:
+        raise ValueError("cold/source track cannot load a checkpoint placement")
+    if initialization_track == "cold_source" and not source_placement:
+        raise ValueError("cold/source track requires a float source placement")
+    selected_initial_placement = (
+        initial_placement
+        if initialization_track == "checkpoint_warm_start"
+        else source_placement
+    )
     config = {
         "aux_input": str(Path(aux_input).resolve()),
         "gpu": int(gpu),
@@ -319,7 +390,7 @@ def placement_config(
                 "Lsub_iteration": 1,
             }
         ],
-        "target_density": 0.7,
+        "target_density": DEFAULT_M336_TARGET_DENSITY,
         "density_weight": 0.00008,
         "net_crossing_flag": 0,
         "net_crossing_weight": 0.0,
@@ -336,17 +407,28 @@ def placement_config(
         "stop_overflow": 1.0,
         "dtype": "float32",
         "plot_flag": 0,
-        "random_center_init_flag": (
-            0 if initial_placement else int(spec["integrated_context"])
-        ),
+        "random_center_init_flag": 0,
         "sort_nets_by_degree": 0,
         "num_threads": 8,
         "deterministic_flag": 1,
         "enable_rotation": 0,
         "initial_placement_file": (
-            str(Path(initial_placement).resolve()) if initial_placement else ""
+            str(Path(selected_initial_placement).resolve())
+            if selected_initial_placement
+            else ""
+        ),
+        "initial_placement_role": (
+            "m336_118_checkpoint"
+            if initialization_track == "checkpoint_warm_start"
+            else "runtime_float_source"
         ),
         "initial_placement_strict": True,
+        "initialization_track": initialization_track,
+        "feasible_domain_cache_dir": (
+            str(Path(feasible_domain_cache_dir).resolve())
+            if feasible_domain_cache_dir
+            else ""
+        ),
     }
     if spec["integrated_context"]:
         config.update(
@@ -359,6 +441,9 @@ def placement_config(
                 "irregular_density_flag": bool(
                     spec["irregular_density"] and irregular_density
                 ),
+                "irregular_density_require_feasible_target": bool(
+                    spec["irregular_density"] and irregular_density
+                ),
                 "diagnostic_validation_on_high_overflow_flag": True,
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
@@ -369,9 +454,9 @@ def placement_config(
                 "freeze_anchor_nodes": spec["freeze_anchors"],
                 "allow_region_reassignment": False,
                 "exact_repair_flag": spec["repair"],
-                "anchor_keepin_initialization": (
-                    "current" if initial_placement else "anchor"
-                ),
+                "anchor_keepin_initialization": initialization_modes[
+                    initialization_track
+                ],
             }
         )
     return config
@@ -399,8 +484,10 @@ def evaluate_feature_off(
     from dreamplace import Params, PlaceDB
     from dreamplace.constraints.anchor_keepin import AnchorKeepInContext
 
+    replay_config = dict(config)
+    replay_config["dtype"] = "float64"
     params = Params.Params()
-    params.update(config)
+    params.update(replay_config)
     if database_aux is not None:
         params.aux_input = str(Path(database_aux).resolve())
     params.anchor_keepin_config = str(Path(constraint_path).resolve())
@@ -414,11 +501,13 @@ def evaluate_feature_off(
     placedb.read(params)
     placedb.initialize_from_rawdb(params)
     placedb.initialize(params)
-    context = AnchorKeepInContext.from_params(params, placedb)
-
-    pos = torch.from_numpy(
-        np.concatenate((placedb.node_x.copy(), placedb.node_y.copy()))
+    runtime_position = np.concatenate(
+        (placedb.node_x.copy(), placedb.node_y.copy())
     )
+    context = AnchorKeepInContext.from_params(
+        params, placedb, runtime_position=runtime_position
+    )
+    pos = torch.from_numpy(runtime_position.copy())
     names = [
         name.decode("utf-8") if isinstance(name, bytes) else str(name)
         for name in placedb.node_names
@@ -452,6 +541,171 @@ def require_finite_native_scores(ppa):
         raise ValueError(
             "native scoring returned non-finite metrics: %s" % nonfinite
         )
+
+
+def score_serialized_placement(
+    config,
+    placement_path,
+    output_dir,
+    bookshelf_dir,
+    python,
+    placer,
+):
+    """Replay serialized coordinates through native float64 HPWL/FLUTE."""
+    input_dir = output_dir / "input"
+    native_dir = output_dir / "native"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    for filename in ("m336.nodes", "m336.nets", "m336.scl"):
+        shutil.copyfile(bookshelf_dir / filename, input_dir / filename)
+    replay_placement = input_dir / "m336.serialized.pl"
+    shutil.copyfile(placement_path, replay_placement)
+    replay_aux = input_dir / "m336.serialized.aux"
+    replay_aux.write_text(
+        "RowBasedPlacement : m336.nodes m336.nets "
+        "m336.serialized.pl m336.scl\n"
+    )
+
+    score_config = dict(config)
+    score_config.update(
+        {
+            "anchor_keepin_config": "",
+            "anchor_keepin_flag": False,
+            "anchor_loss_flag": False,
+            "keepin_soft_loss_flag": False,
+            "irregular_density_flag": False,
+            "keepin_projection_flag": False,
+            "exact_repair_flag": False,
+            "aux_input": str(replay_aux.resolve()),
+            "dtype": "float64",
+            "evaluate_pl": 0,
+            "global_place_flag": 0,
+            "legalize_flag": 0,
+            "detailed_place_flag": 0,
+            "initial_placement_file": "",
+            "initial_placement_role": "serialized_native_replay",
+            "plot_flag": 0,
+            "random_center_init_flag": 0,
+            "result_dir": str(native_dir.resolve()),
+        }
+    )
+    config_path = output_dir / "placement.json"
+    write_json(config_path, score_config)
+    command = [str(python), str(placer), str(config_path)]
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "MKL_NUM_THREADS": "1",
+            "NUMEXPR_NUM_THREADS": "1",
+            "PYTHONFAULTHANDLER": "1",
+            "PYTHONPATH": str(REPO_ROOT / "install"),
+        }
+    )
+    completed = subprocess.run(
+        command,
+        cwd=output_dir,
+        env=environment,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    process_log = output_dir / "process.log"
+    process_log.write_text(completed.stdout)
+    if completed.returncode:
+        raise RuntimeError(
+            "post-serialization native scoring failed with exit code %d; see %s"
+            % (completed.returncode, process_log)
+        )
+
+    logs = sorted(native_dir.rglob("DREAMPlace.log"))
+    placements = sorted(native_dir.rglob("*.gp.pl"))
+    if len(logs) != 1 or len(placements) != 1:
+        raise RuntimeError(
+            "post-serialization scorer emitted unexpected artifacts: "
+            "logs=%s placements=%s" % (logs, placements)
+        )
+    ppa = parse_final_ppa(logs[0].read_text())
+    require_finite_native_scores(ppa)
+
+    expected = parse_placement(replay_placement)
+    actual = parse_placement(placements[0])
+    if set(expected) != set(actual):
+        raise ValueError("native scorer changed serialized placement identity")
+    max_coordinate_error = max(
+        abs(expected[name][axis] - actual[name][axis])
+        for name in expected
+        for axis in (0, 1)
+    )
+    if max_coordinate_error > 1e-9:
+        raise ValueError(
+            "native scorer moved serialized coordinates: max error=%g"
+            % max_coordinate_error
+        )
+    result = {
+        "schema": "m336_serialized_native_score_v1",
+        "command": command,
+        "input_placement": str(Path(placement_path).resolve()),
+        "input_placement_sha256": sha256_file(placement_path),
+        "replayed_placement": str(placements[0].resolve()),
+        "replayed_placement_sha256": sha256_file(placements[0]),
+        "coordinate_replay_max_error": max_coordinate_error,
+        "dtype": "float64",
+        "hpwl": float(ppa["hpwl"]),
+        "rsmt": float(ppa["rsmt"]),
+        "log": str(logs[0].resolve()),
+        "process_log": str(process_log.resolve()),
+    }
+    write_json(output_dir / "native-score.json", result)
+    return result
+
+
+def validate_and_score_serialized_placement(
+    config,
+    constraint_path,
+    placement_path,
+    serialized_dir,
+    bookshelf_dir,
+    python,
+    placer,
+):
+    """Validate and natively score the exact serialized placement bytes."""
+    serialized_constraint_path = serialized_dir / "anchor_keepin.json"
+    serialized_constraint = json.loads(Path(constraint_path).read_text())
+    serialized_constraint.setdefault("reporting", {})["output_dir"] = str(
+        (serialized_dir / "constraints").resolve()
+    )
+    write_json(serialized_constraint_path, serialized_constraint)
+
+    legality_path = serialized_dir / "constraints" / "legality.json"
+    validation_started = time.perf_counter()
+    legality = evaluate_feature_off(
+        config,
+        serialized_constraint_path,
+        placement_path,
+        legality_path,
+        database_aux=bookshelf_dir / "m336.aux",
+    )
+    validation_seconds = time.perf_counter() - validation_started
+
+    scoring_started = time.perf_counter()
+    score = score_serialized_placement(
+        config,
+        placement_path,
+        serialized_dir / "native-score",
+        bookshelf_dir,
+        python,
+        placer,
+    )
+    scoring_seconds = time.perf_counter() - scoring_started
+    return {
+        "constraint_path": serialized_constraint_path,
+        "legality_path": legality_path,
+        "legality": legality,
+        "score": score,
+        "validation_seconds": validation_seconds,
+        "scoring_seconds": scoring_seconds,
+    }
 
 
 def parse_native_execution(log_text):
@@ -569,6 +823,7 @@ def stable_artifacts(run_dir, placement_dir, legality_path):
         "preflight": run_dir / "constraints" / "preflight.json",
         "input_alignment": run_dir / "constraints" / "input_alignment.json",
         "initialization": run_dir / "constraints" / "initialization.json",
+        "timing": run_dir / "constraints" / "timing.json",
     }
     return {
         key: repo_path(path) for key, path in artifact_paths.items() if path.exists()
@@ -590,6 +845,46 @@ def legality_summary(legality):
     }
 
 
+def preflight_summary(preflight):
+    return {
+        "resolved_member_count": preflight["resolved_member_count"],
+        "movable_non_anchor_constraint_count": preflight[
+            "movable_non_anchor_constraint_count"
+        ],
+        "frozen_anchor_count": preflight["frozen_anchor_count"],
+        "frozen_fixed_obstacle_count": preflight.get(
+            "frozen_fixed_obstacle_count", 0
+        ),
+        "infeasible_domain_count": len(preflight["infeasible_domains"]),
+        "input_paths": preflight.get("input_paths", {}),
+        "input_sha256": preflight.get("input_sha256", {}),
+        "alignment": preflight["alignment"],
+        "keepin_margin_mm": preflight.get("keepin_margin_mm"),
+        "keepin_margin_tau_mm": preflight.get("keepin_margin_tau_mm"),
+        "endpoint_policy": preflight.get("endpoint_policy"),
+        "resolved_endpoints": preflight.get("resolved_endpoints", []),
+        "domain_cache": preflight.get("domain_cache", {}),
+        "timing": preflight.get("timing", {}),
+    }
+
+
+def require_exact_e4_legality(experiment_id, legality):
+    """Reject an E4 result unless serialized M336 output is exactly legal."""
+    if experiment_id != "E4":
+        return
+    summary = legality_summary(legality)
+    legal = (
+        summary["constrained_components"] == 100
+        and summary["fully_contained_components"] == 100
+        and summary["keepin_violation_count"] == 0
+        and summary["overlap_pair_count"] == 0
+    )
+    if not legal:
+        raise RuntimeError(
+            "E4 post-serialization exact legality failed: %s" % summary
+        )
+
+
 def score_manual_baseline(args):
     """Score the manual placement without optimizing or refitting geometry."""
     run_dir = args.baseline_output_dir
@@ -606,6 +901,8 @@ def score_manual_baseline(args):
             args.clearance_mm,
             args.keepin_margin_mm,
             args.keepin_margin_tau_mm,
+            args.baseline_pl,
+            args.bookshelf_dir / "m336.pl",
         ),
     )
     config = placement_config(
@@ -621,6 +918,8 @@ def score_manual_baseline(args):
         args.keepin_margin_mm,
         args.keepin_margin_tau_mm,
         args.bookshelf_dir / "m336.aux",
+        source_placement=args.baseline_pl,
+        feasible_domain_cache_dir=args.feasible_domain_cache_dir,
     )
     config.update(
         {
@@ -705,6 +1004,7 @@ def run_one(
     seed,
     output_dir=None,
     anchor_gradient_ratio=None,
+    initialization_track="cold_source",
 ):
     spec = EXPERIMENTS[experiment_id]
     output_dir = output_dir or args.output_dir
@@ -713,27 +1013,58 @@ def run_one(
         if anchor_gradient_ratio is None
         else anchor_gradient_ratio
     )
-    run_dir = output_dir / experiment_id / ("seed_%d" % seed)
+    run_dir = (
+        output_dir
+        / initialization_track
+        / experiment_id
+        / ("seed_%d" % seed)
+    )
     result_path = run_dir / "run-result.json"
     if args.reevaluate:
         if not result_path.exists():
             raise FileNotFoundError("cannot reevaluate missing run: %s" % result_path)
         result = json.loads(result_path.read_text())
+        previous_input_identity = result.get("input_sha256")
+        if (
+            previous_input_identity is not None
+            and previous_input_identity != args.input_identity
+        ):
+            raise RuntimeError(
+                "cannot reevaluate with changed input hashes: %s" % result_path
+            )
         config = result["config"]
         constraint_path = run_dir / "anchor_keepin.json"
-        legality_path = run_dir / "constraints" / "legality.json"
-        legality = evaluate_feature_off(
+        placement_dir = run_dir / "m336"
+        placement_path = placement_dir / "m336.gp.pl"
+        serialized_dir = run_dir / "post-serialization"
+        replay = validate_and_score_serialized_placement(
             config,
             constraint_path,
-            run_dir / "m336/m336.gp.pl",
-            legality_path,
+            placement_path,
+            serialized_dir,
+            args.bookshelf_dir,
+            args.python,
+            args.placer,
         )
+        legality = replay["legality"]
+        serialized_score = replay["score"]
+        require_exact_e4_legality(experiment_id, legality)
         result["metrics"]["anchor_distance_mm"] = legality["anchor_distance_mm"]
         result["metrics"]["projected_anchor_distance_mm"] = legality[
             "projected_anchor_distance_mm"
         ]
         result["metrics"]["per_group"] = legality["per_group"]
-        log_text = (run_dir / "m336" / "DREAMPlace.log").read_text()
+        result["metrics"]["hpwl"] = serialized_score["hpwl"]
+        result["metrics"]["rsmt"] = serialized_score["rsmt"]
+        log_text = (placement_dir / "DREAMPlace.log").read_text()
+        in_memory_ppa = parse_final_ppa(log_text)
+        require_finite_native_scores(in_memory_ppa)
+        result["metrics"]["pre_serialization_hpwl"] = float(
+            in_memory_ppa["hpwl"]
+        )
+        result["metrics"]["pre_serialization_rsmt"] = float(
+            in_memory_ppa["rsmt"]
+        )
         anchor_control_key, configured_anchor_control = (
             _configured_anchor_control(config, anchor_gradient_ratio)
         )
@@ -769,31 +1100,92 @@ def run_one(
             config.get("irregular_density_flag", False)
         )
         result["input_sha256"] = args.input_identity
-        result["source_state"] = args.source_identity
+        result.setdefault("source_state", args.source_identity)
+        result["reevaluation"] = {
+            "git_sha": git_sha(),
+            "source_state": args.source_identity,
+            "input_sha256": args.input_identity,
+            "post_serialization_validation_seconds": replay[
+                "validation_seconds"
+            ],
+            "post_serialization_scoring_seconds": replay["scoring_seconds"],
+        }
         preflight_path = run_dir / "constraints" / "preflight.json"
+        if not preflight_path.exists():
+            preflight_path = serialized_dir / "constraints" / "preflight.json"
         if preflight_path.exists():
             preflight = json.loads(preflight_path.read_text())
-            result["preflight"] = {
-                "resolved_member_count": preflight["resolved_member_count"],
-                "movable_non_anchor_constraint_count": preflight[
-                    "movable_non_anchor_constraint_count"
+            result["preflight"] = preflight_summary(preflight)
+        initialization_path = run_dir / "constraints" / "initialization.json"
+        if initialization_path.exists():
+            result["initialization"] = json.loads(
+                initialization_path.read_text()
+            )
+        timing_path = run_dir / "constraints" / "timing.json"
+        if timing_path.exists():
+            result["timing"] = json.loads(timing_path.read_text())
+        else:
+            result.setdefault("timing", {})
+        native_runtime = float(
+            result.get(
+                "native_placement_runtime_seconds",
+                result.get("runtime_seconds", 0.0),
+            )
+        )
+        result["native_placement_runtime_seconds"] = native_runtime
+        result["post_serialization_validation_seconds"] = replay[
+            "validation_seconds"
+        ]
+        result["post_serialization_scoring_seconds"] = replay[
+            "scoring_seconds"
+        ]
+        result["runtime_seconds"] = (
+            native_runtime
+            + replay["validation_seconds"]
+            + replay["scoring_seconds"]
+        )
+        result["timing"].update(
+            {
+                "post_serialization_validation_seconds": replay[
+                    "validation_seconds"
                 ],
-                "frozen_anchor_count": preflight["frozen_anchor_count"],
-                "frozen_fixed_obstacle_count": preflight.get(
-                    "frozen_fixed_obstacle_count", 0
-                ),
-                "infeasible_domain_count": len(preflight["infeasible_domains"]),
-                "alignment": preflight["alignment"],
-                "keepin_margin_mm": preflight.get("keepin_margin_mm"),
-                "keepin_margin_tau_mm": preflight.get("keepin_margin_tau_mm"),
+                "post_serialization_scoring_seconds": replay[
+                    "scoring_seconds"
+                ],
+                "end_to_end_seconds": result["runtime_seconds"],
             }
+        )
+        aggregate_timing_path = run_dir / "timing.json"
+        write_json(aggregate_timing_path, result["timing"])
         write_per_group_csv(run_dir / "per_group.csv", legality["per_group"])
         result["artifacts"] = stable_artifacts(
-            run_dir, run_dir / "m336", legality_path
+            run_dir, placement_dir, replay["legality_path"]
+        )
+        result["artifacts"].update(
+            {
+                "aggregate_timing": repo_path(aggregate_timing_path),
+                "post_serialization_constraint": repo_path(
+                    replay["constraint_path"]
+                ),
+                "post_serialization_legality": repo_path(
+                    replay["legality_path"]
+                ),
+                "post_serialization_native_score": repo_path(
+                    serialized_dir / "native-score" / "native-score.json"
+                ),
+                "post_serialization_preflight": repo_path(
+                    serialized_dir / "constraints" / "preflight.json"
+                ),
+                "post_serialization_input_alignment": repo_path(
+                    serialized_dir / "constraints" / "input_alignment.json"
+                ),
+            }
         )
         repair_path = run_dir / "constraints" / "repair.json"
         if repair_path.exists():
             result["artifacts"]["repair"] = repo_path(repair_path)
+            result["repair"] = json.loads(repair_path.read_text())
+        result["serialized_native_score"] = serialized_score
         result["manual_baseline_comparison"] = compare_with_manual_baseline(
             result["metrics"], args.manual_baseline
         )
@@ -819,7 +1211,14 @@ def run_one(
             args.clearance_mm,
             args.keepin_margin_mm,
             args.keepin_margin_tau_mm,
+            args.baseline_pl,
+            args.bookshelf_dir / "m336.pl",
         ),
+    )
+    initial_placement = (
+        args.checkpoint_placement
+        if initialization_track == "checkpoint_warm_start"
+        else None
     )
     config = placement_config(
         run_dir,
@@ -834,8 +1233,11 @@ def run_one(
         args.keepin_margin_mm,
         args.keepin_margin_tau_mm,
         args.bookshelf_dir / "m336.aux",
-        initial_placement=args.baseline_pl,
+        source_placement=args.bookshelf_dir / "m336.pl",
+        initial_placement=initial_placement,
         irregular_density=args.irregular_density,
+        initialization_track=initialization_track,
+        feasible_domain_cache_dir=args.feasible_domain_cache_dir,
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -862,26 +1264,41 @@ def run_one(
     placement_dir = run_dir / "m336"
     dreamplace_log_path = placement_dir / "DREAMPlace.log"
     log_text = dreamplace_log_path.read_text()
-    ppa = parse_final_ppa(log_text)
-    require_finite_native_scores(ppa)
-    legality_path = run_dir / "constraints" / "legality.json"
-    if experiment_id == "E0":
-        legality = evaluate_feature_off(
-            config,
-            constraint_path,
-            placement_dir / "m336.gp.pl",
-            legality_path,
-        )
-    else:
-        legality = json.loads(legality_path.read_text())
+    in_memory_ppa = parse_final_ppa(log_text)
+    require_finite_native_scores(in_memory_ppa)
+    in_memory_legality_path = run_dir / "constraints" / "legality.json"
+    in_memory_legality = (
+        json.loads(in_memory_legality_path.read_text())
+        if in_memory_legality_path.exists()
+        else None
+    )
+
+    serialized_dir = run_dir / "post-serialization"
+    replay = validate_and_score_serialized_placement(
+        config,
+        constraint_path,
+        placement_dir / "m336.gp.pl",
+        serialized_dir,
+        args.bookshelf_dir,
+        args.python,
+        args.placer,
+    )
+    legality = replay["legality"]
+    serialized_score = replay["score"]
+    post_serialization_validation_seconds = replay["validation_seconds"]
+    post_serialization_scoring_seconds = replay["scoring_seconds"]
+    require_exact_e4_legality(experiment_id, legality)
 
     preflight_path = run_dir / "constraints" / "preflight.json"
+    if not preflight_path.exists():
+        preflight_path = serialized_dir / "constraints" / "preflight.json"
     preflight = json.loads(preflight_path.read_text())
     write_per_group_csv(run_dir / "per_group.csv", legality["per_group"])
 
     result = {
-        "run_id": "%s-ar-%s-margin-%s-seed-%d"
+        "run_id": "%s-%s-ar-%s-margin-%s-seed-%d"
         % (
+            initialization_track,
             experiment_id.lower(),
             format(anchor_gradient_ratio, "g"),
             format(args.keepin_margin_mm, "g"),
@@ -890,6 +1307,7 @@ def run_one(
         "git_sha": git_sha(),
         "experiment_id": experiment_id,
         "experiment_name": spec["name"],
+        "initialization_track": initialization_track,
         "seed": seed,
         "anchor_gradient_ratio": float(anchor_gradient_ratio),
         "constraint_grid_mm": float(args.grid_mm),
@@ -903,38 +1321,42 @@ def run_one(
         "config": config,
         "input_sha256": args.input_identity,
         "source_state": args.source_identity,
-        "preflight": {
-            "resolved_member_count": preflight["resolved_member_count"],
-            "movable_non_anchor_constraint_count": preflight[
-                "movable_non_anchor_constraint_count"
-            ],
-            "frozen_anchor_count": preflight["frozen_anchor_count"],
-            "frozen_fixed_obstacle_count": preflight.get(
-                "frozen_fixed_obstacle_count", 0
-            ),
-            "infeasible_domain_count": len(preflight["infeasible_domains"]),
-            "alignment": preflight["alignment"],
-            "keepin_margin_mm": preflight.get("keepin_margin_mm"),
-            "keepin_margin_tau_mm": preflight.get("keepin_margin_tau_mm"),
-        },
-        "runtime_seconds": runtime,
+        "preflight": preflight_summary(preflight),
+        "runtime_seconds": (
+            runtime
+            + post_serialization_validation_seconds
+            + post_serialization_scoring_seconds
+        ),
+        "native_placement_runtime_seconds": runtime,
+        "post_serialization_validation_seconds": (
+            post_serialization_validation_seconds
+        ),
+        "post_serialization_scoring_seconds": (
+            post_serialization_scoring_seconds
+        ),
         "device": (
             "NVIDIA H100"
             if "Using Torch GPU device" in log_text
             else "CPU"
         ),
         "metrics": {
-            "hpwl": float(ppa["hpwl"]),
-            "rsmt": float(ppa["rsmt"]),
-            "objective": float(ppa["objective"]),
-            "overflow": float(ppa["overflow"]),
-            "iterations": int(ppa["iteration"]),
+            "hpwl": serialized_score["hpwl"],
+            "rsmt": serialized_score["rsmt"],
+            "pre_serialization_hpwl": float(in_memory_ppa["hpwl"]),
+            "pre_serialization_rsmt": float(in_memory_ppa["rsmt"]),
+            "objective": float(in_memory_ppa["objective"]),
+            "overflow": float(in_memory_ppa["overflow"]),
+            "iterations": int(in_memory_ppa["iteration"]),
             "anchor_distance_mm": legality["anchor_distance_mm"],
             "projected_anchor_distance_mm": legality[
                 "projected_anchor_distance_mm"
             ],
             "per_group": legality["per_group"],
-            "total_projected_nodes": legality.get("total_projected_nodes", 0),
+            "total_projected_nodes": (
+                in_memory_legality.get("total_projected_nodes", 0)
+                if in_memory_legality is not None
+                else 0
+            ),
             "matched_anchor_weight": parse_weight(log_text, "anchor loss"),
             "anchor_loss_diagnostics": parse_weight_diagnostics(
                 log_text, "anchor loss", anchor_gradient_ratio
@@ -946,15 +1368,59 @@ def run_one(
             "anchor_weight_updates": parse_anchor_weight_updates(log_text),
         },
         "legality": legality_summary(legality),
-        "artifacts": stable_artifacts(run_dir, placement_dir, legality_path),
+        "artifacts": stable_artifacts(
+            run_dir, placement_dir, replay["legality_path"]
+        ),
+        "serialized_native_score": serialized_score,
         "warnings": [
             "Source declares 27 clusters but enumerates 25 rows/125 unique members."
         ],
         "manual_baseline_comparison": compare_with_manual_baseline(
-            {"hpwl": float(ppa["hpwl"]), "rsmt": float(ppa["rsmt"])},
+            {"hpwl": serialized_score["hpwl"], "rsmt": serialized_score["rsmt"]},
             args.manual_baseline,
         ),
     }
+    initialization_path = run_dir / "constraints" / "initialization.json"
+    if initialization_path.exists():
+        result["initialization"] = json.loads(initialization_path.read_text())
+    timing_path = run_dir / "constraints" / "timing.json"
+    if timing_path.exists():
+        result["timing"] = json.loads(timing_path.read_text())
+    else:
+        result["timing"] = {}
+    result["timing"].update(
+        {
+            "post_serialization_validation_seconds": (
+                post_serialization_validation_seconds
+            ),
+            "post_serialization_scoring_seconds": (
+                post_serialization_scoring_seconds
+            ),
+            "end_to_end_seconds": result["runtime_seconds"],
+        }
+    )
+    aggregate_timing_path = run_dir / "timing.json"
+    write_json(aggregate_timing_path, result["timing"])
+    result["artifacts"].update(
+        {
+            "aggregate_timing": repo_path(aggregate_timing_path),
+            "post_serialization_constraint": repo_path(
+                replay["constraint_path"]
+            ),
+            "post_serialization_legality": repo_path(
+                replay["legality_path"]
+            ),
+            "post_serialization_native_score": repo_path(
+                serialized_dir / "native-score" / "native-score.json"
+            ),
+            "post_serialization_preflight": repo_path(
+                serialized_dir / "constraints" / "preflight.json"
+            ),
+            "post_serialization_input_alignment": repo_path(
+                serialized_dir / "constraints" / "input_alignment.json"
+            ),
+        }
+    )
     repair_path = run_dir / "constraints" / "repair.json"
     if repair_path.exists():
         result["artifacts"]["repair"] = repo_path(repair_path)
@@ -1119,6 +1585,13 @@ def worst_groups(results, experiment_id="E4", limit=8):
     )[:limit]
 
 
+def _warm_runtime_gate(results, runtime_ratio):
+    tracks = {row.get("initialization_track") for row in results}
+    if tracks != {"checkpoint_warm_start"}:
+        return None
+    return runtime_ratio <= 2.0
+
+
 def acceptance_summary(results, aggregate_rows, comparisons, validation=None):
     e4_runs = [row for row in results if row["experiment_id"] == "E4"]
     input_resolution = bool(results) and all(
@@ -1172,8 +1645,10 @@ def acceptance_summary(results, aggregate_rows, comparisons, validation=None):
                     "hpwl_regression"
                 ]
                 <= 0.10,
-                "runtime_at_most_2x": comparisons["e4_vs_e0"]["runtime_ratio"]
-                <= 2.0,
+                "runtime_at_most_2x": _warm_runtime_gate(
+                    results,
+                    comparisons["e4_vs_e0"]["runtime_ratio"],
+                ),
             }
         )
     if "e4_vs_manual_baseline" in comparisons:
@@ -1387,13 +1862,22 @@ def render_report(summary):
                 100 * comparison["hpwl_regression"],
             )
         )
-        lines.append(
-            "- `%s` E4/E0 end-to-end runtime ratio: `%.2fx` (target <=2x)."
-            % (
-                _status(summary["acceptance"]["goals"]["runtime_at_most_2x"]),
-                comparison["runtime_ratio"],
+        runtime_gate = summary["acceptance"]["goals"]["runtime_at_most_2x"]
+        if runtime_gate is None:
+            lines.append(
+                "- `NOT APPLICABLE` E4/E0 end-to-end runtime ratio: "
+                "`%.2fx`; the <=2x gate applies only to checkpoint warm runs."
+                % comparison["runtime_ratio"]
             )
-        )
+        else:
+            lines.append(
+                "- `%s` E4/E0 end-to-end runtime ratio: `%.2fx` "
+                "(warm target <=2x)."
+                % (
+                    _status(runtime_gate),
+                    comparison["runtime_ratio"],
+                )
+            )
     if "e4_vs_manual_baseline" in comparisons:
         comparison = comparisons["e4_vs_manual_baseline"]
         lines.append(
@@ -1588,6 +2072,12 @@ def reproduction_command(args, weights=None):
             if args.irregular_density
             else "--no-irregular-density"
         ),
+        "--initialization-track",
+        args.initialization_track,
+        "--checkpoint-placement",
+        repo_path(args.checkpoint_placement),
+        "--feasible-domain-cache-dir",
+        repo_path(args.feasible_domain_cache_dir),
         "--grid-mm",
         format(args.grid_mm, "g"),
         "--clearance-mm",
@@ -1646,6 +2136,21 @@ def main():
         default=True,
         help="enable side-specific irregular capacity for E2-E4",
     )
+    parser.add_argument(
+        "--initialization-track",
+        choices=("cold_source", "checkpoint_warm_start"),
+        default="cold_source",
+    )
+    parser.add_argument(
+        "--checkpoint-placement",
+        type=Path,
+        default=DEFAULT_M336_CHECKPOINT_PL,
+    )
+    parser.add_argument(
+        "--feasible-domain-cache-dir",
+        type=Path,
+        default=REPO_ROOT / "results/m336/native-cypress/cache/feasible-domains",
+    )
     parser.add_argument("--python", default="python3.11")
     parser.add_argument(
         "--placer", type=Path, default=REPO_ROOT / "install/dreamplace/Placer.py"
@@ -1653,7 +2158,7 @@ def main():
     parser.add_argument(
         "--assignment",
         type=Path,
-        default=REPO_ROOT / "experiments/m336/configs/m336_region_assignment.final.json",
+        default=DEFAULT_M336_ASSIGNMENT,
     )
     parser.add_argument(
         "--output-dir", type=Path, default=REPO_ROOT / "results/m336/runs"
@@ -1690,7 +2195,9 @@ def main():
         type=Path,
         default=REPO_ROOT / "results/m336/weight_sweep/runs",
     )
-    parser.add_argument("--grid-mm", type=float, default=0.1)
+    parser.add_argument(
+        "--grid-mm", type=float, default=DEFAULT_M336_CONSTRAINT_GRID_MM
+    )
     parser.add_argument("--clearance-mm", type=float, default=0.0)
     parser.add_argument("--keepin-margin-mm", type=float, default=0.1)
     parser.add_argument("--keepin-margin-tau-mm", type=float, default=0.05)
@@ -1710,6 +2217,8 @@ def main():
     args.baseline_geometry = args.baseline_geometry.resolve()
     args.bookshelf_dir = args.bookshelf_dir.resolve()
     args.baseline_output_dir = args.baseline_output_dir.resolve()
+    args.checkpoint_placement = args.checkpoint_placement.resolve()
+    args.feasible_domain_cache_dir = args.feasible_domain_cache_dir.resolve()
     args.assignment = args.assignment.resolve()
     args.placer = args.placer.resolve()
     invalid = sorted(set(args.experiments) - set(EXPERIMENTS))
@@ -1719,8 +2228,12 @@ def main():
         not args.assignment.exists()
         or not args.placer.exists()
         or not args.baseline_geometry.exists()
+        or not args.checkpoint_placement.exists()
     ):
-        parser.error("assignment, installed placer, and baseline geometry must exist")
+        parser.error(
+            "assignment, installed placer, baseline geometry, and checkpoint "
+            "placement must exist"
+        )
     if (
         args.anchor_gradient_ratio <= 0
         or args.grid_mm <= 0
@@ -1773,6 +2286,7 @@ def main():
                             seed,
                             output_dir=ratio_dir,
                             anchor_gradient_ratio=ratio,
+                            initialization_track=args.initialization_track,
                         )
                     )
         summary = {
@@ -1790,6 +2304,7 @@ def main():
             "keepin_margin_mm": args.keepin_margin_mm,
             "keepin_margin_tau_mm": args.keepin_margin_tau_mm,
             "irregular_density": args.irregular_density,
+            "initialization_track": args.initialization_track,
             "invocation": invocation,
             "reproduction_command": reproduction_command(args, ratios),
             "manual_baseline": args.manual_baseline,
@@ -1807,7 +2322,14 @@ def main():
         for experiment_id in args.experiments:
             for seed in args.seeds:
                 print("running %s seed %d" % (experiment_id, seed), flush=True)
-                results.append(run_one(args, experiment_id, seed))
+                results.append(
+                    run_one(
+                        args,
+                        experiment_id,
+                        seed,
+                        initialization_track=args.initialization_track,
+                    )
+                )
 
         aggregate_rows, comparisons = aggregate(results, args.manual_baseline)
         sweep_path = REPO_ROOT / "results/m336/weight_sweep/summary.json"
@@ -1826,6 +2348,7 @@ def main():
             "keepin_margin_mm": args.keepin_margin_mm,
             "keepin_margin_tau_mm": args.keepin_margin_tau_mm,
             "irregular_density": args.irregular_density,
+            "initialization_track": args.initialization_track,
             "device": results[0]["device"] if results else "unknown",
             "invocation": invocation,
             "reproduction_command": reproduction_command(args),

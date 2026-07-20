@@ -286,12 +286,37 @@ class ReproducibilityTest(unittest.TestCase):
             lr=0.1,
             obj_and_grad_fn=objective_and_gradient,
             constraint_fn=projector,
+            project_initial_state=True,
         )
         optimizer.step()
 
         self.assertTrue(evaluated_positions)
         self.assertTrue(
             all(position.abs().max() <= 1.0 for position in evaluated_positions)
+        )
+
+    def test_nesterov_legacy_mode_keeps_bootstrap_evaluation_order(self):
+        parameter = torch.nn.Parameter(torch.tensor([2.0, -2.0]))
+        evaluated_positions = []
+
+        def objective_and_gradient(position):
+            evaluated_positions.append(position.detach().clone())
+            return position.square().sum(), 2 * position
+
+        def projector(position):
+            with torch.no_grad():
+                position.clamp_(-1.0, 1.0)
+
+        optimizer = NesterovAcceleratedGradientOptimizer(
+            [parameter],
+            lr=0.1,
+            obj_and_grad_fn=objective_and_gradient,
+            constraint_fn=projector,
+        )
+        optimizer.step()
+
+        torch.testing.assert_close(
+            evaluated_positions[0], torch.tensor([2.0, -2.0])
         )
 
     def test_nesterov_projection_reset_synchronizes_position_history(self):
