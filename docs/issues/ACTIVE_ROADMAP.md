@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-176`
+**Evidence through:** `M336-177`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (minimum-cover D1 failed; D2/D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-176 bounded rollback is exact legal and reduces first-pass writes, but fails matching-D1 RSMT and E3 anchor gates; diagnose closure recapture before proposing another bounded mechanism |
+| N6 (proposal-authority candidate pending; D2/D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-177 proves origin rollback recaptures every first-pass saving; implement bounded exact proposal-authority projection and requalify D1 before any larger run |
 
 ## Paused Exact-Site Priorities
 
@@ -456,6 +456,19 @@ than E2. Two E3 proposals also require `38` and `33` cumulative writes and are
 transactionally rejected before a quarter-LR retry succeeds. First-pass graph
 savings therefore do not survive closure as qualifying quality. Keep M336-176
 open and do not run D2, D3, E4, CP-SAT, fallback, or parameter ladders.
+
+M336-177 identifies the mechanism behind that failure. For accepted proposals,
+minimum-cover rollback grows from `114 -> 233` E2 writes and `117 -> 244` E3
+writes after exact closure; each final scope is larger than the matching
+first-pass rigid scope. On the paired first proposal, eight origin rollbacks
+leave the retained peer proposals overlapping, so closure restores the other
+nine endpoints and discards all 17 native motions. The old rigid mode needs ten
+writes because it preserves one optimizer-produced displacement authority per
+component. The next default-off candidate must search only bounded assignments
+of those current proposal authorities, exact-check each small component, retain
+the cumulative 32-ID cap, and fail closed on component or state limits. No M336
+effect run is authorized before issue/implementation push-pull and installed
+tests; afterward run only the predeclared scale-1 D1.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
