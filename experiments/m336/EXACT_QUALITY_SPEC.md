@@ -1,7 +1,7 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-134`
+证据范围：`M336-105` 至 `M336-135`
 
 上位合同：[`SPEC.md`](SPEC.md)
 
@@ -83,6 +83,10 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
   `FV705/FV710/R708` 的全部两两组合，但 one-opt 后再次得到同一 placement SHA；
   rank-11 层至少有三个解，仍未证明穷尽。只有输入 placement 字节、候选域合同与
   closure 实现均相同时，才可按 SHA 复用已认证的 pair closure。
+- `M336-135` 排除前三个 tuple 后找到第四个 rank-11 `OPTIMAL`。它与 M336-134
+  具有相同 changed-refdes 集合但 site 不同，与 M336-133 具有相同 HPWL 但 bytes
+  不同；枚举 identity 必须是完整 canonical site tuple。第四个解经 one-opt 后仍
+  收敛到同一 SHA，rank-11 层至少有四个解，尚未穷尽。
 
 当前六个主要乐观 residual 均集中在 page 7：
 

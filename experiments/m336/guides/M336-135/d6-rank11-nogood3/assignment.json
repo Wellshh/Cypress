@@ -1,0 +1,2226 @@
+{
+  "assignments": [
+    {
+      "anchor_refdes": "J201",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 2.7317,
+      "anchor_xy_dbu": [
+        -96150,
+        -657500
+      ],
+      "anchor_xy_mm": [
+        -9.615,
+        -65.75
+      ],
+      "group_id": "page_2_J201",
+      "member_count": 2,
+      "member_refdes": [
+        "J201",
+        "RT601"
+      ],
+      "page": 2,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -9.615,
+        -68.4817
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_2_J201__bottom"
+    },
+    {
+      "anchor_refdes": "J201",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 0.1577,
+      "anchor_xy_dbu": [
+        -96150,
+        -657500
+      ],
+      "anchor_xy_mm": [
+        -9.615,
+        -65.75
+      ],
+      "group_id": "page_2_J201",
+      "member_count": 5,
+      "member_refdes": [
+        "C201",
+        "C202",
+        "C203",
+        "C204",
+        "RT201"
+      ],
+      "page": 2,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -9.482,
+        -65.6652
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_2_J201__top"
+    },
+    {
+      "anchor_refdes": "J301",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 4.6255,
+      "anchor_xy_dbu": [
+        36155,
+        -715900
+      ],
+      "anchor_xy_mm": [
+        3.6155,
+        -71.59
+      ],
+      "group_id": "page_3_J301",
+      "member_count": 1,
+      "member_refdes": [
+        "J301"
+      ],
+      "page": 3,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -1.01,
+        -71.59
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_3_J301__bottom"
+    },
+    {
+      "anchor_refdes": "J301",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 1.7261,
+      "anchor_xy_dbu": [
+        36155,
+        -715900
+      ],
+      "anchor_xy_mm": [
+        3.6155,
+        -71.59
+      ],
+      "group_id": "page_3_J301",
+      "member_count": 2,
+      "member_refdes": [
+        "C301",
+        "FV301"
+      ],
+      "page": 3,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        1.89,
+        -71.5435
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_3_J301__top"
+    },
+    {
+      "anchor_refdes": "J302",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 2.3013,
+      "anchor_xy_dbu": [
+        12913,
+        -713645
+      ],
+      "anchor_xy_mm": [
+        1.2913,
+        -71.3645
+      ],
+      "group_id": "page_3_J302",
+      "member_count": 3,
+      "member_refdes": [
+        "C302",
+        "FV302",
+        "J302"
+      ],
+      "page": 3,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -1.01,
+        -71.3645
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_3_J302__bottom"
+    },
+    {
+      "anchor_refdes": "MIC401",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 0.0,
+      "anchor_xy_dbu": [
+        -86500,
+        -720130
+      ],
+      "anchor_xy_mm": [
+        -8.65,
+        -72.013
+      ],
+      "group_id": "page_4_MIC401",
+      "member_count": 8,
+      "member_refdes": [
+        "B401",
+        "B402",
+        "C401",
+        "C402",
+        "C404",
+        "C405",
+        "L401",
+        "MIC401"
+      ],
+      "page": 4,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -8.65,
+        -72.013
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_4_MIC401__bottom"
+    },
+    {
+      "anchor_refdes": "J501",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 15.9001,
+      "anchor_xy_dbu": [
+        -254500,
+        -654800
+      ],
+      "anchor_xy_mm": [
+        -25.45,
+        -65.48
+      ],
+      "group_id": "page_5_J501",
+      "member_count": 3,
+      "member_refdes": [
+        "C501",
+        "C502",
+        "J501"
+      ],
+      "page": 5,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -9.55,
+        -65.4136
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_5_J501__top"
+    },
+    {
+      "anchor_refdes": "J502",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 17.5931,
+      "anchor_xy_dbu": [
+        -271400,
+        -648600
+      ],
+      "anchor_xy_mm": [
+        -27.14,
+        -64.86
+      ],
+      "group_id": "page_5_J502",
+      "member_count": 1,
+      "member_refdes": [
+        "J502"
+      ],
+      "page": 5,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -9.55,
+        -65.19
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_5_J502__top"
+    },
+    {
+      "anchor_refdes": "J503",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 13.1009,
+      "anchor_xy_dbu": [
+        -276300,
+        -711675
+      ],
+      "anchor_xy_mm": [
+        -27.63,
+        -71.1675
+      ],
+      "group_id": "page_5_J503",
+      "member_count": 1,
+      "member_refdes": [
+        "J503"
+      ],
+      "page": 5,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -15.037,
+        -74.78
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_1",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_5_J503__bottom"
+    },
+    {
+      "anchor_refdes": "EMI601",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 16.5356,
+      "anchor_xy_dbu": [
+        -22317,
+        -520566
+      ],
+      "anchor_xy_mm": [
+        -2.2317,
+        -52.0566
+      ],
+      "group_id": "page_6_EMI601",
+      "member_count": 3,
+      "member_refdes": [
+        "EMI601",
+        "R606",
+        "R607"
+      ],
+      "page": 6,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -4.14,
+        -68.4817
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_6_EMI601__bottom"
+    },
+    {
+      "anchor_refdes": "J601",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 3.1858,
+      "anchor_xy_dbu": [
+        0,
+        -761235
+      ],
+      "anchor_xy_mm": [
+        0.0,
+        -76.1235
+      ],
+      "group_id": "page_6_J601",
+      "member_count": 8,
+      "member_refdes": [
+        "C605",
+        "C606",
+        "C607",
+        "C608",
+        "C609",
+        "C610",
+        "FV603",
+        "R601"
+      ],
+      "page": 6,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -1.2074,
+        -73.1754
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_6_J601__bottom"
+    },
+    {
+      "anchor_refdes": "J601",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 4.58,
+      "anchor_xy_dbu": [
+        0,
+        -761235
+      ],
+      "anchor_xy_mm": [
+        0.0,
+        -76.1235
+      ],
+      "group_id": "page_6_J601",
+      "member_count": 12,
+      "member_refdes": [
+        "C601",
+        "C604",
+        "C611",
+        "C612",
+        "FV601",
+        "FV602",
+        "FV604",
+        "FV607",
+        "FV617",
+        "FV618",
+        "J601",
+        "R602"
+      ],
+      "page": 6,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        0.0,
+        -71.5435
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_6_J601__top"
+    },
+    {
+      "anchor_refdes": "Q601",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 14.2387,
+      "anchor_xy_dbu": [
+        11667,
+        -521177
+      ],
+      "anchor_xy_mm": [
+        1.1667,
+        -52.1177
+      ],
+      "group_id": "page_6_Q601",
+      "member_count": 3,
+      "member_refdes": [
+        "Q601",
+        "R604",
+        "R605"
+      ],
+      "page": 6,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -5.408,
+        -64.7476
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_6_Q601__top"
+    },
+    {
+      "anchor_refdes": "J701",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 4.5033,
+      "anchor_xy_dbu": [
+        -175000,
+        -710100
+      ],
+      "anchor_xy_mm": [
+        -17.5,
+        -71.01
+      ],
+      "group_id": "page_7_J701",
+      "member_count": 9,
+      "member_refdes": [
+        "FV702",
+        "FV703",
+        "FV704",
+        "FV705",
+        "FV706",
+        "R702",
+        "R703",
+        "R705",
+        "R706"
+      ],
+      "page": 7,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -15.037,
+        -74.78
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_7_J701__bottom"
+    },
+    {
+      "anchor_refdes": "J701",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 9.6354,
+      "anchor_xy_dbu": [
+        -175000,
+        -710100
+      ],
+      "anchor_xy_mm": [
+        -17.5,
+        -71.01
+      ],
+      "group_id": "page_7_J701",
+      "member_count": 4,
+      "member_refdes": [
+        "C701",
+        "FV701",
+        "J701",
+        "R704"
+      ],
+      "page": 7,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -9.4596,
+        -65.7004
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_7_J701__top"
+    },
+    {
+      "anchor_refdes": "J702",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 3.8346,
+      "anchor_xy_dbu": [
+        -170400,
+        -715101
+      ],
+      "anchor_xy_mm": [
+        -17.04,
+        -71.5101
+      ],
+      "group_id": "page_7_J702",
+      "member_count": 9,
+      "member_refdes": [
+        "C703",
+        "FV707",
+        "FV708",
+        "FV709",
+        "FV710",
+        "R707",
+        "R708",
+        "R709",
+        "R710"
+      ],
+      "page": 7,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -15.037,
+        -74.78
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_7_J702__bottom"
+    },
+    {
+      "anchor_refdes": "J702",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 9.5507,
+      "anchor_xy_dbu": [
+        -170400,
+        -715101
+      ],
+      "anchor_xy_mm": [
+        -17.04,
+        -71.5101
+      ],
+      "group_id": "page_7_J702",
+      "member_count": 1,
+      "member_refdes": [
+        "J702"
+      ],
+      "page": 7,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -9.4596,
+        -65.7004
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_7_J702__top"
+    },
+    {
+      "anchor_refdes": "J811",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 21.1598,
+      "anchor_xy_dbu": [
+        -307098,
+        -651498
+      ],
+      "anchor_xy_mm": [
+        -30.7098,
+        -65.1498
+      ],
+      "group_id": "page_8_J811",
+      "member_count": 1,
+      "member_refdes": [
+        "J811"
+      ],
+      "page": 8,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -9.55,
+        -65.19
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_8_J811__top"
+    },
+    {
+      "anchor_refdes": "J812",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 21.185,
+      "anchor_xy_dbu": [
+        -273096,
+        -771101
+      ],
+      "anchor_xy_mm": [
+        -27.3096,
+        -77.1101
+      ],
+      "group_id": "page_8_J812",
+      "member_count": 1,
+      "member_refdes": [
+        "J812"
+      ],
+      "page": 8,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -9.4596,
+        -65.7004
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_8_J812__top"
+    },
+    {
+      "anchor_refdes": "J821",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 14.6131,
+      "anchor_xy_dbu": [
+        -258800,
+        -649835
+      ],
+      "anchor_xy_mm": [
+        -25.88,
+        -64.9835
+      ],
+      "group_id": "page_8_J821",
+      "member_count": 1,
+      "member_refdes": [
+        "J821"
+      ],
+      "page": 8,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -15.037,
+        -74.78
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_1",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_8_J821__bottom"
+    },
+    {
+      "anchor_refdes": "J822",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 4.98,
+      "anchor_xy_dbu": [
+        -152500,
+        -690270
+      ],
+      "anchor_xy_mm": [
+        -15.25,
+        -69.027
+      ],
+      "group_id": "page_8_J822",
+      "member_count": 1,
+      "member_refdes": [
+        "J822"
+      ],
+      "page": 8,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -10.27,
+        -69.027
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_8_J822__bottom"
+    },
+    {
+      "anchor_refdes": "J831",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 1.85,
+      "anchor_xy_dbu": [
+        -95000,
+        -686593
+      ],
+      "anchor_xy_mm": [
+        -9.5,
+        -68.6593
+      ],
+      "group_id": "page_8_J831",
+      "member_count": 1,
+      "member_refdes": [
+        "J831"
+      ],
+      "page": 8,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        -7.65,
+        -68.6593
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_8_J831__top"
+    },
+    {
+      "anchor_refdes": "J832",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 7.4162,
+      "anchor_xy_dbu": [
+        91000,
+        -732800
+      ],
+      "anchor_xy_mm": [
+        9.1,
+        -73.28
+      ],
+      "group_id": "page_8_J832",
+      "member_count": 1,
+      "member_refdes": [
+        "J832"
+      ],
+      "page": 8,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        1.89,
+        -71.5435
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_8_J832__top"
+    },
+    {
+      "anchor_refdes": "ANT8601",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 20.4812,
+      "anchor_xy_dbu": [
+        217635,
+        -764957
+      ],
+      "anchor_xy_mm": [
+        21.7635,
+        -76.4957
+      ],
+      "group_id": "page_86_ANT8601",
+      "member_count": 3,
+      "member_refdes": [
+        "ANT8601",
+        "L8626",
+        "L8630"
+      ],
+      "page": 86,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        1.89,
+        -71.5435
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_86_ANT8601__top"
+    },
+    {
+      "anchor_refdes": "ANT8603",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 10.3162,
+      "anchor_xy_dbu": [
+        109500,
+        -764771
+      ],
+      "anchor_xy_mm": [
+        10.95,
+        -76.4771
+      ],
+      "group_id": "page_86_ANT8603",
+      "member_count": 2,
+      "member_refdes": [
+        "ANT8603",
+        "L8606"
+      ],
+      "page": 86,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        1.89,
+        -71.5435
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_86_ANT8603__top"
+    },
+    {
+      "anchor_refdes": "ANT8604",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 2.1039,
+      "anchor_xy_dbu": [
+        76800,
+        -786225
+      ],
+      "anchor_xy_mm": [
+        7.68,
+        -78.6225
+      ],
+      "group_id": "page_86_ANT8604",
+      "member_count": 4,
+      "member_refdes": [
+        "ANT8604",
+        "C8602",
+        "C8614",
+        "L8608"
+      ],
+      "page": 86,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        9.755,
+        -78.275
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_2",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_86_ANT8604__bottom"
+    },
+    {
+      "anchor_refdes": "ANT8605",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 2.6514,
+      "anchor_xy_dbu": [
+        -175100,
+        -788660
+      ],
+      "anchor_xy_mm": [
+        -17.51,
+        -78.866
+      ],
+      "group_id": "page_86_ANT8605",
+      "member_count": 2,
+      "member_refdes": [
+        "ANT8605",
+        "ESD8602"
+      ],
+      "page": 86,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -15.035,
+        -77.915
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_1",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_86_ANT8605__bottom"
+    },
+    {
+      "anchor_refdes": "J8601",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 5.8194,
+      "anchor_xy_dbu": [
+        169240,
+        -733823
+      ],
+      "anchor_xy_mm": [
+        16.924,
+        -73.3823
+      ],
+      "group_id": "page_86_J8601",
+      "member_count": 1,
+      "member_refdes": [
+        "MHC8601"
+      ],
+      "page": 86,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        11.46,
+        -75.3849
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_86_J8601__bottom"
+    },
+    {
+      "anchor_refdes": "J8601",
+      "anchor_side": "TOP",
+      "anchor_to_region_distance_mm": 15.146,
+      "anchor_xy_dbu": [
+        169240,
+        -733823
+      ],
+      "anchor_xy_mm": [
+        16.924,
+        -73.3823
+      ],
+      "group_id": "page_86_J8601",
+      "member_count": 3,
+      "member_refdes": [
+        "C8653",
+        "J8601",
+        "L8607"
+      ],
+      "page": 86,
+      "placement_side": "TOP",
+      "projected_anchor_xy_mm": [
+        1.89,
+        -71.5435
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "top_0",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_86_J8601__top"
+    },
+    {
+      "anchor_refdes": "U8601",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 0.0,
+      "anchor_xy_dbu": [
+        102933,
+        -759109
+      ],
+      "anchor_xy_mm": [
+        10.2933,
+        -75.9109
+      ],
+      "group_id": "page_86_U8601",
+      "member_count": 12,
+      "member_refdes": [
+        "C8608",
+        "C8609",
+        "C8619",
+        "C8620",
+        "C8622",
+        "L8601",
+        "L8602",
+        "L8603",
+        "L8604",
+        "L8605",
+        "L8625",
+        "U8601"
+      ],
+      "page": 86,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        10.2933,
+        -75.9109
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_2",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_86_U8601__bottom"
+    },
+    {
+      "anchor_refdes": "U8602",
+      "anchor_side": "BOTTOM",
+      "anchor_to_region_distance_mm": 0.0,
+      "anchor_xy_dbu": [
+        -135112,
+        -769805
+      ],
+      "anchor_xy_mm": [
+        -13.5112,
+        -76.9805
+      ],
+      "group_id": "page_86_U8602",
+      "member_count": 17,
+      "member_refdes": [
+        "C8601",
+        "C8603",
+        "C8605",
+        "C8606",
+        "C8607",
+        "C8610",
+        "C8611",
+        "C8612",
+        "C8613",
+        "C8621",
+        "L8610",
+        "L8611",
+        "L8613",
+        "L8631",
+        "MHC8602",
+        "R8603",
+        "U8602"
+      ],
+      "page": 86,
+      "placement_side": "BOTTOM",
+      "projected_anchor_xy_mm": [
+        -13.5112,
+        -76.9805
+      ],
+      "proposal_method": "shared_coordinate_cp_sat",
+      "proposed_region_id": "bottom_1",
+      "requires_capacity_validation": true,
+      "requires_per_component_feasible_domain_validation": true,
+      "status": "shared_coordinate_quality_candidate",
+      "subgroup_id": "page_86_U8602__bottom"
+    }
+  ],
+  "board": "M336",
+  "candidate_diagnostics": [
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 2.7317000000000036,
+          "anchor_distance_sites": 54.628132572186935,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 2.624652687945281,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 8.087465946163976,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 9.030000000000001,
+          "anchor_distance_sites": 180.5806044319828,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 174.34390971698232,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 192.40197016218062,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 19.860864844210585,
+          "anchor_distance_sites": 397.1746376643926,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 213.6580217457311,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 253.37548551517037,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 0.3689999999999966,
+      "subgroup_id": "page_2_J201__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 0.15775172538451607,
+          "anchor_distance_sites": 3.1546956722175055,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 16.713473073849087,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 17.028942643070838,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 1.8449999999999918,
+      "subgroup_id": "page_2_J201__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 4.6255,
+          "anchor_distance_sites": 92.50006487266184,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 9.250006490266184,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 13.410434379616493,
+          "anchor_distance_sites": 268.1798832742623,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 26.817988333426232,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 5.427850920023504,
+          "anchor_distance_sites": 108.5453599008348,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 10.854535999083481,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_3_J301__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 1.7261264438041615,
+          "anchor_distance_sites": 34.5188213231655,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 2.8508301599647106,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 6.3027122962812605,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0.7880000000000031,
+      "subgroup_id": "page_3_J301__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 2.3013,
+          "anchor_distance_sites": 46.02105702982525,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 1.572408092994463,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 6.174513800976989,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 11.233141232086417,
+          "anchor_distance_sites": 224.63869693909118,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 338.7525884934154,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 361.2164581973245,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 7.731137671778972,
+          "anchor_distance_sites": 154.6061476984185,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 486.24701538497084,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 501.7076301698127,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 0.7880000000000016,
+      "subgroup_id": "page_3_J302__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 0.0,
+          "anchor_distance_sites": 0.0,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 2.9942235306924574,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 2.9942235366924574,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 2.8694753875926478,
+          "anchor_distance_sites": 57.38334439581156,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 725.4057363060457,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 731.1440707576269,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 17.4979233613592,
+          "anchor_distance_sites": 349.9208833774924,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 2172.248167608391,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 2207.2402559641405,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 2.0169999999999986,
+      "subgroup_id": "page_4_MIC401__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 15.900138645936392,
+          "anchor_distance_sites": 317.96862095631474,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.788029079627742,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 32.58489118225921,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0.7380000000000002,
+      "subgroup_id": "page_5_J501__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 17.593095236484114,
+          "anchor_distance_sites": 351.8241164599932,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 35.182411653999324,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_5_J502__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 17.36,
+          "anchor_distance_sites": 347.16271239637,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 34.716271248637,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 13.10090856582092,
+          "anchor_distance_sites": 261.99003182990947,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 26.19900320099095,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 36.49467371562595,
+          "anchor_distance_sites": 729.8150872774894,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 72.98150875474894,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_5_J503__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 16.53558341577339,
+          "anchor_distance_sites": 330.67615147905093,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.8223005605757947,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 33.88991571848089,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 23.830251749614394,
+          "anchor_distance_sites": 476.55384991270023,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 355.74868749835014,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 403.40407250962016,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 23.821384504893913,
+          "anchor_distance_sites": 476.376524064276,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 428.88630376887954,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 476.5239562053072,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 0.7379999999999938,
+      "subgroup_id": "page_6_EMI601__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 3.186203024770828,
+          "anchor_distance_sites": 63.71721683899534,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 429.51438682878324,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 435.88610852368276,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 9.41,
+          "anchor_distance_sites": 188.17978822867752,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 1598.2950854741673,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 1617.113064319035,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 8.81240573339653,
+          "anchor_distance_sites": 176.22918647138604,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 1483.4283401772846,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 1501.0512588574234,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 2.962199999999994,
+      "subgroup_id": "page_6_J601__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 4.580000000000013,
+          "anchor_distance_sites": 91.59016260226839,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 26.3515516210216,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 35.51056789324844,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 13.888599999999983,
+      "subgroup_id": "page_6_J601__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 14.238746373684325,
+          "anchor_distance_sites": 284.7443440214417,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 2.2597086022381507,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 30.73414301738232,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0.4550000000000004,
+      "subgroup_id": "page_6_Q601__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 7.2299999999999995,
+          "anchor_distance_sites": 144.58447065816563,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 143.83305424922054,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 158.2915013290371,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 4.503250936823304,
+          "anchor_distance_sites": 90.05534618831062,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 771.4448270580716,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 780.4503617049027,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 26.398059386250345,
+          "anchor_distance_sites": 527.9044872425764,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 3334.562551344368,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 3387.3530001106255,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 4.278500000000007,
+      "subgroup_id": "page_7_J701__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 9.636185879175512,
+          "anchor_distance_sites": 192.70301998676098,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 9.011607202713167,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 28.28190921638927,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 1.1172000000000022,
+      "subgroup_id": "page_7_J701__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 6.77,
+          "anchor_distance_sites": 135.38545869374568,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 3.997021218079881,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 17.53556710345445,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 3.834612758806297,
+          "anchor_distance_sites": 76.68401879820976,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 1257.1463768772446,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 1264.8147787890655,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 25.90288031262161,
+          "anchor_distance_sites": 518.0019693668347,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 2626.8856470792675,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 2678.6858440639508,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 3.9056999999999977,
+      "subgroup_id": "page_7_J702__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 9.550809519984432,
+          "anchor_distance_sites": 190.9956761831145,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 19.099567635311452,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_7_J702__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 21.159838186526855,
+          "anchor_distance_sites": 423.1513144414142,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 42.315131470141424,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_8_J811__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 21.18512631416338,
+          "anchor_distance_sites": 423.6570226776885,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 42.36570229476885,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_8_J812__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 15.997171726277116,
+          "anchor_distance_sites": 319.9090741454427,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 31.990907442544266,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 14.61307843166524,
+          "anchor_distance_sites": 292.23018115194685,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 29.22301817119469,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 35.64159402734395,
+          "anchor_distance_sites": 712.7553258446421,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 71.27553266846422,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_8_J821__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 4.98,
+          "anchor_distance_sites": 99.58930344089417,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 9.958930373089418,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 5.756941722824715,
+          "anchor_distance_sites": 115.12646910159329,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 11.512646968159329,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 24.41314561378767,
+          "anchor_distance_sites": 488.2104751964327,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 48.82104760664327,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_8_J822__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 1.8499999999999996,
+          "anchor_distance_sites": 36.99602637864542,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 3.699602667864542,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_8_J831__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 7.416166951330048,
+          "anchor_distance_sites": 148.30740981613235,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 0.0,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 14.830741012613236,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0,
+      "subgroup_id": "page_8_J832__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 20.48121791031969,
+          "anchor_distance_sites": 409.5803665280931,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 746.9770414799812,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 787.9350781507906,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 0.737997720000001,
+      "subgroup_id": "page_86_ANT8601__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 10.316201285356929,
+          "anchor_distance_sites": 206.30186750296258,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 178.07600535548582,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 198.70619212478206,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 1.0240000000000018,
+      "subgroup_id": "page_86_ANT8603__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 10.362005507557802,
+          "anchor_distance_sites": 207.21785356393383,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 644.9593863984157,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 665.6811717748092,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 17.267928545427793,
+          "anchor_distance_sites": 345.32148106551944,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 1114.6752349854316,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 1149.2073831319835,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 2.1038966823492076,
+          "anchor_distance_sites": 42.07341468007345,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 41.00999522456355,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 45.217336752570894,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 1.1070000000000015,
+      "subgroup_id": "page_86_ANT8604__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 8.975348590143803,
+          "anchor_distance_sites": 179.4876936208098,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 137.8816110052626,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 155.8303803883436,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 2.651419619750898,
+          "anchor_distance_sites": 53.022697401709316,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 18.404383672595518,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 23.70665345476645,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 26.484626909964202,
+          "anchor_distance_sites": 529.6356517781719,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 496.2838124838796,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 549.2473777246968,
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 0.36900000000000277,
+      "subgroup_id": "page_86_ANT8605__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 17.940660005696557,
+          "anchor_distance_sites": 358.7746653086804,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 437.0286911313375,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 472.90615768420554,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 26.371065986986572,
+          "anchor_distance_sites": 527.3646772365158,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 618.7157789171405,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 671.452246684792,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 5.81942460729581,
+          "eligible_for_milp": false,
+          "feasible": false,
+          "reason": "MHC8601: all feasible sites overlap a frozen anchor",
+          "region_id": "bottom_2",
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 3.3514606633731834,
+      "subgroup_id": "page_86_J8601__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 15.14603385180424,
+          "anchor_distance_sites": 302.8881448179493,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 750.86046917621,
+          "reason": null,
+          "region_id": "top_0",
+          "secondary_cost": 781.1492836810049,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 1.392959399999997,
+      "subgroup_id": "page_86_J8601__top"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 11.689353456212901,
+          "anchor_distance_sites": 233.7619615218176,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 2586.443172808245,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 2609.819368984427,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 19.7033,
+          "anchor_distance_sites": 394.023679214251,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 4358.307343288023,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 4397.709711257448,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 0.0,
+          "anchor_distance_sites": 0.0,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 35.0744114304699,
+          "reason": null,
+          "region_id": "bottom_2",
+          "secondary_cost": 35.0744115024699,
+          "selected": true
+        }
+      ],
+      "member_area_mm2": 3.2100000000000017,
+      "subgroup_id": "page_86_U8601__bottom"
+    },
+    {
+      "candidates": [
+        {
+          "anchor_distance_mm": 4.667056574097116,
+          "anchor_distance_sites": 93.33110709509592,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 1669.677016298538,
+          "reason": null,
+          "region_id": "bottom_0",
+          "secondary_cost": 1679.0101270330476,
+          "selected": false
+        },
+        {
+          "anchor_distance_mm": 0.0,
+          "anchor_distance_sites": 0.0,
+          "eligible_for_milp": true,
+          "feasible": true,
+          "manual_displacement_sites": 110.84727726518733,
+          "reason": null,
+          "region_id": "bottom_1",
+          "secondary_cost": 110.84727731518733,
+          "selected": true
+        },
+        {
+          "anchor_distance_mm": 22.346492473092955,
+          "eligible_for_milp": false,
+          "feasible": false,
+          "reason": "MHC8602: footprint 2x2 has no sites inside the assigned polygon",
+          "region_id": "bottom_2",
+          "selected": false
+        }
+      ],
+      "member_area_mm2": 8.179014674589178,
+      "subgroup_id": "page_86_U8602__bottom"
+    }
+  ],
+  "capacity_diagnostics": {
+    "bottom_0": {
+      "free_area_after_anchors_mm2": 32.426992808787205,
+      "free_area_utilization": 0.6018708172681498,
+      "member_area_mm2": 19.516860663373173,
+      "region_area_mm2": 39.19409280878721,
+      "utilization": 0.4979541370835746
+    },
+    "bottom_1": {
+      "free_area_after_anchors_mm2": 13.758964435544508,
+      "free_area_utilization": 0.6212687527926513,
+      "member_area_mm2": 8.548014674589181,
+      "region_area_mm2": 15.850564435544516,
+      "utilization": 0.5392877149169818
+    },
+    "bottom_2": {
+      "free_area_after_anchors_mm2": 7.097998182852353,
+      "free_area_utilization": 0.45224018340197053,
+      "member_area_mm2": 3.2100000000000017,
+      "region_area_mm2": 9.189598182852347,
+      "utilization": 0.3493079823653023
+    },
+    "top_0": {
+      "free_area_after_anchors_mm2": 31.275937692817116,
+      "free_area_utilization": 0.7029927395286215,
+      "member_area_mm2": 21.98675711999998,
+      "region_area_mm2": 31.275937692817102,
+      "utilization": 0.7029927395286218
+    }
+  },
+  "limitations": [
+    "This seed does not prove that all component footprints fit.",
+    "This seed does not enforce region capacity.",
+    "This seed does not account for component rotation or clearance.",
+    "The source geometry is used directly; alignment to Cypress/Bookshelf coordinates must still be solved and validated."
+  ],
+  "method": {
+    "capacity_ratio_override": null,
+    "capacity_ratios": {
+      "bottom_0": 0.68,
+      "bottom_1": 0.65,
+      "bottom_2": 0.5,
+      "top_0": 0.75
+    },
+    "clearance_mm": 0.0,
+    "grid_mm": 0.05,
+    "ignore_area_capacity": false,
+    "ignore_candidate_exclusions": false,
+    "name": "native_relaxed_hpwl_two_phase_milp",
+    "packing_exclusions": {},
+    "primary_objective": "native relaxed HPWL lower bound",
+    "runtime_reassignment": false,
+    "secondary_objective": "manual feasible-domain displacement + 0.1 * anchor distance",
+    "solver": "scipy.optimize.milp 1.17.1",
+    "template_capacity_ratios": {
+      "bottom_0": 0.68,
+      "bottom_1": 0.65,
+      "bottom_2": 0.5,
+      "top_0": 0.75
+    }
+  },
+  "override_rule": "A manually reviewed assignment file overrides this seed. The implementation must fail or report infeasibility rather than silently move a subgroup to another region unless allow_region_reassignment=true.",
+  "quality_input_sha256": {
+    "assignment_template": "c4001f38054c52dfd83e78b06638d8047d4679d0c3dbb805ca69804ccf30f44f",
+    "baseline_placement": "65ea89cfae831871fd115f61b50e528bcc77a0285d85ecbf4c4a97ba898ad595",
+    "baseline_result": "df8096d78fd3bff60bc2ad179fb83eda276da4566aeda1feafae7ffa9418ae2f",
+    "bookshelf_nets": "82b6e8738c39505eb94c96815cf1575909b150500c79ca726be8511c99d5bfe5",
+    "bookshelf_nodes": "725013931fbc52b8d9842b72fab2a8bb5884ccfecf3cbb3dfd6ad1e62f43d59b",
+    "bookshelf_scl": "187eaa22e84b05a51c24b3e6beed6701a0f53d522cd5d61aed6c9209e4f5d20b"
+  },
+  "quality_optimization": {
+    "baseline_hpwl": 14627.84765625,
+    "baseline_rsmt": 15950.0654296875,
+    "current_assignment_relaxed_hpwl": 16943.942071838326,
+    "hpwl_lower_bound_ratio": 1.003233533319128,
+    "normalized_quality_score_upper_bound": 1.0398784605855602,
+    "optimized_assignment_relaxed_hpwl": 14675.147289033612,
+    "relaxed_hpwl_reduction": 0.13390005544079164,
+    "rsmt_lower_bound_ratio": 0.9200681560665631,
+    "runtime_fixed_node_count": 40,
+    "solver": {
+      "constraint_count": 2404,
+      "continuous_variable_count": 456,
+      "mip_gap": 0.0,
+      "option_count": 61,
+      "primary_lock_tolerance": 1.4675147289033613e-05,
+      "primary_relaxed_hpwl": 14675.147289033612,
+      "primary_solver_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "secondary_cost": 4121.432802865376,
+      "secondary_solver_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)"
+    }
+  },
+  "schema": "m336_region_assignment_v4",
+  "shared_coordinate_search": {
+    "input_assignment": "results/m336/quality_assignment/m336_region_assignment.grid005.runtime-fixed.quality.json",
+    "input_assignment_sha256": "bb69ec27cfe48a428428eaecda0dd33f4e29192594bee04dae743cc95798365c",
+    "metrics": {
+      "baseline_hpwl": 14627.84765625,
+      "baseline_rsmt": 15950.0654296875,
+      "hpwl": 14700.901479300053,
+      "normalized_score_upper_bound": 1.0380567200776327
+    },
+    "model": {
+      "assignment_group_count": 31,
+      "assignment_mode": "optimized",
+      "assignment_option_count": 61,
+      "assignment_options": {
+        "page_2_J201__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_2_J201__top": [
+          "top_0"
+        ],
+        "page_3_J301__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_3_J301__top": [
+          "top_0"
+        ],
+        "page_3_J302__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_4_MIC401__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_5_J501__top": [
+          "top_0"
+        ],
+        "page_5_J502__top": [
+          "top_0"
+        ],
+        "page_5_J503__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_6_EMI601__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_6_J601__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_6_J601__top": [
+          "top_0"
+        ],
+        "page_6_Q601__top": [
+          "top_0"
+        ],
+        "page_7_J701__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_7_J701__top": [
+          "top_0"
+        ],
+        "page_7_J702__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_7_J702__top": [
+          "top_0"
+        ],
+        "page_86_ANT8601__top": [
+          "top_0"
+        ],
+        "page_86_ANT8603__top": [
+          "top_0"
+        ],
+        "page_86_ANT8604__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_86_ANT8605__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_86_J8601__bottom": [
+          "bottom_0",
+          "bottom_1"
+        ],
+        "page_86_J8601__top": [
+          "top_0"
+        ],
+        "page_86_U8601__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_86_U8602__bottom": [
+          "bottom_0",
+          "bottom_1"
+        ],
+        "page_8_J811__top": [
+          "top_0"
+        ],
+        "page_8_J812__top": [
+          "top_0"
+        ],
+        "page_8_J821__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_8_J822__bottom": [
+          "bottom_0",
+          "bottom_1",
+          "bottom_2"
+        ],
+        "page_8_J831__top": [
+          "top_0"
+        ],
+        "page_8_J832__top": [
+          "top_0"
+        ]
+      },
+      "candidate_count": 353530,
+      "candidate_guide": null,
+      "candidate_limit_per_region": 0,
+      "capacity_scale": 1000000,
+      "capacity_units": {},
+      "collision_component_pair_count": 0,
+      "collision_mode": "none",
+      "collision_pair_constraint_count": 0,
+      "collision_skipped_component_pair_count": 0,
+      "constraint_grid_mm": 0.1,
+      "controlled_collision_pair_allowlist": [],
+      "controlled_collision_relaxation": "none",
+      "controlled_convex_piece_count": 100,
+      "controlled_inner_rectangle_count": 0,
+      "controlled_inner_rectangles": [],
+      "controlled_node_count": 100,
+      "controlled_nonrectangle_count": 6,
+      "controlled_nonrectangle_refdes": [
+        "C8653",
+        "L8607",
+        "L8626",
+        "L8630",
+        "MHC8601",
+        "MHC8602"
+      ],
+      "diagnose_fixed_hint_core": false,
+      "exact_controlled_component_pair_count": 0,
+      "fix_site_hint": false,
+      "fixed_convex_piece_count": 0,
+      "fixed_endpoint_coordinate_overrides": [],
+      "fixed_endpoint_mode": "runtime",
+      "fixed_hint_assumption_count": 0,
+      "fixed_hint_assumption_refdes": [],
+      "fixed_hint_site_count": 0,
+      "fixed_node_count": 40,
+      "fixed_nonrectangle_count": 0,
+      "fixed_obstacle_candidate_count": 353530,
+      "fixed_obstacle_count": 0,
+      "fixed_obstacle_pair_eliminated_count": 0,
+      "fixed_obstacle_pruned_site_count": 0,
+      "fixed_obstacle_pruning_enabled": false,
+      "geometry_model": "collision constraints disabled for lower bound",
+      "hpwl_gate_enabled": true,
+      "hpwl_rounding_allowance": 0.000304,
+      "ignore_area_capacity": true,
+      "inactive_controlled_collision_pair_count": 0,
+      "inactive_controlled_collision_pairs": [],
+      "integer_hpwl_limit": 15260369875,
+      "integer_scale": 1000000,
+      "manual_baseline_endpoint_overrides": [
+        "EMI601"
+      ],
+      "minimum_score": 1.0,
+      "movable_refdes": [],
+      "movable_subgroups": [],
+      "necessary_hpwl_limit": 15260.369571786632,
+      "nonrectangle_inner_slices": 0,
+      "objective_mode": "minimize_hpwl",
+      "packing_objective": "none",
+      "packing_side": null,
+      "region_capacities": {},
+      "relaxed_controlled_component_pair_count": 0,
+      "site_hint": null,
+      "site_hint_maximum_remap_distance": 0.0,
+      "site_hint_remapped_count": 0,
+      "site_hint_remaps": [],
+      "site_model": "element",
+      "total_controlled_node_count": 100
+    },
+    "solver": {
+      "best_objective_bound_hpwl": 14226.123845,
+      "best_objective_bound_packing_l1": null,
+      "branches": 1104627,
+      "conflicts": 327452,
+      "fixed_hint_infeasibility_core": [],
+      "fixed_hint_infeasibility_core_count": 0,
+      "fixed_hint_infeasibility_core_is_minimal": null,
+      "hint_conflict_limit": 10,
+      "max_deterministic_time": 300.0,
+      "max_time_seconds": 900.0,
+      "objective_hpwl": 14700.90148,
+      "objective_packing_l1": null,
+      "ortools_version": "9.15.6755",
+      "random_seed": 1000,
+      "repair_hint": false,
+      "status": "FEASIBLE",
+      "wall_time_seconds": 526.5589966680001,
+      "workers": 1
+    }
+  },
+  "status": "shared_coordinate_quality_candidate"
+}

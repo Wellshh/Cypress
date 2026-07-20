@@ -146,6 +146,7 @@ append-only audit ledger.
 | [M336-132](M336-132-relative-result-dependency-paths.md) | Critical | Resolved | Exact-site results now canonicalize external paths before portable metadata serialization |
 | [M336-133](M336-133-d6-rank11-nogood-degeneracy.md) | Critical | Mitigated | The first d6 no-good finds a second optimum in a degenerate rank-11 layer |
 | [M336-134](M336-134-d6-rank11-two-nogood-degeneracy.md) | Critical | Mitigated | Two exact no-goods find a third optimum that closes to the same one-opt bytes |
+| [M336-135](M336-135-d6-rank11-three-nogood-degeneracy.md) | Critical | Mitigated | Three exact no-goods find a fourth tuple with reused support but distinct sites |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
