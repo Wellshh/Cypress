@@ -3,7 +3,7 @@
 **Severity:** Critical
 **Status:** Open
 **Found:** 2026-07-21
-**Affected commits:** `0d2cae5` through `c77a978`
+**Affected commits:** `0d2cae5` through `8446b28`
 
 ## Problem
 
@@ -255,3 +255,68 @@ pass and does not weaken the 215 focused checks.
 This section is implementation evidence only. No M336 placement, native score,
 E4 repair, exact-site optimization, fallback, or parameter ladder has run for
 the candidate. Commit, push, pull, and then execute only the predeclared D1.
+
+## Post-Implementation D1 Replay and Stop
+
+Commit `8446b28c8d4840dcee2317644bf37e8de42a3af0` was signed,
+pushed, pulled, installed, and evaluated on physical GPU 2. The run used the
+frozen checkpoint-warm scale-1 contract: M336-118 input, E2/E3, seed `1000`,
+ten deterministic CUDA Adam steps, and explicit run-local summary/report
+paths. E4, bounded repair, CP-SAT, fallback, and parameter ladders were absent.
+
+```text
+results/m336/native-cypress/
+  m336-176-minimum-cover-d1-warm-10-scale1/
+summary SHA-256
+cb39619e21a8bd361c380b966a41e3f883a641c0e1a98003c4b36a8ecffeb5dd
+report SHA-256
+3773fe8f339c00e9c400a0aaa946949036e6da64402ab9c254bca775ec97b0d0
+E2/E3 exact-guard SHA-256
+bca4d7f84d74a07599c0b932c590693b960b2b11d2f8710d99236b08291edf31
+e98f09bd4bb66afadba9041dab34df0cd485b320ab6837d7674ff531687b9032
+```
+
+Both arms prove `NonLinearPlace`, `PlaceObj`, 13 backward calls, and ten
+coordinate-changing CUDA optimizer steps. Every accepted step and both
+float64 serialization replays are 100/100 contained with zero keep-in
+violations, zero overlaps, zero coordinate replay error, and matching input and
+replay placement hashes. Source/install drift is zero.
+
+| Metric | E2 | E3 |
+| --- | ---: | ---: |
+| Accepted / rejected attempts | `10 / 0` | `10 / 2` |
+| First-pass cover / rigid-consensus writes | `114 / 134` | `151 / 175` |
+| First-pass strict reductions | `10/10` | `12/12` |
+| Maximum active / applied / required scope | `28 / 27 / 27` | `39 / 32 / 38` |
+| Largest component / search bound | `4 / 16` | `4 / 16` |
+| Maximum contact correction (`mm`) | `0.00163210` | `0.00163210` |
+| Native HPWL | `15632.859576` | `15632.876384` |
+| FLUTE RSMT | `17328.870` | `17329.028` |
+| Normalized native score | `0.9280094537` | `0.9280046934` |
+| Anchor mean / p90 (`mm`) | `6.524145446 / 12.047652239` | `6.524235867 / 12.047897816` |
+| GPU / end-to-end (`s`) | `1.87656 / 13.5428` | `2.16719 / 13.8912` |
+| Runtime ratio vs M336-171 feature off | `1.736x / 1.152x` | `1.608x / 1.171x` |
+
+The bounded implementation evidence passes: every initial proposal uses a
+strictly smaller cover than matching rigid consensus, actual writes never
+exceed 32, the component bound is respected, maximum correction is half the
+M336-174 D1 ceiling, runtime remains below `2x`, and exact legality is retained.
+E3's final proposal needs 38 writes at full LR and 33 at half LR, so the guard
+rejects both transactionally and accepts only after backing off to quarter LR.
+
+The conjunctive D1 promotion gate nevertheless fails in two independent ways:
+
+- RSMT regresses from matching M336-174 D1 by `+0.570` for E2 and `+0.821`
+  for E3, despite HPWL improvements of `0.250214` and `0.142707`.
+- E3 is worse than same-run E2 by `0.000090421 mm` (`0.001386%`) in anchor
+  mean and `0.000245577 mm` (`0.002038%`) in p90; both were required to be
+  strictly lower.
+
+Minimum-cover rollback therefore preserves more native coordinates on the
+first closure pass but does not produce a qualifying Cypress result. Later
+exact closure consumes much of the apparent graph-cover saving, and the final
+quality/anchor signal is worse. The explicit output paths also leave the
+M336-174 global summary/report hashes unchanged, satisfying M336-175.
+
+Stop at D1. M336-176 remains open, and no D2, D3, E4, cap increase, fallback,
+CP-SAT placement, seed ladder, LR ladder, or scalar-weight ladder is authorized.

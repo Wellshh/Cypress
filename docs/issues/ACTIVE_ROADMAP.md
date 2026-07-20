@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (minimum-cover D1 pending; D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-176 proves rigid consensus exceeds the graph-cover intervention lower bound on every retained D1/D2 proposal; implement bounded rollback closure and requalify scale-1 before any D2 authorization |
+| N6 (minimum-cover D1 failed; D2/D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-176 bounded rollback is exact legal and reduces first-pass writes, but fails matching-D1 RSMT and E3 anchor gates; diagnose closure recapture before proposing another bounded mechanism |
 
 ## Paused Exact-Site Priorities
 
@@ -443,6 +443,19 @@ suites pass 215 focused tests with zero source/install drift. The aggregate
 runner repeats TEST-001's same ten independent errors across 244 tests and is
 not called green. This remains implementation evidence: commit/push/pull it,
 then run only the predeclared scale-1 E2/E3 D1.
+
+The post-implementation M336-176 D1 replay at `8446b28` stops the candidate.
+E2/E3 prove the native CUDA chain, ten changing Adam steps, exact legality, and
+zero-drift float64 serialization. Every initial proposal uses a smaller cover
+than rigid consensus (`114/134` E2 writes and `151/175` E3 writes), maximum
+applied scope is `27/32`, largest component is four under the 16-node bound,
+and maximum correction falls to `0.00163210 mm`. GPU and end-to-end ratios stay
+below `2x`. The effect gate still fails: RSMT regresses from matching M336-174
+D1 by `0.570/0.821`, while E3 anchor mean/p90 are `0.001386%/0.002038%` worse
+than E2. Two E3 proposals also require `38` and `33` cumulative writes and are
+transactionally rejected before a quarter-LR retry succeeds. First-pass graph
+savings therefore do not survive closure as qualifying quality. Keep M336-176
+open and do not run D2, D3, E4, CP-SAT, fallback, or parameter ladders.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
