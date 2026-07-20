@@ -58,6 +58,8 @@ def _projector(
     active_node_ids=None,
     max_iterations=8,
     max_contact_nodes=32,
+    mode="component_consensus",
+    max_cover_component_nodes=16,
 ):
     if active_node_ids is None:
         active_node_ids = range(len(names))
@@ -68,10 +70,324 @@ def _projector(
         num_nodes=len(names),
         max_iterations=max_iterations,
         max_contact_nodes=max_contact_nodes,
+        mode=mode,
+        max_cover_component_nodes=max_cover_component_nodes,
     )
 
 
 class ExactContactProjectionTest(unittest.TestCase):
+    def test_minimum_cover_configuration_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, "unknown exact contact"):
+            _projector(
+                ("A", "B"),
+                (1.0, 1.0),
+                (1.0, 1.0),
+                ((0, 1),),
+                mode="greedy",
+            )
+        with self.assertRaisesRegex(ValueError, "cover component"):
+            _projector(
+                ("A", "B"),
+                (1.0, 1.0),
+                (1.0, 1.0),
+                ((0, 1),),
+                max_cover_component_nodes=1,
+            )
+
+    def test_minimum_cover_rolls_back_one_center_for_two_crossings(self):
+        projector = _projector(
+            ("CENTER", "RIGHT", "TOP"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1), (0, 2)),
+            mode="minimum_cover_rollback",
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.375, 1.25, 0.25, 0.375, 0.25, 1.25],
+            dtype=torch.float64,
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertEqual(result["mode"], "minimum_cover_rollback")
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor(
+                [0.0, 1.25, 0.25, 0.0, 0.25, 1.25],
+                dtype=torch.float64,
+            ),
+            rtol=0,
+            atol=0,
+        )
+        self.assertEqual(result["corrected_contact_node_ids"], [0])
+        iteration = result["iterations"][0]
+        self.assertEqual(iteration["selected_contact_node_ids"], [0])
+        self.assertEqual(
+            iteration["component_consensus_selected_contact_node_count"], 2
+        )
+        self.assertEqual(
+            iteration["contact_components"][0]["minimum_cover_size"], 1
+        )
+        self.assertEqual(
+            iteration["contact_components"][0]["selectable_node_ids"],
+            [0, 1, 2],
+        )
+        self.assertEqual(iteration["cover_search_state_count"], 8)
+
+    def test_minimum_cover_equal_cost_uses_smallest_node_id(self):
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="minimum_cover_rollback",
+        )
+        origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor([0.25, 1.0, 0.0, 0.0], dtype=torch.float64)
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertEqual(result["corrected_contact_node_ids"], [0])
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float64),
+            rtol=0,
+            atol=0,
+        )
+
+    def test_minimum_cover_never_selects_noop_endpoint(self):
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="minimum_cover_rollback",
+        )
+        origin = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor([0.25, 1.0, 0.0, 0.0], dtype=torch.float64)
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        component = result["contact_components"][0]
+        self.assertEqual(component["selectable_node_ids"], [0])
+        self.assertEqual(component["mandatory_node_ids"], [0])
+        self.assertEqual(result["corrected_contact_node_ids"], [0])
+
+    def test_minimum_cover_inactive_endpoint_makes_active_mandatory(self):
+        projector = _projector(
+            ("ACTIVE", "INACTIVE"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            active_node_ids=(0,),
+            mode="minimum_cover_rollback",
+        )
+        origin = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor([0.25, 1.0, 0.0, 0.0], dtype=torch.float64)
+        inactive_before = candidate[1].clone()
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertTrue(torch.equal(candidate[1], inactive_before))
+        self.assertEqual(result["corrected_contact_node_ids"], [0])
+        component = result["contact_components"][0]
+        self.assertEqual(component["authority_kind"], "accepted_origin_cover")
+        self.assertEqual(component["inactive_node_count"], 1)
+        self.assertEqual(component["mandatory_node_ids"], [0])
+
+    def test_minimum_cover_residual_edge_adds_opposite_endpoint(self):
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="minimum_cover_rollback",
+        )
+        origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertTrue(torch.equal(candidate, origin))
+        self.assertEqual(result["corrected_contact_node_ids"], [0, 1])
+        self.assertEqual(len(result["iterations"]), 2)
+        self.assertEqual(
+            [row["selected_contact_node_ids"] for row in result["iterations"]],
+            [[1], [0]],
+        )
+        self.assertEqual(
+            [
+                row["cumulative_corrected_contact_node_count"]
+                for row in result["iterations"]
+            ],
+            [1, 2],
+        )
+        self.assertEqual(result["validator_call_count"], 3)
+
+    def test_minimum_cover_cumulative_limit_fails_before_second_write(self):
+        projector = _projector(
+            ("A", "B", "C", "D"),
+            (1.0, 1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0, 1.0),
+            ((0, 1), (2, 3)),
+            max_contact_nodes=2,
+            mode="minimum_cover_rollback",
+        )
+        origin = torch.tensor(
+            [0.0, 1.25, 3.0, 4.25, 0.0, 0.0, 0.0, 0.0],
+            dtype=torch.float64,
+        )
+        candidate = torch.tensor(
+            [0.375, 1.3125, 3.25, 4.0, 0.0, 0.0, 0.0, 0.0],
+            dtype=torch.float64,
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["reason"], "contact_node_limit")
+        self.assertEqual(result["corrected_contact_node_ids"], [1, 2])
+        self.assertEqual(result["required_corrected_contact_node_count"], 3)
+        self.assertEqual(
+            [row["applied"] for row in result["iterations"]], [True, False]
+        )
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor(
+                [0.375, 1.25, 3.0, 4.0, 0.0, 0.0, 0.0, 0.0],
+                dtype=torch.float64,
+            ),
+            rtol=0,
+            atol=0,
+        )
+
+    def test_minimum_cover_new_edge_merge_retains_cumulative_ids(self):
+        names = ("A", "B", "C", "D")
+        reports = (
+            ((0, 1), (2, 3)),
+            ((1, 2),),
+            (),
+        )
+        validator_call_count = 0
+
+        def validator(position):
+            nonlocal validator_call_count
+            pairs = reports[min(validator_call_count, len(reports) - 1)]
+            validator_call_count += 1
+            rows = [
+                {
+                    "kind": "constrained_constrained",
+                    "first_refdes": names[first_node_id],
+                    "second_refdes": names[second_node_id],
+                    "overlap_area_mm2": 1.0,
+                }
+                for first_node_id, second_node_id in pairs
+            ]
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": len(rows),
+                "overlap_area_mm2": float(len(rows)),
+                "overlap_pairs": rows,
+            }
+
+        projector = ExactContactProjector(
+            validator=validator,
+            refdes_to_node_id={name: index for index, name in enumerate(names)},
+            active_node_ids=range(4),
+            num_nodes=4,
+            max_contact_nodes=3,
+            mode="minimum_cover_rollback",
+        )
+        origin = torch.zeros(8, dtype=torch.float64)
+        candidate = torch.tensor(
+            [1.0, 2.0, 3.0, 4.0, 0.0, 0.0, 0.0, 0.0],
+            dtype=torch.float64,
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertEqual(result["protected_pair_count"], 3)
+        self.assertEqual(result["component_count"], 1)
+        self.assertEqual(result["corrected_contact_node_ids"], [0, 1, 2])
+        self.assertEqual(
+            [
+                row["cumulative_corrected_contact_node_count"]
+                for row in result["iterations"]
+            ],
+            [2, 3],
+        )
+        self.assertEqual(
+            [row["selected_contact_node_ids"] for row in result["iterations"]],
+            [[0, 2], [1]],
+        )
+
+    def test_minimum_cover_component_limit_fails_without_mutation(self):
+        projector = _projector(
+            ("CENTER", "RIGHT", "TOP"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1), (0, 2)),
+            mode="minimum_cover_rollback",
+            max_cover_component_nodes=2,
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.2, 1.0, 0.0, 0.2, 0.0, 1.0], dtype=torch.float64
+        )
+        before = candidate.clone()
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["reason"], "cover_component_limit")
+        self.assertEqual(result["corrected_contact_node_count"], 0)
+        self.assertFalse(result["iterations"][0]["applied"])
+        self.assertTrue(torch.equal(candidate, before))
+
+    def test_minimum_cover_and_hard_projection_statistics_are_separate(self):
+        projector = _projector(
+            ("A", "B", "C"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1),),
+            mode="minimum_cover_rollback",
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 3.0, 0.0, 0.0, 0.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.25, 1.0, 3.0, 0.0, 0.0, 0.0], dtype=torch.float64
+        )
+
+        def hard_projector(position):
+            position[2] = 3.125
+
+        result = projector(origin, candidate, hard_projector)
+
+        self.assertTrue(result["converged"])
+        iteration = result["iterations"][0]
+        self.assertEqual(
+            iteration["rollback_correction"]["changed_node_ids"], [0]
+        )
+        self.assertEqual(
+            iteration["hard_projection_correction"]["changed_node_ids"], [2]
+        )
+        self.assertEqual(iteration["correction"]["changed_node_ids"], [0, 2])
+        self.assertEqual(result["corrected_contact_node_ids"], [0])
+
     def test_two_body_consensus_handles_four_crossing_directions(self):
         projector = _projector(
             ("A", "B"), (1.0, 1.0), (1.0, 1.0), ((0, 1),)
@@ -488,6 +804,47 @@ class ExactContactProjectionTest(unittest.TestCase):
             self.assertEqual(
                 cpu_result["required_corrected_contact_node_count"],
                 gpu_result["required_corrected_contact_node_count"],
+            )
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
+    def test_minimum_cover_cpu_gpu_tie_break_is_identical(self):
+        for dtype in (torch.float32, torch.float64):
+            cpu_projector = _projector(
+                ("A", "B"),
+                (1.0, 1.0),
+                (1.0, 1.0),
+                ((0, 1),),
+                mode="minimum_cover_rollback",
+            )
+            gpu_projector = _projector(
+                ("A", "B"),
+                (1.0, 1.0),
+                (1.0, 1.0),
+                ((0, 1),),
+                mode="minimum_cover_rollback",
+            )
+            origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=dtype)
+            cpu_candidate = torch.tensor(
+                [0.25, 1.0, 0.0, 0.0], dtype=dtype
+            )
+            gpu_origin = origin.cuda()
+            gpu_candidate = cpu_candidate.cuda()
+
+            cpu_result = cpu_projector(
+                origin, cpu_candidate, lambda position: None
+            )
+            gpu_result = gpu_projector(
+                gpu_origin, gpu_candidate, lambda position: None
+            )
+
+            self.assertTrue(torch.equal(cpu_candidate, gpu_candidate.cpu()))
+            self.assertEqual(
+                cpu_result["corrected_contact_node_ids"],
+                gpu_result["corrected_contact_node_ids"],
+            )
+            self.assertEqual(
+                cpu_result["iterations"][0]["contact_components"],
+                gpu_result["iterations"][0]["contact_components"],
             )
 
 

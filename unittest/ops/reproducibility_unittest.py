@@ -24,12 +24,86 @@ from dreamplace.NonLinearPlace import (
 from dreamplace.PlaceObj import PlaceObj
 from dreamplace.Placer import seed_all
 from dreamplace.BasicPlace import load_initial_placement
+from dreamplace.constraints.exact_contact_projection import ExactContactProjector
 from dreamplace.constraints.region_projection import zero_optimizer_state
 from dreamplace.ops.anchor_keepin.anchor_keepin import AdaptiveAnchorWeight
 from tuner.tuner_worker import AutoDMPWorker
 
 
 class ReproducibilityTest(unittest.TestCase):
+    def test_minimum_cover_projection_clears_selected_adam_coordinates(self):
+        num_nodes = 2
+
+        def validator(position):
+            overlap = float(position[0]) + 1.0 > float(position[1])
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": int(overlap),
+                "overlap_area_mm2": (
+                    float(position[0]) + 1.0 - float(position[1])
+                    if overlap
+                    else 0.0
+                ),
+                "overlap_pairs": (
+                    [
+                        {
+                            "kind": "constrained_constrained",
+                            "first_refdes": "A",
+                            "second_refdes": "B",
+                            "overlap_area_mm2": 0.25,
+                        }
+                    ]
+                    if overlap
+                    else []
+                ),
+            }
+
+        contact_projector = ExactContactProjector(
+            validator=validator,
+            refdes_to_node_id={"A": 0, "B": 1},
+            active_node_ids=(0, 1),
+            num_nodes=num_nodes,
+            mode="minimum_cover_rollback",
+        )
+        projector = _CompositeProjector(
+            lambda position: None,
+            None,
+            num_nodes=num_nodes,
+            contact_projector=contact_projector,
+        )
+        origin = torch.tensor([0.0, 1.0, 0.0, 0.0])
+        position = torch.nn.Parameter(origin.clone())
+        optimizer = torch.optim.Adam([position], lr=0.1)
+        position.grad = torch.ones_like(position)
+        optimizer.step()
+        with torch.no_grad():
+            position.copy_(origin)
+
+        projector.begin_step(position)
+        with torch.no_grad():
+            position[0] = 0.25
+        projector(position)
+        evidence = projector.finish_step()
+        zero_optimizer_state(
+            optimizer,
+            position,
+            evidence["projected_node_ids"],
+            num_nodes,
+        )
+
+        self.assertEqual(evidence["projected_node_ids"], (0,))
+        self.assertEqual(
+            evidence["contact_projection"]["mode"],
+            "minimum_cover_rollback",
+        )
+        self.assertTrue(torch.equal(position.detach(), origin))
+        for name in ("exp_avg", "exp_avg_sq"):
+            state = optimizer.state[position][name]
+            self.assertEqual(state[0].item(), 0.0)
+            self.assertEqual(state[2].item(), 0.0)
+            self.assertNotEqual(state[1].item(), 0.0)
+            self.assertNotEqual(state[3].item(), 0.0)
+
     def test_composite_projector_preserves_proposal_and_accepted_snapshots(self):
         def board_projector(position):
             with torch.no_grad():

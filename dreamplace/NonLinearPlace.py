@@ -49,6 +49,7 @@ from dreamplace.constraints.exact_step_guard import (
     ExactStepGuardFailure,
 )
 from dreamplace.constraints.exact_contact_projection import (
+    CONTACT_PROJECTION_MODES,
     ExactContactProjector,
 )
 
@@ -575,11 +576,25 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         exact_contact_projection_enabled = bool(
             getattr(params, "exact_contact_projection_flag", False)
         )
+        exact_contact_projection_mode = str(
+            getattr(
+                params,
+                "exact_contact_projection_mode",
+                "component_consensus",
+            )
+        )
         exact_contact_projection_max_iterations = int(
             getattr(params, "exact_contact_projection_max_iterations", 8)
         )
         exact_contact_projection_max_nodes = int(
             getattr(params, "exact_contact_projection_max_nodes", 32)
+        )
+        exact_contact_projection_max_cover_component_nodes = int(
+            getattr(
+                params,
+                "exact_contact_projection_max_cover_component_nodes",
+                16,
+            )
         )
         if exact_overlap_interval < 0:
             raise ValueError("exact overlap diagnostic interval must be non-negative")
@@ -629,15 +644,31 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             raise ValueError(
                 "exact contact projection node limit must be at least two"
             )
+        if exact_contact_projection_mode not in CONTACT_PROJECTION_MODES:
+            raise ValueError(
+                "unknown exact contact projection mode: %s"
+                % exact_contact_projection_mode
+            )
+        if exact_contact_projection_max_cover_component_nodes < 2:
+            raise ValueError(
+                "exact contact projection cover component limit must be at "
+                "least two"
+            )
         if exact_contact_projection_enabled:
             native_execution.update(
                 {
                     "exact_contact_projection_enabled": True,
+                    "exact_contact_projection_mode": (
+                        exact_contact_projection_mode
+                    ),
                     "exact_contact_projection_max_iterations": (
                         exact_contact_projection_max_iterations
                     ),
                     "exact_contact_projection_max_nodes": (
                         exact_contact_projection_max_nodes
+                    ),
+                    "exact_contact_projection_max_cover_component_nodes": (
+                        exact_contact_projection_max_cover_component_nodes
                     ),
                     "exact_contact_projection_node_limit_basis": (
                         "cumulative_corrected_active_nodes"
@@ -770,6 +801,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                             exact_contact_projection_max_iterations
                         ),
                         max_contact_nodes=exact_contact_projection_max_nodes,
+                        mode=exact_contact_projection_mode,
+                        max_cover_component_nodes=(
+                            exact_contact_projection_max_cover_component_nodes
+                        ),
                     )
 
                 constraint_projector = _CompositeProjector(

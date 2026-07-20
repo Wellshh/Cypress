@@ -432,6 +432,18 @@ No effect run is authorized before issue/implementation push-pull and focused
 source/install tests. Then rerun only scale-1 E2/E3 D1; D2 and D3 remain blocked
 until that complete conjunctive gate passes.
 
+The M336-176 implementation candidate now provides that default-off bounded
+rollback mode. Exact subset enumeration is capped at 16 nodes per current
+component, rollback targets only the same step's accepted origin, every write
+is followed by hard projection and exact validation, and the cumulative union
+is checked against 32 before mutation. Runner configs, resume checks, run IDs,
+reproduction commands, and summaries preserve the mode and bound. Installed
+projector, guard, M336 config, reproducibility, anchor/collision, and density
+suites pass 215 focused tests with zero source/install drift. The aggregate
+runner repeats TEST-001's same ten independent errors across 244 tests and is
+not called green. This remains implementation evidence: commit/push/pull it,
+then run only the predeclared scale-1 E2/E3 D1.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

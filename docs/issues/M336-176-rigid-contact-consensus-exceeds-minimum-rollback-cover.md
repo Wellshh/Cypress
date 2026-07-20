@@ -206,3 +206,52 @@ and all parameter ladders remain prohibited.
 - D1 passes every predeclared correctness, quality, anchor, and runtime gate.
 - Any later D2 is separately authorized and passes before N6 can advance.
 - The final promoted placement still comes only from the native Cypress chain.
+
+## Implementation Candidate
+
+The new implementation keeps `component_consensus` as the default and adds an
+explicit `minimum_cover_rollback` mode. Each closure pass constructs connected
+components from the current exact overlap graph, marks only active coordinates
+that differ byte-for-byte from the accepted step origin as selectable, and
+enumerates every subset of at most 16 component nodes. Its stable objective is
+new cumulative ID count, removed squared proposal motion, then node-ID tuple.
+
+Selected coordinates are restored only to the same optimizer step's accepted
+origin. The ordinary hard projector and full exact validator run after every
+write. Residual and newly exposed edges create another pass, while the selected
+ID union remains cumulative and is checked against 32 before mutation. Distinct
+`cover_component_limit`, `unresolvable_overlap`, `contact_node_limit`, and
+existing closure reasons fail closed through the transactional guard. No
+checkpoint, CP-SAT, E4, or serialized fallback path is reachable from this
+mode.
+
+The runner now carries mode and component bound through generated configs,
+resume-contract checks, reproduction commands, run IDs, per-run results, and
+top-level summaries. It also hashes `install/dreamplace/params.json`, closing a
+source/install identity omission for the new options. The implementation emits
+current/protected graph scopes, exact enumeration states, selectable/mandatory
+and selected IDs, rigid-consensus comparison scope, cumulative budget, and
+separate rollback/hard-projection distances.
+
+Installed-tree validation on physical GPU 2 passes:
+
+```text
+exact contact projection          25/25
+transactional exact step guard      6/6
+M336 baseline and runner config    105/105
+reproducibility and state reset     18/18
+anchor/keep-in/collision            52/52
+irregular density                    9/9
+focused total                      215/215
+Python compile / JSON / CLI help      pass
+source/install implementation drift      0
+```
+
+The aggregate runner discovers 244 tests and repeats the same ten independent
+legacy compatibility/API errors tracked by TEST-001 while still returning
+shell status zero. No new error category appears. This result is not called a
+pass and does not weaken the 215 focused checks.
+
+This section is implementation evidence only. No M336 placement, native score,
+E4 repair, exact-site optimization, fallback, or parameter ladder has run for
+the candidate. Commit, push, pull, and then execute only the predeclared D1.

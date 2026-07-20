@@ -84,3 +84,20 @@ native operator but violates its current scalar-type contract.
   construction.
 - The aggregate command's shell status and printed unittest result agree.
 - The repair is committed independently from M336 native placement behavior.
+
+## M336-176 Recheck
+
+The M336-176 installed-tree regression reran the same command on physical GPU
+2 after adding 12 focused tests. The runner reports:
+
+```text
+Ran 244 tests in 4.657s
+FAILED (errors=10)
+process exit code: 0
+```
+
+The failure set is unchanged: seven NumPy ragged-array fixtures, one mixed
+density-potential dtype, one obsolete draw-place call, and one obsolete
+move-boundary call. All 25 exact-contact tests and the new composite-projector
+Adam-state test execute in this aggregate run without adding an error. TEST-001
+therefore remains open and independent of M336-176.

@@ -464,16 +464,24 @@
         "default": false
     },
     "exact_contact_projection_flag": {
-        "description": "project exact-crossing contact components onto bounded shared native proposal motion",
+        "description": "apply bounded candidate-side correction to exact-crossing contact components",
         "default": false
+    },
+    "exact_contact_projection_mode": {
+        "description": "bounded exact contact correction mode: component_consensus or minimum_cover_rollback",
+        "default": "component_consensus"
     },
     "exact_contact_projection_max_iterations": {
         "description": "maximum exact contact-closure projection iterations per native proposal",
         "default": 8
     },
     "exact_contact_projection_max_nodes": {
-        "description": "maximum cumulative active nodes selected for exact contact-consensus correction in one native proposal; crossing endpoints remain separately reported and inactive references do not consume the budget",
+        "description": "maximum cumulative active nodes selected for exact contact correction in one native proposal; crossing endpoints remain separately reported and inactive references do not consume the budget",
         "default": 32
+    },
+    "exact_contact_projection_max_cover_component_nodes": {
+        "description": "maximum current contact-component nodes permitted for exact minimum-cover enumeration",
+        "default": 16
     },
     "keepin_projection_flag": {
         "description": "project constrained components into footprint-aware feasible domains",

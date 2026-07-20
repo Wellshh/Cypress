@@ -449,8 +449,10 @@ class M336BaselineTest(unittest.TestCase):
             footprint_collision=True,
             exact_step_guard=True,
             exact_contact_projection=True,
+            exact_contact_projection_mode="minimum_cover_rollback",
             exact_contact_projection_max_iterations=6,
             exact_contact_projection_max_nodes=24,
+            exact_contact_projection_max_cover_component_nodes=12,
         )
 
         self.assertFalse(disabled["footprint_collision_loss_flag"])
@@ -465,9 +467,19 @@ class M336BaselineTest(unittest.TestCase):
         self.assertTrue(diagnosed["collision_pair_diagnostics_flag"])
         self.assertTrue(controlled["exact_contact_projection_flag"])
         self.assertEqual(
+            controlled["exact_contact_projection_mode"],
+            "minimum_cover_rollback",
+        )
+        self.assertEqual(
             controlled["exact_contact_projection_max_iterations"], 6
         )
         self.assertEqual(controlled["exact_contact_projection_max_nodes"], 24)
+        self.assertEqual(
+            controlled[
+                "exact_contact_projection_max_cover_component_nodes"
+            ],
+            12,
+        )
         converted = placement_config(
             *arguments,
             source_placement=Path("/tmp/m336.pl"),
@@ -518,6 +530,18 @@ class M336BaselineTest(unittest.TestCase):
                 source_placement=Path("/tmp/m336.pl"),
                 exact_contact_projection_max_iterations=0,
             )
+        with self.assertRaisesRegex(ValueError, "unknown exact contact"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                exact_contact_projection_mode="greedy",
+            )
+        with self.assertRaisesRegex(ValueError, "cover component"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                exact_contact_projection_max_cover_component_nodes=1,
+            )
 
     def test_collision_contract_rejects_changed_resume_settings(self):
         config = {
@@ -530,8 +554,10 @@ class M336BaselineTest(unittest.TestCase):
             "exact_step_guard_max_retries": 4,
             "collision_pair_diagnostics_flag": False,
             "exact_contact_projection_flag": False,
+            "exact_contact_projection_mode": "component_consensus",
             "exact_contact_projection_max_iterations": 8,
             "exact_contact_projection_max_nodes": 32,
+            "exact_contact_projection_max_cover_component_nodes": 16,
         }
         args = SimpleNamespace(
             footprint_collision=True,
@@ -543,8 +569,10 @@ class M336BaselineTest(unittest.TestCase):
             exact_step_guard_max_retries=4,
             collision_pair_diagnostics=False,
             exact_contact_projection=False,
+            exact_contact_projection_mode="component_consensus",
             exact_contact_projection_max_iterations=8,
             exact_contact_projection_max_nodes=32,
+            exact_contact_projection_max_cover_component_nodes=16,
         )
 
         _require_collision_contract(
@@ -580,6 +608,33 @@ class M336BaselineTest(unittest.TestCase):
                 "resume",
             )
         args.exact_contact_projection = False
+        args.exact_contact_projection_mode = "minimum_cover_rollback"
+        _require_collision_contract(
+            config, args, EXPERIMENTS["E3"], Path("/tmp/result.json"), "resume"
+        )
+        args.exact_contact_projection = True
+        config["exact_contact_projection_flag"] = True
+        with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
+            _require_collision_contract(
+                config,
+                args,
+                EXPERIMENTS["E3"],
+                Path("/tmp/result.json"),
+                "resume",
+            )
+        args.exact_contact_projection_mode = "component_consensus"
+        args.exact_contact_projection_max_cover_component_nodes = 8
+        with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
+            _require_collision_contract(
+                config,
+                args,
+                EXPERIMENTS["E3"],
+                Path("/tmp/result.json"),
+                "resume",
+            )
+        args.exact_contact_projection_max_cover_component_nodes = 16
+        args.exact_contact_projection = False
+        config["exact_contact_projection_flag"] = False
         args.exact_step_guard_backoff = 0.25
         with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
             _require_collision_contract(

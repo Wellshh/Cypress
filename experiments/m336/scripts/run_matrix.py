@@ -44,6 +44,10 @@ M336_ANCHOR_WEIGHT_RAMP_ITERATIONS = 10
 MIN_M336_LEARNING_RATE_SCALE = 1.0
 MAX_M336_LEARNING_RATE_SCALE = 32.0
 DEFAULT_CUBLAS_WORKSPACE_CONFIG = ":4096:8"
+CONTACT_PROJECTION_MODES = (
+    "component_consensus",
+    "minimum_cover_rollback",
+)
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
 IMPLEMENTATION_FILES = (
     "dreamplace/BasicPlace.py",
@@ -78,6 +82,7 @@ IMPLEMENTATION_FILES = (
     "install/dreamplace/NonLinearPlace.py",
     "install/dreamplace/PlaceObj.py",
     "install/dreamplace/Placer.py",
+    "install/dreamplace/params.json",
     "install/dreamplace/constraints/anchor_keepin.py",
     "install/dreamplace/constraints/exact_contact_projection.py",
     "install/dreamplace/constraints/exact_step_guard.py",
@@ -399,8 +404,10 @@ def placement_config(
     exact_step_guard_max_retries=4,
     collision_pair_diagnostics=False,
     exact_contact_projection=False,
+    exact_contact_projection_mode="component_consensus",
     exact_contact_projection_max_iterations=8,
     exact_contact_projection_max_nodes=32,
+    exact_contact_projection_max_cover_component_nodes=16,
 ):
     learning_rate_scale = float(learning_rate_scale)
     if (
@@ -446,6 +453,10 @@ def placement_config(
     exact_contact_projection_max_nodes = int(
         exact_contact_projection_max_nodes
     )
+    exact_contact_projection_mode = str(exact_contact_projection_mode)
+    exact_contact_projection_max_cover_component_nodes = int(
+        exact_contact_projection_max_cover_component_nodes
+    )
     if (
         not math.isfinite(exact_step_guard_backoff)
         or not 0 < exact_step_guard_backoff < 1
@@ -464,6 +475,16 @@ def placement_config(
     if exact_contact_projection_max_nodes < 2:
         raise ValueError(
             "exact contact projection node limit must be at least two"
+        )
+    if exact_contact_projection_mode not in CONTACT_PROJECTION_MODES:
+        raise ValueError(
+            "unknown exact contact projection mode: %s"
+            % exact_contact_projection_mode
+        )
+    if exact_contact_projection_max_cover_component_nodes < 2:
+        raise ValueError(
+            "exact contact projection cover component limit must be at least "
+            "two"
         )
     initialization_modes = {
         "cold_source": "preserve_legal",
@@ -597,11 +618,17 @@ def placement_config(
                     and footprint_collision
                     and spec["projection"]
                 ),
+                "exact_contact_projection_mode": (
+                    exact_contact_projection_mode
+                ),
                 "exact_contact_projection_max_iterations": (
                     exact_contact_projection_max_iterations
                 ),
                 "exact_contact_projection_max_nodes": (
                     exact_contact_projection_max_nodes
+                ),
+                "exact_contact_projection_max_cover_component_nodes": (
+                    exact_contact_projection_max_cover_component_nodes
                 ),
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
@@ -1253,6 +1280,19 @@ def _require_collision_contract(config, args, spec, result_path, action):
     actual_contact_projection = bool(
         config.get("exact_contact_projection_flag", False)
     )
+    actual_contact_projection_mode = str(
+        config.get(
+            "exact_contact_projection_mode",
+            "component_consensus",
+        )
+    )
+    expected_contact_projection_mode = str(
+        getattr(
+            args,
+            "exact_contact_projection_mode",
+            "component_consensus",
+        )
+    )
     checks = (
         ("enabled", float(actual_enabled), float(expected_enabled)),
         (
@@ -1291,24 +1331,55 @@ def _require_collision_contract(config, args, spec, result_path, action):
             float(config.get("exact_step_guard_max_retries", 4)),
             float(getattr(args, "exact_step_guard_max_retries", 4)),
         ),
-        (
-            "contact projection iterations",
-            float(config.get("exact_contact_projection_max_iterations", 8)),
-            float(
-                getattr(args, "exact_contact_projection_max_iterations", 8)
-            ),
-        ),
-        (
-            "contact projection nodes",
-            float(config.get("exact_contact_projection_max_nodes", 32)),
-            float(getattr(args, "exact_contact_projection_max_nodes", 32)),
-        ),
     )
+    if actual_contact_projection or expected_contact_projection:
+        checks += (
+            (
+                "contact projection iterations",
+                float(
+                    config.get("exact_contact_projection_max_iterations", 8)
+                ),
+                float(
+                    getattr(
+                        args,
+                        "exact_contact_projection_max_iterations",
+                        8,
+                    )
+                ),
+            ),
+            (
+                "contact projection nodes",
+                float(config.get("exact_contact_projection_max_nodes", 32)),
+                float(
+                    getattr(args, "exact_contact_projection_max_nodes", 32)
+                ),
+            ),
+            (
+                "contact projection cover component nodes",
+                float(
+                    config.get(
+                        "exact_contact_projection_max_cover_component_nodes",
+                        16,
+                    )
+                ),
+                float(
+                    getattr(
+                        args,
+                        "exact_contact_projection_max_cover_component_nodes",
+                        16,
+                    )
+                ),
+            ),
+        )
     mismatches = [
         label
         for label, actual, expected in checks
         if not math.isclose(actual, expected, rel_tol=0.0, abs_tol=1e-12)
     ]
+    if (
+        actual_contact_projection or expected_contact_projection
+    ) and actual_contact_projection_mode != expected_contact_projection_mode:
+        mismatches.append("contact projection mode")
     if mismatches:
         raise RuntimeError(
             "cannot %s with changed collision contract (%s): %s"
@@ -1479,11 +1550,25 @@ def run_one(
         result["exact_contact_projection_enabled"] = bool(
             config.get("exact_contact_projection_flag", False)
         )
+        result["exact_contact_projection_mode"] = str(
+            config.get(
+                "exact_contact_projection_mode",
+                "component_consensus",
+            )
+        )
         result["exact_contact_projection_max_iterations"] = int(
             config.get("exact_contact_projection_max_iterations", 8)
         )
         result["exact_contact_projection_max_nodes"] = int(
             config.get("exact_contact_projection_max_nodes", 32)
+        )
+        result[
+            "exact_contact_projection_max_cover_component_nodes"
+        ] = int(
+            config.get(
+                "exact_contact_projection_max_cover_component_nodes",
+                16,
+            )
         )
         result["irregular_density_enabled"] = bool(
             config.get("irregular_density_flag", False)
@@ -1652,11 +1737,15 @@ def run_one(
         exact_step_guard_max_retries=args.exact_step_guard_max_retries,
         collision_pair_diagnostics=args.collision_pair_diagnostics,
         exact_contact_projection=args.exact_contact_projection,
+        exact_contact_projection_mode=args.exact_contact_projection_mode,
         exact_contact_projection_max_iterations=(
             args.exact_contact_projection_max_iterations
         ),
         exact_contact_projection_max_nodes=(
             args.exact_contact_projection_max_nodes
+        ),
+        exact_contact_projection_max_cover_component_nodes=(
+            args.exact_contact_projection_max_cover_component_nodes
         ),
     )
     write_json(config_path, config)
@@ -1732,9 +1821,17 @@ def run_one(
     )
     exact_step_guard_enabled = bool(config.get("exact_step_guard_flag", False))
     guard_tag = "-guard" if exact_step_guard_enabled else ""
+    contact_projection_enabled = bool(
+        config.get("exact_contact_projection_flag", False)
+    )
+    contact_tag = (
+        "-contact-%s" % args.exact_contact_projection_mode
+        if contact_projection_enabled
+        else ""
+    )
 
     result = {
-        "run_id": "%s-%s-ar-%s%s%s%s-margin-%s-seed-%d"
+        "run_id": "%s-%s-ar-%s%s%s%s%s-margin-%s-seed-%d"
         % (
             initialization_track,
             experiment_id.lower(),
@@ -1742,6 +1839,7 @@ def run_one(
             learning_rate_tag,
             collision_tag,
             guard_tag,
+            contact_tag,
             format(args.keepin_margin_mm, "g"),
             seed,
         ),
@@ -1771,11 +1869,23 @@ def run_one(
         "exact_contact_projection_enabled": bool(
             config.get("exact_contact_projection_flag", False)
         ),
+        "exact_contact_projection_mode": str(
+            config.get(
+                "exact_contact_projection_mode",
+                "component_consensus",
+            )
+        ),
         "exact_contact_projection_max_iterations": int(
             config.get("exact_contact_projection_max_iterations", 8)
         ),
         "exact_contact_projection_max_nodes": int(
             config.get("exact_contact_projection_max_nodes", 32)
+        ),
+        "exact_contact_projection_max_cover_component_nodes": int(
+            config.get(
+                "exact_contact_projection_max_cover_component_nodes",
+                16,
+            )
         ),
         "irregular_density_enabled": bool(
             config.get("irregular_density_flag", False)
@@ -2584,8 +2694,12 @@ def reproduction_command(args, weights=None):
         ),
         "--exact-contact-projection-max-iterations",
         str(args.exact_contact_projection_max_iterations),
+        "--exact-contact-projection-mode",
+        args.exact_contact_projection_mode,
         "--exact-contact-projection-max-nodes",
         str(args.exact_contact_projection_max_nodes),
+        "--exact-contact-projection-max-cover-component-nodes",
+        str(args.exact_contact_projection_max_cover_component_nodes),
         "--initialization-track",
         args.initialization_track,
         "--checkpoint-placement",
@@ -2696,6 +2810,11 @@ def main():
         "--exact-contact-projection-max-iterations", type=int, default=8
     )
     parser.add_argument(
+        "--exact-contact-projection-mode",
+        choices=CONTACT_PROJECTION_MODES,
+        default="component_consensus",
+    )
+    parser.add_argument(
         "--exact-contact-projection-max-nodes",
         type=int,
         default=32,
@@ -2703,6 +2822,12 @@ def main():
             "maximum cumulative active nodes selected for contact-consensus "
             "correction per native proposal"
         ),
+    )
+    parser.add_argument(
+        "--exact-contact-projection-max-cover-component-nodes",
+        type=int,
+        default=16,
+        help="maximum component size for exact minimum-cover enumeration",
     )
     parser.add_argument(
         "--initialization-track",
@@ -2815,6 +2940,7 @@ def main():
         or args.exact_step_guard_max_retries < 0
         or args.exact_contact_projection_max_iterations <= 0
         or args.exact_contact_projection_max_nodes < 2
+        or args.exact_contact_projection_max_cover_component_nodes < 2
         or not math.isfinite(args.learning_rate_scale)
         or args.learning_rate_scale < MIN_M336_LEARNING_RATE_SCALE
         or args.learning_rate_scale > MAX_M336_LEARNING_RATE_SCALE
@@ -2828,7 +2954,7 @@ def main():
             "anchor/collision ratios, grid, margin taus, and site size must be positive; "
             "guard backoff must be in (0, 1) and retries non-negative; "
             "contact projection iterations must be positive and its node "
-            "limit at least two; "
+            "and cover-component limits at least two; "
             "learning-rate scale must be within [%g, %g]; clearance and "
             "margin must be non-negative"
             % (MIN_M336_LEARNING_RATE_SCALE, MAX_M336_LEARNING_RATE_SCALE)
@@ -2905,11 +3031,17 @@ def main():
             ),
             "collision_pair_diagnostics": args.collision_pair_diagnostics,
             "exact_contact_projection": args.exact_contact_projection,
+            "exact_contact_projection_mode": (
+                args.exact_contact_projection_mode
+            ),
             "exact_contact_projection_max_iterations": (
                 args.exact_contact_projection_max_iterations
             ),
             "exact_contact_projection_max_nodes": (
                 args.exact_contact_projection_max_nodes
+            ),
+            "exact_contact_projection_max_cover_component_nodes": (
+                args.exact_contact_projection_max_cover_component_nodes
             ),
             "anchor_gradient_ratios": ratios,
             "constraint_grid_mm": args.grid_mm,
@@ -2968,11 +3100,17 @@ def main():
             ),
             "collision_pair_diagnostics": args.collision_pair_diagnostics,
             "exact_contact_projection": args.exact_contact_projection,
+            "exact_contact_projection_mode": (
+                args.exact_contact_projection_mode
+            ),
             "exact_contact_projection_max_iterations": (
                 args.exact_contact_projection_max_iterations
             ),
             "exact_contact_projection_max_nodes": (
                 args.exact_contact_projection_max_nodes
+            ),
+            "exact_contact_projection_max_cover_component_nodes": (
+                args.exact_contact_projection_max_cover_component_nodes
             ),
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
