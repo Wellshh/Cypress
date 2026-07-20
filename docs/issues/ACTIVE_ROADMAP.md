@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-175`
+**Evidence through:** `M336-176`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (D2 failed; D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-174 D2 requires 33 cumulative corrections and regresses HPWL; preserve the exact guard and redesign proposal-side contact control before a new authorization |
+| N6 (minimum-cover D1 pending; D3 blocked) | Prevent native optimizer steps from crossing same-side footprint contacts | M336-176 proves rigid consensus exceeds the graph-cover intervention lower bound on every retained D1/D2 proposal; implement bounded rollback closure and requalify scale-1 before any D2 authorization |
 
 ## Paused Exact-Site Priorities
 
@@ -417,6 +417,20 @@ M336-173's stale-ratio defect. However, HPWL regresses from matching current D1
 by `0.087139/0.086948` for E2/E3 even though RSMT improves. The true
 correction-scope failure and HPWL failure keep M336-172/M336-174 open. Do not
 run D3, raise the cap, or start another seed/LR/ratio/E4 ladder.
+
+M336-176 isolates excess control inside the remaining bounded contact path.
+Across all 20 D1 proposals, rigid representative consensus selects 333 initial
+corrections while exact active vertex covers require at least 283; across all
+22 D2 proposals, the corresponding counts are 471 and 392. Every proposal has
+a positive reduction, and the rejected D2 proposal starts at `28 -> 23`.
+These are graph intervention lower bounds, not legal replays: rolling back one
+covered endpoint can leave or expose an exact footprint crossing. The next
+default-off candidate must therefore restore a deterministic minimum cover to
+the same step's accepted position, exact-validate iteratively, retain a
+cumulative 32-ID union, and fail closed on bounded-search or closure failure.
+No effect run is authorized before issue/implementation push-pull and focused
+source/install tests. Then rerun only scale-1 E2/E3 D1; D2 and D3 remain blocked
+until that complete conjunctive gate passes.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
