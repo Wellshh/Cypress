@@ -89,6 +89,7 @@ ASSIGNMENT = _resolved_path(
 GEOMETRY_EPSILON = 1e-10
 DIVERSITY_SITE_TOLERANCE = 1e-8
 PLACEMENT_SIDES = ("TOP", "BOTTOM")
+CANDIDATE_COVERAGE_SCHEMA = "m336_candidate_coverage_v1"
 
 
 def _context_output_dir(output: Path, override: str) -> Path:
@@ -295,7 +296,7 @@ def _optional_nonnegative_integer(value: str, label: str) -> int | None:
     return parsed
 
 
-def _weighted_candidate_order(orders, weights, target_count):
+def _weighted_candidate_selection(orders, weights, target_count):
     if len(orders) != len(weights) or not orders:
         raise ValueError("candidate orders and weights must align")
     if target_count < 0:
@@ -303,6 +304,7 @@ def _weighted_candidate_order(orders, weights, target_count):
     if any(weight <= 0 for weight in weights):
         raise ValueError("candidate guide weights must be positive")
     selected = []
+    attributed_guide_indices = []
     seen = set()
     pointers = [0] * len(orders)
     while len(selected) < target_count:
@@ -319,6 +321,7 @@ def _weighted_candidate_order(orders, weights, target_count):
                     continue
                 seen.add(index)
                 selected.append(index)
+                attributed_guide_indices.append(guide_index)
                 accepted += 1
                 progressed = True
                 if len(selected) >= target_count:
@@ -329,7 +332,335 @@ def _weighted_candidate_order(orders, weights, target_count):
             break
     if len(selected) != target_count:
         raise ValueError("candidate guide orders did not cover target count")
-    return np.asarray(selected, dtype=np.int64)
+    return (
+        np.asarray(selected, dtype=np.int64),
+        np.asarray(attributed_guide_indices, dtype=np.int64),
+    )
+
+
+def _weighted_candidate_order(orders, weights, target_count):
+    return _weighted_candidate_selection(orders, weights, target_count)[0]
+
+
+def _candidate_domain_fingerprint(region_indices, centers):
+    region_indices = np.asarray(region_indices, dtype="<i8")
+    centers = np.asarray(centers, dtype="<f8")
+    if (
+        region_indices.ndim != 1
+        or centers.ndim != 2
+        or centers.shape != (len(region_indices), 2)
+        or not len(region_indices)
+        or len(set(map(int, region_indices))) != len(region_indices)
+        or not np.all(np.isfinite(centers))
+    ):
+        raise ValueError("candidate coverage domain must be finite and unique")
+    digest = hashlib.sha256()
+    digest.update(CANDIDATE_COVERAGE_SCHEMA.encode("ascii"))
+    digest.update(np.asarray(region_indices.shape, dtype="<i8").tobytes())
+    digest.update(region_indices.tobytes())
+    digest.update(np.asarray(centers.shape, dtype="<i8").tobytes())
+    digest.update(centers.tobytes())
+    return digest.hexdigest()
+
+
+def _candidate_coverage_component(
+    refdes,
+    domain_sha256,
+    region_indices,
+    centers,
+    attributed_guide_indices,
+    guides,
+    site_tolerance=DIVERSITY_SITE_TOLERANCE,
+    coordinate_units_per_mm=1.0,
+):
+    region_indices = np.asarray(region_indices, dtype=np.int64)
+    centers = np.asarray(centers, dtype=np.float64)
+    attributed_guide_indices = np.asarray(
+        attributed_guide_indices, dtype=np.int64
+    )
+    if (
+        not isinstance(domain_sha256, str)
+        or len(domain_sha256) != 64
+        or region_indices.ndim != 1
+        or centers.shape != (len(region_indices), 2)
+        or attributed_guide_indices.shape != region_indices.shape
+        or not len(region_indices)
+        or len(set(map(int, region_indices))) != len(region_indices)
+        or not np.all(np.isfinite(centers))
+        or not math.isfinite(site_tolerance)
+        or site_tolerance < 0
+        or not math.isfinite(coordinate_units_per_mm)
+        or coordinate_units_per_mm <= 0
+    ):
+        raise ValueError("candidate coverage component is invalid")
+    if np.any(attributed_guide_indices < 0) or np.any(
+        attributed_guide_indices >= len(guides)
+    ):
+        raise ValueError("candidate coverage attribution is out of range")
+
+    guide_coverage = []
+    for guide_index, guide in enumerate(guides):
+        if refdes not in guide:
+            raise ValueError(
+                f"candidate coverage guide {guide_index} is missing {refdes}"
+            )
+        target = np.asarray(guide[refdes], dtype=np.float64)
+        if target.shape != (2,) or not np.all(np.isfinite(target)):
+            raise ValueError("candidate coverage targets must be finite 2D")
+        distances = np.linalg.norm(centers - target, axis=1)
+        minimum_distance = float(np.min(distances))
+        guide_coverage.append(
+            {
+                "guide_index": guide_index,
+                "attributed_candidate_count": int(
+                    np.count_nonzero(
+                        attributed_guide_indices == guide_index
+                    )
+                ),
+                "minimum_target_distance": minimum_distance,
+                "minimum_target_distance_mm": (
+                    minimum_distance / coordinate_units_per_mm
+                ),
+                "exact_target_site_present": (
+                    minimum_distance <= site_tolerance
+                ),
+            }
+        )
+
+    candidate_indices = [int(value) for value in region_indices]
+    return {
+        "refdes": str(refdes),
+        "domain_sha256": domain_sha256,
+        "candidate_count": len(candidate_indices),
+        "candidate_region_indices_sha256": _sha256_json(candidate_indices),
+        "candidate_region_indices": candidate_indices,
+        "guide_coverage": guide_coverage,
+    }
+
+
+def _candidate_coverage_net_endpoints(
+    placedb, constraints, requested_net_names, scope_refdes
+):
+    requested = tuple(requested_net_names)
+    if len(set(requested)) != len(requested):
+        raise ValueError("candidate coverage net names must be unique")
+    if not requested:
+        return {}
+    net_ids_by_name = {}
+    for net_id, value in enumerate(placedb.net_names):
+        net_ids_by_name.setdefault(_decode(value), []).append(net_id)
+    node_refdes = {
+        int(constraint.node_id): constraint.refdes
+        for constraint in constraints
+    }
+    scope = frozenset(scope_refdes)
+    result = {}
+    for net_name in requested:
+        matches = net_ids_by_name.get(net_name, [])
+        if len(matches) != 1:
+            raise ValueError(
+                f"candidate coverage net {net_name!r} must resolve uniquely"
+            )
+        endpoints = sorted(
+            {
+                node_refdes[node_id]
+                for pin_id in placedb.net2pin_map[matches[0]]
+                for node_id in (int(placedb.pin2node_map[pin_id]),)
+                if node_id in node_refdes and node_refdes[node_id] in scope
+            }
+        )
+        if not endpoints:
+            raise ValueError(
+                f"candidate coverage net {net_name!r} has no scoped endpoint"
+            )
+        result[net_name] = endpoints
+    return result
+
+
+def _candidate_set_comparison(components, reference_audit):
+    if reference_audit is None:
+        return {"configured": False}
+    if (
+        reference_audit.get("schema") != CANDIDATE_COVERAGE_SCHEMA
+        or not reference_audit.get("enabled")
+    ):
+        raise ValueError("candidate coverage reference audit is incompatible")
+    reference_components = reference_audit.get("components")
+    if not isinstance(reference_components, dict):
+        raise ValueError("candidate coverage reference has no components")
+    if set(reference_components) != set(components):
+        raise ValueError("candidate coverage scopes do not match")
+
+    rows = []
+    total_intersection = 0
+    total_union = 0
+    for refdes in sorted(components):
+        current = components[refdes]
+        reference = reference_components[refdes]
+        if current["domain_sha256"] != reference.get("domain_sha256"):
+            raise ValueError(
+                f"candidate coverage domain changed for {refdes}"
+            )
+        current_sites = set(current["candidate_region_indices"])
+        reference_sites = set(reference.get("candidate_region_indices", []))
+        if (
+            len(current_sites) != current["candidate_count"]
+            or len(reference_sites) != reference.get("candidate_count")
+            or _sha256_json(current["candidate_region_indices"])
+            != current.get("candidate_region_indices_sha256")
+            or _sha256_json(reference.get("candidate_region_indices", []))
+            != reference.get("candidate_region_indices_sha256")
+        ):
+            raise ValueError("candidate coverage reference sites are invalid")
+        intersection = len(current_sites & reference_sites)
+        union = len(current_sites | reference_sites)
+        total_intersection += intersection
+        total_union += union
+        rows.append(
+            {
+                "refdes": refdes,
+                "current_candidate_count": len(current_sites),
+                "reference_candidate_count": len(reference_sites),
+                "intersection_count": intersection,
+                "union_count": union,
+                "jaccard": intersection / union,
+            }
+        )
+    return {
+        "configured": True,
+        "component_count": len(rows),
+        "intersection_count": total_intersection,
+        "union_count": total_union,
+        "jaccard": total_intersection / total_union,
+        "components": rows,
+    }
+
+
+def _build_candidate_coverage_audit(
+    components,
+    guide_paths,
+    endpoint_refdes_by_net,
+    reference_audit=None,
+    reference_json=None,
+    reference_sha256=None,
+    site_tolerance=DIVERSITY_SITE_TOLERANCE,
+    coordinate_units_per_mm=1.0,
+):
+    if not components:
+        raise ValueError("candidate coverage scope must not be empty")
+    guide_count = len(guide_paths)
+    if guide_count <= 0:
+        raise ValueError("candidate coverage requires at least one guide")
+    if (
+        not math.isfinite(coordinate_units_per_mm)
+        or coordinate_units_per_mm <= 0
+    ):
+        raise ValueError("candidate coverage coordinate scale must be positive")
+    for refdes, component in components.items():
+        if component.get("refdes") != refdes:
+            raise ValueError("candidate coverage component identity mismatch")
+        if len(component.get("guide_coverage", [])) != guide_count:
+            raise ValueError("candidate coverage guide counts do not align")
+
+    guides = []
+    for guide_index, guide_path in enumerate(guide_paths):
+        coverage_rows = [
+            components[refdes]["guide_coverage"][guide_index]
+            for refdes in sorted(components)
+        ]
+        distances = [row["minimum_target_distance"] for row in coverage_rows]
+        distances_mm = [
+            row["minimum_target_distance_mm"] for row in coverage_rows
+        ]
+        attributed = [
+            row["attributed_candidate_count"] for row in coverage_rows
+        ]
+        guides.append(
+            {
+                "guide_index": guide_index,
+                "guide_json": str(guide_path),
+                "attributed_candidate_count": sum(attributed),
+                "component_count_with_attribution": sum(
+                    value > 0 for value in attributed
+                ),
+                "exact_target_component_count": sum(
+                    row["exact_target_site_present"] for row in coverage_rows
+                ),
+                "minimum_target_distance": min(distances),
+                "maximum_target_distance": max(distances),
+                "mean_target_distance": sum(distances) / len(distances),
+                "minimum_target_distance_mm": min(distances_mm),
+                "maximum_target_distance_mm": max(distances_mm),
+                "mean_target_distance_mm": (
+                    sum(distances_mm) / len(distances_mm)
+                ),
+            }
+        )
+
+    net_coverage = []
+    for net_name, endpoints in endpoint_refdes_by_net.items():
+        missing = sorted(set(endpoints) - set(components))
+        if missing:
+            raise ValueError(
+                f"candidate coverage net {net_name!r} has endpoints outside "
+                "the audit scope: " + ", ".join(missing)
+            )
+        guide_rows = []
+        for guide_index in range(guide_count):
+            rows = [
+                components[refdes]["guide_coverage"][guide_index]
+                for refdes in endpoints
+            ]
+            distances = [row["minimum_target_distance"] for row in rows]
+            distances_mm = [
+                row["minimum_target_distance_mm"] for row in rows
+            ]
+            guide_rows.append(
+                {
+                    "guide_index": guide_index,
+                    "exact_target_endpoint_count": sum(
+                        row["exact_target_site_present"] for row in rows
+                    ),
+                    "minimum_target_distance": min(distances),
+                    "maximum_target_distance": max(distances),
+                    "mean_target_distance": sum(distances) / len(distances),
+                    "minimum_target_distance_mm": min(distances_mm),
+                    "maximum_target_distance_mm": max(distances_mm),
+                    "mean_target_distance_mm": (
+                        sum(distances_mm) / len(distances_mm)
+                    ),
+                }
+            )
+        net_coverage.append(
+            {
+                "net_name": net_name,
+                "endpoint_count": len(endpoints),
+                "endpoint_refdes": list(endpoints),
+                "guides": guide_rows,
+            }
+        )
+
+    comparison = _candidate_set_comparison(components, reference_audit)
+    comparison["reference_json"] = (
+        str(reference_json) if reference_json is not None else None
+    )
+    comparison["reference_sha256"] = reference_sha256
+    return {
+        "schema": CANDIDATE_COVERAGE_SCHEMA,
+        "enabled": True,
+        "site_tolerance": site_tolerance,
+        "coordinate_units_per_mm": coordinate_units_per_mm,
+        "scope_count": len(components),
+        "scope_refdes": sorted(components),
+        "candidate_count": sum(
+            row["candidate_count"] for row in components.values()
+        ),
+        "guide_count": guide_count,
+        "guides": guides,
+        "net_endpoint_coverage": net_coverage,
+        "reference_comparison": comparison,
+        "components": components,
+    }
 
 
 def _rows_by_side(rows) -> dict[str, list]:
@@ -629,6 +960,24 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sha256_json(value) -> str:
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _comma_separated_values(value: str, label: str) -> tuple[str, ...]:
+    if not value:
+        return ()
+    parts = tuple(part.strip() for part in value.split(","))
+    if any(not part for part in parts):
+        raise ValueError(f"{label} must not contain an empty value")
+    if len(set(parts)) != len(parts):
+        raise ValueError(f"{label} values must be unique")
+    return parts
 
 
 def _comma_separated_paths(value: str, label: str) -> tuple[Path, ...]:
@@ -1172,6 +1521,23 @@ def main() -> int:
     candidate_guide_weights = _candidate_guide_weights(
         os.environ.get("M336_CANDIDATE_GUIDE_WEIGHTS", ""), len(guides)
     )
+    candidate_coverage_enabled = (
+        os.environ.get("M336_AUDIT_CANDIDATE_COVERAGE", "0") == "1"
+    )
+    candidate_coverage_reference_text = os.environ.get(
+        "M336_CANDIDATE_COVERAGE_REFERENCE_JSON", ""
+    )
+    candidate_coverage_net_names = _comma_separated_values(
+        os.environ.get("M336_CANDIDATE_COVERAGE_NETS", ""),
+        "candidate coverage net names",
+    )
+    if (
+        candidate_coverage_reference_text or candidate_coverage_net_names
+    ) and not candidate_coverage_enabled:
+        raise ValueError(
+            "candidate coverage reference/nets require "
+            "M336_AUDIT_CANDIDATE_COVERAGE=1"
+        )
 
     candidate_limit = int(os.environ.get("M336_CANDIDATE_LIMIT", "512"))
     expanded_limit = int(os.environ.get("M336_EXPANDED_CANDIDATE_LIMIT", "0"))
@@ -1283,6 +1649,46 @@ def main() -> int:
         raise ValueError(
             "required candidate guide support is incomplete: " + details
         )
+    candidate_coverage_scope = tuple(
+        sorted(
+            movable_refdes
+            if fix_guide and movable_refdes
+            else known_refdes
+        )
+    )
+    candidate_coverage_reference_path = None
+    candidate_coverage_reference_sha256 = None
+    candidate_coverage_reference_audit = None
+    if candidate_coverage_enabled and candidate_coverage_reference_text:
+        candidate_coverage_reference_path = _resolved_path(
+            candidate_coverage_reference_text
+        )
+        candidate_coverage_reference_sha256 = _sha256_file(
+            candidate_coverage_reference_path
+        )
+        candidate_coverage_reference_data = json.loads(
+            candidate_coverage_reference_path.read_text()
+        )
+        candidate_coverage_reference_audit = (
+            candidate_coverage_reference_data.get(
+                "candidate_coverage_audit"
+            )
+        )
+        if not isinstance(candidate_coverage_reference_audit, dict):
+            raise ValueError(
+                "candidate coverage reference result has no audit"
+            )
+    candidate_coverage_endpoints = (
+        _candidate_coverage_net_endpoints(
+            placedb,
+            constraints,
+            candidate_coverage_net_names,
+            candidate_coverage_scope,
+        )
+        if candidate_coverage_enabled
+        else {}
+    )
+    candidate_coverage_components = {}
     fixed_assumption_refdes = {}
     fixed_assumptions = {}
     guide_site_distances = {}
@@ -1302,6 +1708,14 @@ def main() -> int:
             constraint, obstacles_by_side[constraint.side]
         )
         centers = constraint.domain.valid_centers[eligible]
+        coverage_domain_sha256 = None
+        if (
+            candidate_coverage_enabled
+            and constraint.refdes in candidate_coverage_scope
+        ):
+            coverage_domain_sha256 = _candidate_domain_fingerprint(
+                eligible, centers
+            )
         orders = []
         for guide in guides:
             preferred = np.asarray(guide[constraint.refdes], dtype=np.float64)
@@ -1316,9 +1730,12 @@ def main() -> int:
             order = orders[0]
             if local_limit:
                 order = order[:local_limit]
+            attributed_guide_indices = np.zeros(
+                len(order), dtype=np.int64
+            )
         else:
             target_count = min(local_limit or len(eligible), len(eligible))
-            order = _weighted_candidate_order(
+            order, attributed_guide_indices = _weighted_candidate_selection(
                 orders, candidate_guide_weights, target_count
             )
         eligible = eligible[order]
@@ -1337,6 +1754,7 @@ def main() -> int:
         integer_starts = integer_starts[unique_indices]
         centers = centers[unique_indices]
         eligible = eligible[unique_indices]
+        attributed_guide_indices = attributed_guide_indices[unique_indices]
         integer_node_lowers = None
         if enforce_hpwl:
             node_lowers = np.column_stack(
@@ -1383,11 +1801,27 @@ def main() -> int:
             integer_starts = integer_starts[selected]
             centers = centers[selected]
             eligible = eligible[selected]
+            attributed_guide_indices = attributed_guide_indices[selected]
             if integer_node_lowers is not None:
                 integer_node_lowers = integer_node_lowers[selected]
             hint_site_index = 0
             hint_site_indices[constraint.refdes] = hint_site_index
             single_site_fixed_refdes.append(constraint.refdes)
+
+        if coverage_domain_sha256 is not None:
+            candidate_coverage_components[constraint.refdes] = (
+                _candidate_coverage_component(
+                    constraint.refdes,
+                    coverage_domain_sha256,
+                    eligible,
+                    centers,
+                    attributed_guide_indices,
+                    guides,
+                    coordinate_units_per_mm=abs(
+                        float(context.alignment.scale)
+                    ),
+                )
+            )
 
         width = int(round((max_x - min_x) * integer_scale)) - 2 * interval_inset
         height = int(round((max_y - min_y) * integer_scale)) - 2 * interval_inset
@@ -1484,6 +1918,23 @@ def main() -> int:
         )
         candidate_count += len(centers)
         candidate_counts[constraint.refdes] = len(centers)
+
+    candidate_coverage_audit = (
+        _build_candidate_coverage_audit(
+            candidate_coverage_components,
+            guide_paths,
+            candidate_coverage_endpoints,
+            reference_audit=candidate_coverage_reference_audit,
+            reference_json=candidate_coverage_reference_path,
+            reference_sha256=candidate_coverage_reference_sha256,
+            coordinate_units_per_mm=abs(float(context.alignment.scale)),
+        )
+        if candidate_coverage_enabled
+        else {
+            "schema": CANDIDATE_COVERAGE_SCHEMA,
+            "enabled": False,
+        }
+    )
 
     diversity_audit, diversity_state = _add_diversity_constraints(
         model,
@@ -1856,6 +2307,7 @@ def main() -> int:
             "candidate_domain_overlap_model_exact": (
                 candidate_domain_overlap_model_exact
             ),
+            "candidate_coverage_audit": candidate_coverage_audit,
             "candidate_guide_support_audit": (
                 candidate_guide_support_audit
             ),
@@ -2033,6 +2485,7 @@ def main() -> int:
         "guide_json": guide_paths[0],
         "guide_jsons": guide_paths,
         "candidate_guide_weights": list(candidate_guide_weights),
+        "candidate_coverage_audit": candidate_coverage_audit,
         "candidate_guide_support_audit": candidate_guide_support_audit,
         "decision_strategy": decision_strategy,
         "hint_json": hint_json,
@@ -2112,6 +2565,15 @@ def main() -> int:
             else None
         ),
         "solver_parameters": {
+            "audit_candidate_coverage": candidate_coverage_enabled,
+            "candidate_coverage_nets": list(
+                candidate_coverage_net_names
+            ),
+            "candidate_coverage_reference_json": (
+                str(candidate_coverage_reference_path)
+                if candidate_coverage_reference_path is not None
+                else None
+            ),
             "hint_conflict_limit": hint_conflict_limit,
             "hint_guide_index": hint_guide_index,
             "hint_json": hint_json,

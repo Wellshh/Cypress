@@ -79,10 +79,16 @@ from greedy_exact_site_descent import (  # noqa: E402
 )
 from probe_exact_site_cpsat import (  # noqa: E402
     _add_diversity_constraints,
+    _build_candidate_coverage_audit,
+    _candidate_coverage_component,
+    _candidate_coverage_net_endpoints,
     _candidate_coordinate_mismatches,
+    _candidate_domain_fingerprint,
     _candidate_guide_support_audit,
     _candidate_guide_weights,
+    _candidate_set_comparison,
     _comma_separated_paths,
+    _comma_separated_values,
     _context_output_dir,
     _diversity_replay_audit,
     _effective_integer_hpwl_limit,
@@ -101,6 +107,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _set_model_objective,
     _solver_integer_hpwl_by_net,
     _weighted_candidate_order,
+    _weighted_candidate_selection,
 )
 from score_exact_site_result import (  # noqa: E402
     _manual_baseline_endpoints,
@@ -109,6 +116,9 @@ from score_exact_site_result import (  # noqa: E402
 from exact_site_checkpoint import (  # noqa: E402
     export_checkpoint,
     resolve_result_path,
+)
+from candidate_coverage_checkpoint import (  # noqa: E402
+    export_candidate_coverage,
 )
 from build_hybrid_guide import build_hybrid_guide  # noqa: E402
 from dreamplace.constraints.region_projection import (  # noqa: E402
@@ -302,6 +312,88 @@ class M336BaselineTest(unittest.TestCase):
                     "quality-guide.json",
                 },
             )
+
+    def test_candidate_coverage_export_is_portable_and_immutable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.json"
+            assignment = root / "assignment.json"
+            current_guide = root / "current-guide.json"
+            target_guide = root / "target-guide.json"
+            result_path = root / "result.json"
+            for path in (source, assignment, current_guide, target_guide):
+                path.write_text("{}\n")
+
+            guides = [{"A": [0.0, 0.0]}, {"A": [1.0, 0.0]}]
+            indices = np.asarray([10, 11])
+            centers = np.asarray([[0.0, 0.0], [1.0, 0.0]])
+            component = _candidate_coverage_component(
+                "A",
+                _candidate_domain_fingerprint(indices, centers),
+                indices,
+                centers,
+                np.asarray([0, 1]),
+                guides,
+            )
+            audit = _build_candidate_coverage_audit(
+                {"A": component},
+                [str(current_guide), str(target_guide)],
+                {"N": ["A"]},
+            )
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "candidate_domain_overlap_model_exact": True,
+                        "candidate_coverage_audit": audit,
+                        "source_json": str(source),
+                        "assignment_json": str(assignment),
+                        "guide_jsons": [
+                            str(current_guide),
+                            str(target_guide),
+                        ],
+                        "hint_json": str(source),
+                        "grid_mm": 0.05,
+                        "packing_side": "BOTH",
+                        "manual_baseline_endpoints": ["EMI601"],
+                        "candidate_limit": 2,
+                        "expanded_candidate_limit": 0,
+                        "expanded_refdes": [],
+                        "candidate_guide_weights": [1, 1],
+                        "fix_guide": True,
+                        "movable_refdes": ["A"],
+                        "integer_scale": 1_000_000,
+                        "interval_inset": 1,
+                        "nonrect_mode": "exact",
+                        "candidate_count": 2,
+                        "candidate_counts": {"A": 2},
+                    }
+                )
+            )
+            output = root / "coverage.json"
+            checkpoint = export_candidate_coverage(
+                result_path, output, repository_root=root
+            )
+            persisted = json.loads(output.read_text())
+
+            self.assertEqual(
+                checkpoint["schema"],
+                "m336_candidate_coverage_checkpoint_v1",
+            )
+            self.assertEqual(
+                persisted["contract"]["guides"][0]["path"],
+                "current-guide.json",
+            )
+            self.assertEqual(
+                persisted["candidate_coverage_audit"]["guides"][1][
+                    "guide_json"
+                ],
+                "target-guide.json",
+            )
+            self.assertEqual(output.stat().st_mode & 0o777, 0o644)
+            with self.assertRaises(FileExistsError):
+                export_candidate_coverage(
+                    result_path, output, repository_root=root
+                )
 
     def test_manual_endpoint_metadata_supports_legacy_model_field(self):
         self.assertEqual(
@@ -801,6 +893,135 @@ class M336BaselineTest(unittest.TestCase):
             5,
         )
         np.testing.assert_array_equal(deduplicated, [0, 3, 4, 1, 2])
+
+        selected, attributed = _weighted_candidate_selection(
+            (np.asarray([0, 1, 2]), np.asarray([0, 3, 4])),
+            (1, 2),
+            5,
+        )
+        np.testing.assert_array_equal(selected, [0, 3, 4, 1, 2])
+        np.testing.assert_array_equal(attributed, [0, 1, 1, 0, 0])
+
+    def test_candidate_coverage_is_exact_and_comparable(self):
+        domain_indices = np.asarray([10, 11, 12])
+        domain_centers = np.asarray([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]])
+        domain_sha = _candidate_domain_fingerprint(
+            domain_indices, domain_centers
+        )
+        self.assertEqual(
+            domain_sha,
+            _candidate_domain_fingerprint(
+                domain_indices.copy(), domain_centers.copy()
+            ),
+        )
+        self.assertNotEqual(
+            domain_sha,
+            _candidate_domain_fingerprint(
+                domain_indices, domain_centers + np.asarray([0.0, 1.0])
+            ),
+        )
+
+        guides = [
+            {"A": [0.0, 0.0], "B": [10.0, 0.0]},
+            {"A": [2.0, 0.0], "B": [12.0, 0.0]},
+        ]
+        components = {
+            "A": _candidate_coverage_component(
+                "A",
+                domain_sha,
+                domain_indices[[0, 2]],
+                domain_centers[[0, 2]],
+                np.asarray([0, 1]),
+                guides,
+                coordinate_units_per_mm=2.0,
+            ),
+            "B": _candidate_coverage_component(
+                "B",
+                domain_sha,
+                domain_indices[[0, 1]],
+                np.asarray([[10.0, 0.0], [11.0, 0.0]]),
+                np.asarray([0, 0]),
+                guides,
+                coordinate_units_per_mm=2.0,
+            ),
+        }
+        audit = _build_candidate_coverage_audit(
+            components,
+            ["current.json", "target.json"],
+            {"N": ["A", "B"]},
+            coordinate_units_per_mm=2.0,
+        )
+        self.assertEqual(audit["candidate_count"], 4)
+        self.assertEqual(
+            [row["attributed_candidate_count"] for row in audit["guides"]],
+            [3, 1],
+        )
+        endpoint = audit["net_endpoint_coverage"][0]
+        self.assertEqual(endpoint["endpoint_refdes"], ["A", "B"])
+        self.assertEqual(
+            endpoint["guides"][1]["exact_target_endpoint_count"], 1
+        )
+        self.assertEqual(
+            endpoint["guides"][1]["maximum_target_distance_mm"], 0.5
+        )
+
+        comparison = _candidate_set_comparison(components, audit)
+        self.assertEqual(comparison["jaccard"], 1.0)
+        changed = copy.deepcopy(components)
+        changed["A"] = _candidate_coverage_component(
+            "A",
+            domain_sha,
+            domain_indices[[0, 1]],
+            domain_centers[[0, 1]],
+            np.asarray([0, 1]),
+            guides,
+            coordinate_units_per_mm=2.0,
+        )
+        comparison = _candidate_set_comparison(changed, audit)
+        self.assertEqual(comparison["intersection_count"], 3)
+        self.assertEqual(comparison["union_count"], 5)
+        self.assertEqual(comparison["jaccard"], 0.6)
+
+        incompatible = copy.deepcopy(components)
+        incompatible["A"]["domain_sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "domain changed"):
+            _candidate_set_comparison(incompatible, audit)
+
+    def test_candidate_coverage_net_endpoints_are_unique_and_scoped(self):
+        placedb = SimpleNamespace(
+            net_names=[b"N1", b"N2"],
+            net2pin_map=[np.asarray([0, 1]), np.asarray([2])],
+            pin2node_map=np.asarray([0, 1, 2]),
+        )
+        constraints = [
+            SimpleNamespace(node_id=0, refdes="A"),
+            SimpleNamespace(node_id=1, refdes="B"),
+            SimpleNamespace(node_id=2, refdes="C"),
+        ]
+        self.assertEqual(
+            _candidate_coverage_net_endpoints(
+                placedb, constraints, ["N1"], ["A"]
+            ),
+            {"N1": ["A"]},
+        )
+        with self.assertRaisesRegex(ValueError, "must resolve uniquely"):
+            _candidate_coverage_net_endpoints(
+                placedb, constraints, ["missing"], ["A"]
+            )
+        with self.assertRaisesRegex(ValueError, "must be unique"):
+            _candidate_coverage_net_endpoints(
+                placedb, constraints, ["N1", "N1"], ["A"]
+            )
+
+    def test_candidate_coverage_values_are_strict(self):
+        self.assertEqual(
+            _comma_separated_values("VSIM2,SIM_DET1", "nets"),
+            ("VSIM2", "SIM_DET1"),
+        )
+        with self.assertRaisesRegex(ValueError, "empty value"):
+            _comma_separated_values("VSIM2,", "nets")
+        with self.assertRaisesRegex(ValueError, "must be unique"):
+            _comma_separated_values("VSIM2,VSIM2", "nets")
 
     def test_greedy_pair_hpwl_recomputes_joint_net_extrema(self):
         placedb = SimpleNamespace(

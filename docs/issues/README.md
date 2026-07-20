@@ -148,6 +148,7 @@ append-only audit ledger.
 | [M336-134](M336-134-d6-rank11-two-nogood-degeneracy.md) | Critical | Mitigated | Two exact no-goods find a third optimum that closes to the same one-opt bytes |
 | [M336-135](M336-135-d6-rank11-three-nogood-degeneracy.md) | Critical | Mitigated | Three exact no-goods find a fourth tuple with reused support but distinct sites |
 | [M336-136](M336-136-five-rank11-closure-collapse.md) | Critical | Mitigated | Five distinct rank-11 tuples collapse to one closure state and trigger a coverage pivot |
+| [M336-137](M336-137-candidate-coverage-audit.md) | Critical | Mitigated | Exact candidate auditing exposes missing DATA2 targets despite full guide allocation |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
