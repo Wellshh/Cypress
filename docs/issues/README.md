@@ -180,6 +180,7 @@ append-only audit ledger.
 | [M336-167](M336-167-anchor-signal-misses-50-step-gate.md) | High | Mitigated | Optimistic geometric floors close ratio tuning and expose a native step-scale blocker |
 | [M336-168](M336-168-anchor-adam-step-scale-below-gate.md) | Critical | Open | Scale 2 doubles native motion but hits the M336-163 overlap stop condition |
 | [M336-169](M336-169-legacy-macro-overlap-zero-contact-gradient.md) | Critical | Open | Legacy macro-overlap has zero contact gradient and negligible shallow-collision force |
+| [M336-170](M336-170-exact-accepted-step-overlap-guard-missing.md) | Critical | Open | Native optimizer records exact overlaps only after accepting the crossing step |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
