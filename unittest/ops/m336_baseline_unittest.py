@@ -116,7 +116,13 @@ from score_exact_site_result import (  # noqa: E402
     _native_evaluation_config,
     _require_objective_replay_audit,
 )
-from run_matrix import parse_native_execution  # noqa: E402
+from run_matrix import (  # noqa: E402
+    EXPERIMENTS,
+    _configured_anchor_control,
+    parse_anchor_weight_updates,
+    parse_native_execution,
+    parse_weight_diagnostics,
+)
 from exact_site_checkpoint import (  # noqa: E402
     export_checkpoint,
     resolve_result_path,
@@ -186,6 +192,65 @@ def make_geometry(top_center=(0, 0), bottom_center=(100000, 0)):
 
 
 class M336BaselineTest(unittest.TestCase):
+    def test_anchor_control_preserves_legacy_scale_semantics(self):
+        self.assertEqual(
+            _configured_anchor_control({"anchor_loss_weight_scale": 2.0}, 0.1),
+            ("anchor_weight_scale", 2.0),
+        )
+        self.assertEqual(
+            _configured_anchor_control(
+                {
+                    "anchor_loss_weight_scale": 2.0,
+                    "anchor_gradient_ratio": 0.25,
+                },
+                0.1,
+            ),
+            ("anchor_gradient_ratio", 0.25),
+        )
+
+    def test_e2_e3_contract_isolates_anchor_loss(self):
+        differing_fields = {
+            field
+            for field in EXPERIMENTS["E2"]
+            if EXPERIMENTS["E2"][field] != EXPERIMENTS["E3"][field]
+        }
+
+        self.assertEqual(differing_fields, {"name", "anchor_loss"})
+
+    def test_anchor_weight_updates_parse_structured_diagnostics(self):
+        first = {
+            "iteration": 0,
+            "wirelength_gradient_l1": 20.0,
+            "anchor_gradient_l1": 2.0,
+            "anchor_loss": 0.5,
+            "raw_weight": 1.0,
+            "bounded_weight": 1.0,
+            "ema_weight": 1.0,
+            "ramp": 0.0,
+            "effective_weight": 0.0,
+            "effective_ratio": 0.0,
+        }
+        second = dict(
+            first,
+            iteration=1,
+            ramp=0.5,
+            effective_weight=0.5,
+            effective_ratio=0.05,
+        )
+        log_text = "\n".join(
+            "anchor weight update: %s" % json.dumps(update, sort_keys=True)
+            for update in (first, second)
+        )
+
+        updates = parse_anchor_weight_updates(log_text)
+        diagnostics = parse_weight_diagnostics(log_text, "anchor loss", 0.1)
+
+        self.assertEqual(updates, [first, second])
+        self.assertEqual(diagnostics["configured_target_ratio"], 0.1)
+        self.assertEqual(diagnostics["matched_weight"], 0.5)
+        self.assertEqual(diagnostics["effective_ratio"], 0.05)
+        self.assertEqual(diagnostics["update_count"], 2)
+
     def test_native_execution_summary_is_fail_closed(self):
         evidence = parse_native_execution(
             "native execution summary: "

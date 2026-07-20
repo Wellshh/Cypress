@@ -31,6 +31,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pdb
 import gzip
+import json
 import math
 
 if sys.version_info[0] < 3:
@@ -51,6 +52,7 @@ import dreamplace.ops.nctugr_binary.nctugr_binary as nctugr_binary
 import dreamplace.ops.adjust_node_area.adjust_node_area as adjust_node_area
 import dreamplace.ops.macro_overlap.macro_overlap as macro_overlap
 import dreamplace.ops.macro_refinement.macro_refinement as macro_refinement
+from dreamplace.ops.anchor_keepin.anchor_keepin import AdaptiveAnchorWeight
 
 
 class PreconditionOp:
@@ -229,7 +231,30 @@ class PlaceObj(nn.Module):
         self.data_collections = data_collections
         self.op_collections = op_collections
         self.global_place_params = global_place_params
-        self.anchor_loss_weight = None
+        self.anchor_weight_controller = None
+        self.anchor_weight_updates = []
+        self._anchor_last_losses = None
+        if params.anchor_loss_flag:
+            self.register_buffer(
+                "anchor_loss_weight", data_collections.pos[0].new_zeros(())
+            )
+            self.anchor_weight_controller = AdaptiveAnchorWeight(
+                target_ratio=getattr(params, "anchor_gradient_ratio", 0.1),
+                update_interval=getattr(
+                    params, "anchor_weight_update_interval", 5
+                ),
+                ema_decay=getattr(params, "anchor_weight_ema_decay", 0.8),
+                min_weight=getattr(params, "anchor_weight_min", 0.0),
+                max_weight=getattr(params, "anchor_weight_max", 5000.0),
+                warmup_iterations=getattr(
+                    params, "anchor_weight_warmup_iterations", 2
+                ),
+                ramp_iterations=getattr(
+                    params, "anchor_weight_ramp_iterations", 10
+                ),
+            )
+        else:
+            self.anchor_loss_weight = None
         self.keepin_soft_loss_weight = None
         self.backward_call_count = 0
         self._backward_evidence_logged = False
@@ -475,6 +500,63 @@ class PlaceObj(nn.Module):
         logging.info("%s initial value = %.6E", label, loss.detach().item())
         return weight.detach()
 
+    def update_anchor_weight(self, pos, iteration):
+        """Update the anchor weight once at an explicit descent boundary."""
+        controller = self.anchor_weight_controller
+        if controller is None:
+            return None
+        refreshed = controller.needs_gradient_refresh(iteration)
+        if refreshed:
+            wirelength = self.op_collections.wirelength_op(pos)
+            anchor_loss = self.op_collections.anchor_loss_op(pos)
+            wirelength_grad = torch.autograd.grad(wirelength, pos)[0]
+            anchor_grad = torch.autograd.grad(anchor_loss, pos)[0]
+            coordinate_ids = self.op_collections.anchor_loss_op.coordinate_ids
+            wirelength_gradient_l1 = (
+                wirelength_grad.index_select(0, coordinate_ids)
+                .abs()
+                .sum()
+                .detach()
+                .item()
+            )
+            anchor_gradient_l1 = (
+                anchor_grad.index_select(0, coordinate_ids)
+                .abs()
+                .sum()
+                .detach()
+                .item()
+            )
+            self._anchor_last_losses = (
+                wirelength.detach().item(),
+                anchor_loss.detach().item(),
+            )
+        else:
+            wirelength_gradient_l1 = None
+            anchor_gradient_l1 = None
+        diagnostics = controller.step(
+            iteration,
+            wirelength_gradient_l1=wirelength_gradient_l1,
+            anchor_gradient_l1=anchor_gradient_l1,
+            epsilon=torch.finfo(pos.dtype).eps,
+        )
+        diagnostics["wirelength_loss"] = self._anchor_last_losses[0]
+        diagnostics["anchor_loss"] = self._anchor_last_losses[1]
+        with torch.no_grad():
+            self.anchor_loss_weight.fill_(diagnostics["effective_weight"])
+        self.anchor_weight_updates.append(diagnostics)
+        logging.info(
+            "anchor loss weight = %.6E (wirelength |grad|_1=%.6E, "
+            "constraint |grad|_1=%.6E)",
+            diagnostics["effective_weight"],
+            diagnostics["wirelength_gradient_l1"],
+            diagnostics["anchor_gradient_l1"],
+        )
+        logging.info(
+            "anchor weight update: %s",
+            json.dumps(diagnostics, sort_keys=True),
+        )
+        return diagnostics
+
     def obj_fn(self, pos, orient_logits=None):
         """
         @brief Compute objective.
@@ -517,13 +599,6 @@ class PlaceObj(nn.Module):
 
         if self.params.anchor_loss_flag:
             self.anchor_loss = self.op_collections.anchor_loss_op(pos)
-            if self.anchor_loss_weight is None:
-                self.anchor_loss_weight = self._gradient_matched_weight(
-                    pos,
-                    self.anchor_loss,
-                    self.params.anchor_loss_weight_scale,
-                    "anchor loss",
-                )
             result = result + self.anchor_loss_weight * self.anchor_loss
 
         if self.params.keepin_soft_loss_flag:

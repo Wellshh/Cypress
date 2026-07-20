@@ -85,7 +85,7 @@ EXPERIMENTS = {
         "name": "keepin_only",
         "anchor_loss": False,
         "projection": True,
-        "soft_loss": False,
+        "soft_loss": True,
         "repair": False,
         "freeze_anchors": True,
         "integrated_context": True,
@@ -281,7 +281,7 @@ def placement_config(
     seed,
     iterations,
     gpu,
-    anchor_weight,
+    anchor_gradient_ratio,
     grid_mm,
     clearance_mm,
     margin_mm,
@@ -342,7 +342,7 @@ def placement_config(
                 "anchor_keepin_config": str(constraint_path.resolve()),
                 "anchor_keepin_flag": True,
                 "anchor_loss_flag": spec["anchor_loss"],
-                "anchor_loss_weight_scale": anchor_weight,
+                "anchor_gradient_ratio": anchor_gradient_ratio,
                 "keepin_soft_loss_flag": spec["soft_loss"],
                 "keepin_soft_loss_weight_scale": 1.0,
                 "keepin_projection_flag": spec["projection"],
@@ -444,11 +444,47 @@ def parse_native_execution(log_text):
 
 
 def parse_weight(log_text, label):
-    match = re.search(r"%s weight = ([0-9.Ee+-]+)" % re.escape(label), log_text)
-    return float(match.group(1)) if match else None
+    matches = re.findall(
+        r"%s weight = ([0-9.Ee+-]+)" % re.escape(label), log_text
+    )
+    return float(matches[-1]) if matches else None
+
+
+def parse_anchor_weight_updates(log_text):
+    return [
+        json.loads(match)
+        for match in re.findall(r"anchor weight update: (\{.*\})", log_text)
+    ]
+
+
+def _configured_anchor_control(config, default_ratio):
+    if "anchor_gradient_ratio" in config:
+        return "anchor_gradient_ratio", float(config["anchor_gradient_ratio"])
+    if "anchor_loss_weight_scale" in config:
+        return "anchor_weight_scale", float(config["anchor_loss_weight_scale"])
+    return "anchor_gradient_ratio", float(default_ratio)
 
 
 def parse_weight_diagnostics(log_text, label, configured_scale):
+    if label == "anchor loss":
+        updates = parse_anchor_weight_updates(log_text)
+        if updates:
+            latest = updates[-1]
+            return {
+                "configured_target_ratio": float(configured_scale),
+                "matched_weight": latest["effective_weight"],
+                "wirelength_gradient_l1": latest[
+                    "wirelength_gradient_l1"
+                ],
+                "constraint_gradient_l1": latest["anchor_gradient_l1"],
+                "initial_loss": updates[0]["anchor_loss"],
+                "effective_ratio": latest["effective_ratio"],
+                "raw_weight": latest["raw_weight"],
+                "bounded_weight": latest["bounded_weight"],
+                "ema_weight": latest["ema_weight"],
+                "ramp": latest["ramp"],
+                "update_count": len(updates),
+            }
     pattern = (
         r"%s weight = ([0-9.Ee+-]+) "
         r"\(wirelength \|grad\|_1=([0-9.Ee+-]+), "
@@ -551,7 +587,7 @@ def score_manual_baseline(args):
         args.seeds[0],
         0,
         args.gpu,
-        args.anchor_weight,
+        args.anchor_gradient_ratio,
         args.grid_mm,
         args.clearance_mm,
         args.keepin_margin_mm,
@@ -634,10 +670,20 @@ def score_manual_baseline(args):
     return result
 
 
-def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
+def run_one(
+    args,
+    experiment_id,
+    seed,
+    output_dir=None,
+    anchor_gradient_ratio=None,
+):
     spec = EXPERIMENTS[experiment_id]
     output_dir = output_dir or args.output_dir
-    anchor_weight = args.anchor_weight if anchor_weight is None else anchor_weight
+    anchor_gradient_ratio = (
+        args.anchor_gradient_ratio
+        if anchor_gradient_ratio is None
+        else anchor_gradient_ratio
+    )
     run_dir = output_dir / experiment_id / ("seed_%d" % seed)
     result_path = run_dir / "run-result.json"
     if args.reevaluate:
@@ -659,21 +705,29 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         ]
         result["metrics"]["per_group"] = legality["per_group"]
         log_text = (run_dir / "m336" / "DREAMPlace.log").read_text()
-        effective_weight = float(
-            config.get("anchor_loss_weight_scale", anchor_weight)
+        anchor_control_key, configured_anchor_control = (
+            _configured_anchor_control(config, anchor_gradient_ratio)
         )
         result["metrics"]["matched_anchor_weight"] = parse_weight(
             log_text, "anchor loss"
         )
         result["metrics"]["anchor_loss_diagnostics"] = parse_weight_diagnostics(
-            log_text, "anchor loss", effective_weight
+            log_text, "anchor loss", configured_anchor_control
         )
         result["metrics"]["soft_keepin_loss_diagnostics"] = (
             parse_weight_diagnostics(log_text, "soft keep-in loss", 1.0)
         )
         result["metrics"]["native_execution"] = parse_native_execution(log_text)
+        result["metrics"]["anchor_weight_updates"] = (
+            parse_anchor_weight_updates(log_text)
+        )
         result["legality"] = legality_summary(legality)
-        result["anchor_weight_scale"] = effective_weight
+        if anchor_control_key == "anchor_gradient_ratio":
+            result[anchor_control_key] = configured_anchor_control
+            result.pop("anchor_weight_scale", None)
+        else:
+            result[anchor_control_key] = configured_anchor_control
+            result.pop("anchor_gradient_ratio", None)
         result["constraint_grid_mm"] = float(args.grid_mm)
         result["keepin_clearance_mm"] = float(args.clearance_mm)
         result["keepin_margin_mm"] = float(
@@ -742,7 +796,7 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         seed,
         args.iterations,
         args.gpu,
-        anchor_weight,
+        anchor_gradient_ratio,
         args.grid_mm,
         args.clearance_mm,
         args.keepin_margin_mm,
@@ -792,10 +846,10 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
     write_per_group_csv(run_dir / "per_group.csv", legality["per_group"])
 
     result = {
-        "run_id": "%s-aw-%s-margin-%s-seed-%d"
+        "run_id": "%s-ar-%s-margin-%s-seed-%d"
         % (
             experiment_id.lower(),
-            format(anchor_weight, "g"),
+            format(anchor_gradient_ratio, "g"),
             format(args.keepin_margin_mm, "g"),
             seed,
         ),
@@ -803,7 +857,7 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
         "experiment_id": experiment_id,
         "experiment_name": spec["name"],
         "seed": seed,
-        "anchor_weight_scale": float(anchor_weight),
+        "anchor_gradient_ratio": float(anchor_gradient_ratio),
         "constraint_grid_mm": float(args.grid_mm),
         "keepin_clearance_mm": float(args.clearance_mm),
         "keepin_margin_mm": float(args.keepin_margin_mm),
@@ -846,12 +900,13 @@ def run_one(args, experiment_id, seed, output_dir=None, anchor_weight=None):
             "total_projected_nodes": legality.get("total_projected_nodes", 0),
             "matched_anchor_weight": parse_weight(log_text, "anchor loss"),
             "anchor_loss_diagnostics": parse_weight_diagnostics(
-                log_text, "anchor loss", anchor_weight
+                log_text, "anchor loss", anchor_gradient_ratio
             ),
             "soft_keepin_loss_diagnostics": parse_weight_diagnostics(
                 log_text, "soft keep-in loss", 1.0
             ),
             "native_execution": parse_native_execution(log_text),
+            "anchor_weight_updates": parse_anchor_weight_updates(log_text),
         },
         "legality": legality_summary(legality),
         "artifacts": stable_artifacts(run_dir, placement_dir, legality_path),
@@ -940,19 +995,25 @@ def aggregate(results, baseline=None):
     return rows, comparisons
 
 
+def _result_anchor_gradient_ratio(result):
+    if "anchor_gradient_ratio" in result:
+        return float(result["anchor_gradient_ratio"])
+    return float(result["anchor_weight_scale"])
+
+
 def aggregate_weight_sweep(results):
     rows = {}
-    weights = sorted({float(row["anchor_weight_scale"]) for row in results})
+    ratios = sorted({_result_anchor_gradient_ratio(row) for row in results})
     experiments = sorted({row["experiment_id"] for row in results})
-    for weight in weights:
-        weight_key = format(weight, "g")
-        rows[weight_key] = {}
+    for ratio in ratios:
+        ratio_key = format(ratio, "g")
+        rows[ratio_key] = {}
         for experiment_id in experiments:
             selected = [
                 row
                 for row in results
                 if row["experiment_id"] == experiment_id
-                and float(row["anchor_weight_scale"]) == weight
+                and _result_anchor_gradient_ratio(row) == ratio
             ]
             if not selected:
                 continue
@@ -961,7 +1022,7 @@ def aggregate_weight_sweep(results):
                 for row in selected
                 if row["metrics"].get("anchor_loss_diagnostics")
             ]
-            rows[weight_key][experiment_id] = {
+            rows[ratio_key][experiment_id] = {
                 "run_count": len(selected),
                 "hpwl_mean": statistics.mean(
                     row["metrics"]["hpwl"] for row in selected
@@ -1360,13 +1421,13 @@ def render_report(summary):
         lines.extend(
             [
                 "",
-                "## Weight Sweep",
+                "## Anchor Gradient-Ratio Sweep",
                 "",
                 "Artifact: `%s`" % sweep["artifact"],
                 "Seeds: `%s`; iterations: `%d`."
                 % (", ".join(map(str, sweep["seeds"])), sweep["iterations"]),
                 "",
-                "| Scale | Run | Runs | Matched lambda | HPWL | Mean mm | P90 mm | Violations |",
+                "| Target ratio | Run | Runs | Effective lambda | HPWL | Mean mm | P90 mm | Violations |",
                 "|---:|---|---:|---:|---:|---:|---:|---:|",
             ]
         )
@@ -1433,7 +1494,7 @@ def render_report(summary):
 
 def render_weight_sweep_report(summary):
     lines = [
-        "# M336 Anchor Weight Sweep",
+        "# M336 Anchor Gradient-Ratio Sweep",
         "",
         "- Git SHA: `%s`" % summary["git_sha"],
         "- Seeds: `%s`" % ", ".join(map(str, summary["seeds"])),
@@ -1443,7 +1504,7 @@ def render_weight_sweep_report(summary):
         "",
         "## Results",
         "",
-        "| Scale | Run | Runs | Matched lambda | HPWL | Mean mm | P90 mm | Keep-in | Overlaps | Runtime s |",
+        "| Target ratio | Run | Runs | Effective lambda | HPWL | Mean mm | P90 mm | Keep-in | Overlaps | Runtime s |",
         "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for weight, experiments in summary["aggregate"].items():
@@ -1508,11 +1569,19 @@ def reproduction_command(args, weights=None):
     ]
     if weights:
         command.extend(
-            ["--anchor-weight-sweep", *(format(weight, "g") for weight in weights)]
+            [
+                "--anchor-gradient-ratio-sweep",
+                *(format(weight, "g") for weight in weights),
+            ]
         )
         command.extend(["--sweep-output-dir", repo_path(args.sweep_output_dir)])
     else:
-        command.extend(["--anchor-weight", format(args.anchor_weight, "g")])
+        command.extend(
+            [
+                "--anchor-gradient-ratio",
+                format(args.anchor_gradient_ratio, "g"),
+            ]
+        )
         command.extend(["--output-dir", repo_path(args.output_dir)])
     visible_devices = shlex.quote(
         os.environ.get("CUDA_VISIBLE_DEVICES") or "<physical-gpu>"
@@ -1554,8 +1623,20 @@ def main():
         type=Path,
         default=REPO_ROOT / "results/m336/baseline",
     )
-    parser.add_argument("--anchor-weight", type=float, default=1.0)
-    parser.add_argument("--anchor-weight-sweep", nargs="+", type=float)
+    parser.add_argument(
+        "--anchor-gradient-ratio",
+        "--anchor-weight",
+        dest="anchor_gradient_ratio",
+        type=float,
+        default=0.1,
+    )
+    parser.add_argument(
+        "--anchor-gradient-ratio-sweep",
+        "--anchor-weight-sweep",
+        dest="anchor_gradient_ratio_sweep",
+        nargs="+",
+        type=float,
+    )
     parser.add_argument(
         "--sweep-output-dir",
         type=Path,
@@ -1593,18 +1674,21 @@ def main():
     ):
         parser.error("assignment, installed placer, and baseline geometry must exist")
     if (
-        args.anchor_weight <= 0
+        args.anchor_gradient_ratio <= 0
         or args.grid_mm <= 0
         or args.clearance_mm < 0
         or args.keepin_margin_mm < 0
         or args.keepin_margin_tau_mm <= 0
         or args.site_mm <= 0
     ):
-        parser.error("weights/grid must be positive and clearance non-negative")
-    if args.anchor_weight_sweep and any(
-        weight <= 0 for weight in args.anchor_weight_sweep
+        parser.error(
+            "anchor ratio, grid, margin tau, and site size must be positive; "
+            "clearance and margin must be non-negative"
+        )
+    if args.anchor_gradient_ratio_sweep and any(
+        ratio <= 0 for ratio in args.anchor_gradient_ratio_sweep
     ):
-        parser.error("all sweep weights must be positive")
+        parser.error("all anchor gradient-ratio sweep values must be positive")
 
     args.baseline_manifest = prepare_manual_baseline_assets(
         REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json",
@@ -1623,15 +1707,15 @@ def main():
     results = []
     invocation = " ".join([sys.executable, *sys.argv])
     validation = optional_json(args.validation_path)
-    if args.anchor_weight_sweep:
-        weights = sorted(set(args.anchor_weight_sweep))
-        for weight in weights:
-            weight_dir = args.sweep_output_dir / ("scale_%s" % format(weight, "g"))
+    if args.anchor_gradient_ratio_sweep:
+        ratios = sorted(set(args.anchor_gradient_ratio_sweep))
+        for ratio in ratios:
+            ratio_dir = args.sweep_output_dir / ("ratio_%s" % format(ratio, "g"))
             for experiment_id in args.experiments:
                 for seed in args.seeds:
                     print(
-                        "running %s weight %g seed %d"
-                        % (experiment_id, weight, seed),
+                        "running %s anchor gradient ratio %g seed %d"
+                        % (experiment_id, ratio, seed),
                         flush=True,
                     )
                     results.append(
@@ -1639,12 +1723,12 @@ def main():
                             args,
                             experiment_id,
                             seed,
-                            output_dir=weight_dir,
-                            anchor_weight=weight,
+                            output_dir=ratio_dir,
+                            anchor_gradient_ratio=ratio,
                         )
                     )
         summary = {
-            "schema": "m336_anchor_weight_sweep_v1",
+            "schema": "m336_anchor_gradient_ratio_sweep_v2",
             "git_sha": git_sha(),
             "source_state": args.source_identity,
             "environment": args.environment_identity,
@@ -1652,13 +1736,13 @@ def main():
             "experiments": args.experiments,
             "seeds": args.seeds,
             "iterations": args.iterations,
-            "anchor_weight_scales": weights,
+            "anchor_gradient_ratios": ratios,
             "constraint_grid_mm": args.grid_mm,
             "keepin_clearance_mm": args.clearance_mm,
             "keepin_margin_mm": args.keepin_margin_mm,
             "keepin_margin_tau_mm": args.keepin_margin_tau_mm,
             "invocation": invocation,
-            "reproduction_command": reproduction_command(args, weights),
+            "reproduction_command": reproduction_command(args, ratios),
             "manual_baseline": args.manual_baseline,
             "runs": results,
             "aggregate": aggregate_weight_sweep(results),

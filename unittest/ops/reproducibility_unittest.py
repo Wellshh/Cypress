@@ -21,6 +21,7 @@ from dreamplace.PlaceObj import PlaceObj
 from dreamplace.Placer import seed_all
 from dreamplace.BasicPlace import load_initial_placement
 from dreamplace.constraints.region_projection import zero_optimizer_state
+from dreamplace.ops.anchor_keepin.anchor_keepin import AdaptiveAnchorWeight
 from tuner.tuner_worker import AutoDMPWorker
 
 
@@ -57,6 +58,71 @@ class ReproducibilityTest(unittest.TestCase):
         self.assertTrue(torch.equal(pos.detach(), original))
         self.assertTrue(torch.equal(first_objective, second_objective))
         self.assertTrue(torch.equal(first_gradient, second_gradient))
+
+    def test_anchor_weight_refresh_is_explicit_and_position_pure(self):
+        model = PlaceObj.__new__(PlaceObj)
+        torch.nn.Module.__init__(model)
+        model.anchor_weight_controller = AdaptiveAnchorWeight(
+            target_ratio=0.1,
+            update_interval=5,
+            ema_decay=0.8,
+            min_weight=0.0,
+            max_weight=10.0,
+            warmup_iterations=0,
+            ramp_iterations=0,
+        )
+        model.anchor_weight_updates = []
+        model._anchor_last_losses = None
+        model.register_buffer("anchor_loss_weight", torch.zeros(()))
+
+        def anchor_loss(position):
+            return position[0].square()
+
+        anchor_loss.coordinate_ids = torch.tensor([0, 2])
+        model.op_collections = SimpleNamespace(
+            wirelength_op=lambda position: position.square().sum(),
+            anchor_loss_op=anchor_loss,
+        )
+        pos = torch.tensor([1.0, 2.0, 3.0, 4.0], requires_grad=True)
+        original = pos.detach().clone()
+
+        diagnostics = model.update_anchor_weight(pos, iteration=0)
+
+        self.assertTrue(torch.equal(pos.detach(), original))
+        self.assertEqual(len(model.anchor_weight_updates), 1)
+        self.assertAlmostEqual(diagnostics["wirelength_gradient_l1"], 8.0)
+        self.assertAlmostEqual(diagnostics["anchor_gradient_l1"], 2.0)
+        self.assertAlmostEqual(model.anchor_loss_weight.item(), 0.4)
+
+    def test_anchor_objective_does_not_refresh_weight(self):
+        model = PlaceObj.__new__(PlaceObj)
+        torch.nn.Module.__init__(model)
+        model.params = SimpleNamespace(
+            anchor_loss_flag=True,
+            keepin_soft_loss_flag=False,
+            macro_overlap_flag=False,
+        )
+        model.placedb = SimpleNamespace(regions=[])
+        model.op_collections = SimpleNamespace(
+            wirelength_op=lambda position: position.square().sum(),
+            two_side_density_op=lambda position: position.sum() * 0,
+            anchor_loss_op=lambda position: position.abs().mean(),
+        )
+        model.net_crossing_enabled = False
+        model.init_density = torch.tensor(1.0)
+        model.quad_penalty = False
+        model.density_weight = torch.tensor([0.0])
+        model.density_factor = 1.0
+        model.anchor_weight_updates = []
+        model.register_buffer("anchor_loss_weight", torch.tensor(0.25))
+        pos = torch.tensor([0.25, -0.5, 1.0, 2.0], requires_grad=True)
+
+        first = model.obj_fn(pos)
+        second = model.obj_fn(pos)
+
+        self.assertTrue(torch.equal(first, second))
+        self.assertEqual(model.anchor_weight_updates, [])
+        self.assertEqual(model.anchor_loss_weight.item(), 0.25)
 
     def test_learning_rate_candidate_is_explicitly_projected(self):
         model = SimpleNamespace(

@@ -2,6 +2,7 @@ import math
 import os
 import sys
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
@@ -34,6 +35,7 @@ from dreamplace.constraints.region_validation import (
     validate_placement,
 )
 from dreamplace.constraints.anchor_keepin import (
+    AnchorKeepInContext,
     _batch_overlap_metrics,
     _forward_check_rectangle_pack,
     _min_conflicts_pack,
@@ -42,7 +44,11 @@ from dreamplace.constraints.anchor_keepin import (
     _overlap_metrics,
     _pack_region,
 )
-from dreamplace.ops.anchor_keepin.anchor_keepin import AnchorKeepInLoss, SoftKeepInLoss
+from dreamplace.ops.anchor_keepin.anchor_keepin import (
+    AdaptiveAnchorWeight,
+    AnchorKeepInLoss,
+    SoftKeepInLoss,
+)
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -372,6 +378,140 @@ class AnchorKeepInTest(unittest.TestCase):
         loss_op(pos).backward()
         self.assertGreater(pos.grad[0].item(), 0.0)
         self.assertAlmostEqual(pos.grad[1].item(), 0.0)
+
+    def test_anchor_loss_retains_length_scale_after_normalization(self):
+        sizes = torch.zeros(1)
+        loss_op = AnchorKeepInLoss(
+            node_ids=[0],
+            target_centers=[[0.0, 0.0]],
+            node_size_x=sizes,
+            node_size_y=sizes,
+            num_nodes=1,
+            board_diagonal=10.0,
+        )
+
+        loss = loss_op(torch.tensor([1.0, 0.0]))
+
+        self.assertAlmostEqual(loss.item(), 0.05)
+
+    def test_anchor_loss_balances_side_specific_subgroups(self):
+        sizes = torch.zeros(4)
+        pos = torch.tensor([1.0, 0.0, 0.0, 0.0] + [0.0] * 4)
+        loss_op = AnchorKeepInLoss(
+            node_ids=[0, 1, 2, 3],
+            target_centers=[[0.0, 0.0]] * 4,
+            node_size_x=sizes,
+            node_size_y=sizes,
+            num_nodes=4,
+            board_diagonal=1.0,
+            group_ids=[
+                "small__top",
+                "large__bottom",
+                "large__bottom",
+                "large__bottom",
+            ],
+        )
+
+        self.assertAlmostEqual(loss_op(pos).item(), 0.25)
+        self.assertEqual(loss_op.group_labels, ("small__top", "large__bottom"))
+        self.assertTrue(
+            torch.equal(
+                loss_op.coordinate_ids,
+                torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]),
+            )
+        )
+
+    def test_anchor_loss_normalizes_member_weights_within_each_subgroup(self):
+        sizes = torch.zeros(3)
+        loss_op = AnchorKeepInLoss(
+            node_ids=[0, 1, 2],
+            target_centers=[[0.0, 0.0]] * 3,
+            node_size_x=sizes,
+            node_size_y=sizes,
+            num_nodes=3,
+            board_diagonal=1.0,
+            group_ids=["first__top", "second__bottom", "second__bottom"],
+            weights=[1.0, 1.0, 3.0],
+        )
+        pos = torch.tensor([1.0, 1.0, 0.0] + [0.0] * 3)
+
+        self.assertAlmostEqual(loss_op(pos).item(), 0.3125)
+
+    def test_context_excludes_frozen_and_fixed_anchor_coordinates(self):
+        domain = FeasibleDomain.build(box(0, 0, 2, 2), 0.5, 0.5, 0.1)
+        constraints = [
+            NodeConstraint(
+                node_id=node_id,
+                refdes="U%d" % node_id,
+                side="TOP",
+                group_id="G",
+                subgroup_id="G__top",
+                region_id="top_0",
+                domain=domain,
+                target_center=(0.5, 0.5),
+                node_width=0.5,
+                node_height=0.5,
+            )
+            for node_id in range(3)
+        ]
+        context = object.__new__(AnchorKeepInContext)
+        context.constraints = constraints
+        context.frozen_lower_left = {1: (0.0, 0.0)}
+        data_collections = SimpleNamespace(
+            node_size_x=torch.full((3,), 0.5),
+            node_size_y=torch.full((3,), 0.5),
+            pos=[torch.zeros(6)],
+        )
+        placedb = SimpleNamespace(
+            num_movable_nodes=2,
+            num_nodes=3,
+            xl=0.0,
+            yl=0.0,
+            xh=2.0,
+            yh=2.0,
+        )
+
+        loss_op = context.build_anchor_loss(data_collections, placedb)
+
+        self.assertTrue(torch.equal(loss_op.node_ids, torch.tensor([0])))
+        self.assertTrue(torch.equal(loss_op.coordinate_ids, torch.tensor([0, 3])))
+
+    def test_adaptive_anchor_weight_is_ramped_bounded_and_smoothed(self):
+        controller = AdaptiveAnchorWeight(
+            target_ratio=0.1,
+            update_interval=2,
+            ema_decay=0.5,
+            min_weight=1.0,
+            max_weight=10.0,
+            warmup_iterations=1,
+            ramp_iterations=2,
+        )
+
+        first = controller.step(0, 100.0, 1.0)
+        ramped = controller.step(1)
+        refreshed = controller.step(2, 10.0, 10.0)
+
+        self.assertTrue(first["gradient_refreshed"])
+        self.assertEqual(first["raw_weight"], 10.0)
+        self.assertEqual(first["effective_weight"], 0.0)
+        self.assertFalse(ramped["gradient_refreshed"])
+        self.assertEqual(ramped["effective_weight"], 5.0)
+        self.assertEqual(refreshed["bounded_weight"], 1.0)
+        self.assertEqual(refreshed["ema_weight"], 5.5)
+        self.assertEqual(refreshed["effective_weight"], 5.5)
+        self.assertLessEqual(refreshed["effective_weight"], 10.0)
+
+    def test_adaptive_anchor_weight_rejects_nonfinite_configuration(self):
+        with self.assertRaisesRegex(ValueError, "must be finite"):
+            AdaptiveAnchorWeight(
+                target_ratio=float("nan"),
+                update_interval=1,
+                ema_decay=0.5,
+                min_weight=0.0,
+                max_weight=10.0,
+                warmup_iterations=0,
+                ramp_iterations=1,
+            )
 
     def test_feature_flag_off_is_noop(self):
         pos = torch.tensor([-1.0, 3.0])

@@ -1648,17 +1648,33 @@ class AnchorKeepInContext:
             stream.write("\n")
 
     def build_anchor_loss(self, data_collections, placedb):
-        node_ids = [constraint.node_id for constraint in self.constraints]
-        targets = [constraint.target_center for constraint in self.constraints]
+        active_constraints = [
+            constraint
+            for constraint in self.constraints
+            if constraint.node_id < placedb.num_movable_nodes
+            and constraint.node_id not in self.frozen_lower_left
+        ]
+        node_ids = [constraint.node_id for constraint in active_constraints]
+        targets = [constraint.target_center for constraint in active_constraints]
+        subgroup_ids = [
+            constraint.subgroup_id for constraint in active_constraints
+        ]
         diagonal = math.hypot(placedb.xh - placedb.xl, placedb.yh - placedb.yl)
-        return AnchorKeepInLoss(
+        loss = AnchorKeepInLoss(
             node_ids=node_ids,
             target_centers=targets,
             node_size_x=data_collections.node_size_x,
             node_size_y=data_collections.node_size_y,
             num_nodes=placedb.num_nodes,
             board_diagonal=diagonal,
+            group_ids=subgroup_ids,
         ).to(data_collections.pos[0].device)
+        logging.info(
+            "anchor loss: %d active nodes in %d side-specific subgroups",
+            len(active_constraints),
+            len(loss.group_labels),
+        )
+        return loss
 
     def build_soft_loss(self, data_collections, placedb):
         loss = SoftKeepInLoss(

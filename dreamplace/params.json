@@ -336,8 +336,36 @@
         "default": false
     },
     "anchor_loss_weight_scale": {
-        "description": "scale applied to gradient-norm-matched anchor loss weight",
+        "description": "deprecated one-shot anchor scale; accepted but ignored by adaptive control",
         "default": 1.0
+    },
+    "anchor_gradient_ratio": {
+        "description": "target raw anchor-gradient to wirelength-gradient ratio",
+        "default": 0.1
+    },
+    "anchor_weight_update_interval": {
+        "description": "accepted iterations between anchor gradient-norm refreshes",
+        "default": 5
+    },
+    "anchor_weight_ema_decay": {
+        "description": "EMA decay for bounded anchor weight targets",
+        "default": 0.8
+    },
+    "anchor_weight_min": {
+        "description": "minimum full-ramp anchor loss weight",
+        "default": 0.0
+    },
+    "anchor_weight_max": {
+        "description": "maximum effective anchor loss weight",
+        "default": 5000.0
+    },
+    "anchor_weight_warmup_iterations": {
+        "description": "accepted iterations before anchor weight ramp begins",
+        "default": 2
+    },
+    "anchor_weight_ramp_iterations": {
+        "description": "accepted iterations used to ramp the anchor weight",
+        "default": 10
     },
     "anchor_keepin_initialization": {
         "description": "anchor/keep-in packing preference: anchor or current",

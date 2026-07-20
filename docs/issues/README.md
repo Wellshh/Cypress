@@ -155,6 +155,8 @@ append-only audit ledger.
 | [M336-142](M336-142-native-score-float-serialization.md) | Critical | Mitigated | Binary64 PL serialization and float64 native evaluation preserve exact legality and produce a repeated M336-118 native score |
 | [M336-143](M336-143-objective-projection-lifecycle.md) | Critical | Mitigated | Objective evaluation is position-pure; one explicit composite projector records proposals and safely resets Adam/SGD/Nesterov state |
 | [M336-144](M336-144-differentiable-interior-keepin-margin.md) | High | Mitigated | A GPU-differentiable footprint-aware interior margin reduces projection pressure but slightly regresses native quality |
+| [M336-145](M336-145-unbounded-static-anchor-weight.md) | High | Mitigated | Group-balanced bounded EMA control works, but isolated anchor gains remain far below the quality gate |
+| [M336-146](M336-146-e2-e3-margin-confound.md) | High | Mitigated | E2/E3 now share keep-in features and isolate anchor loss under a tested contract |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 

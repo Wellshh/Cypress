@@ -59,3 +59,14 @@ drops from `0.611492` to `0.609490`, so this is stabilization evidence, not a
 quality improvement. Retain `0.10 mm` as the diagnostic default while anchor
 weighting and irregular density are corrected; reassess it in the final E2/E3
 ablation.
+
+The 50-iteration hard-only E2 run under
+`results/m336/native-cypress/n2-anchor-rescaled-diagnostic-50/` and corrected
+margin-enabled E2 under
+`results/m336/native-cypress/n2-anchor-final-isolated-diagnostic-50/` provide the
+longer follow-up. Margin reduces projection events from `361` to `34`, maximum
+projection from `1.104043` to `0.698683`, overlap pairs from `85` to `65`, and
+overlap area from `8.581592` to `1.086227 mm2`. HPWL rises from `23781.199219`
+to `24188.187500` and RSMT from `25362.308594` to `25815.576172`. Retaining the
+term is justified by substantially lower projection and collision pressure,
+not by native quality; this tradeoff remains a final-matrix review item.
