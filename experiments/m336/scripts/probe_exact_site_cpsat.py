@@ -46,34 +46,39 @@ from solve_discrete_placement import (
 )
 
 
+def _resolved_path(value: str | Path) -> Path:
+    """Canonicalize external paths before they enter result metadata."""
+    return Path(value).expanduser().resolve()
+
+
 ROOT = Path(__file__).resolve().parents[3]
-SOURCE = Path(
+SOURCE = _resolved_path(
     os.environ.get(
         "M336_SOURCE_JSON",
         ROOT / "results/m336/grid01_restored_bottom_1024_replay/result.json",
     )
 )
-GUIDE = Path(
+GUIDE = _resolved_path(
     os.environ.get(
         "M336_GUIDE_JSON",
         ROOT / "results/m336/discrete_two_anchor/result-no-collision.json",
     )
 )
 ADDITIONAL_GUIDES = [
-    Path(value)
+    _resolved_path(value)
     for value in os.environ.get("M336_ADDITIONAL_GUIDE_JSONS", "").split(",")
     if value
 ]
-OUTPUT = Path(
+OUTPUT = _resolved_path(
     os.environ.get("M336_OUTPUT_JSON", "/tmp/m336_exact_site_cpsat.json")
 )
-PLACEMENT_OUTPUT = Path(
+PLACEMENT_OUTPUT = _resolved_path(
     os.environ.get("M336_PLACEMENT_OUTPUT", f"{OUTPUT}.pl")
 )
-PROGRESS = Path(
+PROGRESS = _resolved_path(
     os.environ.get("M336_PROGRESS_JSON", f"{OUTPUT}.progress")
 )
-ASSIGNMENT = Path(
+ASSIGNMENT = _resolved_path(
     os.environ.get(
         "M336_ASSIGNMENT_JSON",
         ROOT
@@ -88,7 +93,7 @@ PLACEMENT_SIDES = ("TOP", "BOTTOM")
 
 def _context_output_dir(output: Path, override: str) -> Path:
     if override:
-        return Path(override)
+        return _resolved_path(override)
     return output.parent / f"{output.name}.context"
 
 
@@ -632,9 +637,10 @@ def _comma_separated_paths(value: str, label: str) -> tuple[Path, ...]:
     parts = tuple(part.strip() for part in value.split(","))
     if any(not part for part in parts):
         raise ValueError(f"{label} must not contain an empty path")
-    if len(set(parts)) != len(parts):
+    paths = tuple(_resolved_path(part) for part in parts)
+    if len(set(paths)) != len(paths):
         raise ValueError(f"{label} paths must be unique")
-    return tuple(Path(part) for part in parts)
+    return paths
 
 
 def _exact_reference_site_indices(
@@ -1110,7 +1116,7 @@ def main() -> int:
     guides.extend(load_guide(path) for path in ADDITIONAL_GUIDES)
     separate_hint_text = os.environ.get("M336_HINT_JSON", "")
     if separate_hint_text:
-        hint_path = Path(separate_hint_text)
+        hint_path = _resolved_path(separate_hint_text)
         hint_guide = load_guide(hint_path)
         hint_json = str(hint_path)
         hint_guide_index = None
@@ -1148,7 +1154,7 @@ def main() -> int:
         )
     diversity_reference = None
     if diversity_reference_text:
-        diversity_reference_path = Path(diversity_reference_text)
+        diversity_reference_path = _resolved_path(diversity_reference_text)
         diversity_reference = {
             "json": str(diversity_reference_path),
             "sha256": _sha256_file(diversity_reference_path),

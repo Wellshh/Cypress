@@ -93,6 +93,7 @@ from probe_exact_site_cpsat import (  # noqa: E402
     _objective_replay_audit,
     _optional_nonnegative_integer,
     _packing_sides,
+    _resolved_path,
     _rows_by_side,
     _required_guide_support_indices,
     _search_branching_mode,
@@ -530,7 +531,7 @@ class M336BaselineTest(unittest.TestCase):
         self.assertNotEqual(first, second)
         self.assertEqual(
             _context_output_dir(Path("/tmp/result.json"), "custom/context"),
-            Path("custom/context"),
+            Path("custom/context").resolve(),
         )
 
     def test_optional_nonnegative_integer_is_strict(self):
@@ -547,12 +548,24 @@ class M336BaselineTest(unittest.TestCase):
     def test_diversity_paths_are_strict(self):
         self.assertEqual(
             _comma_separated_paths("a.json,b.json", "excluded"),
-            (Path("a.json"), Path("b.json")),
+            (Path("a.json").resolve(), Path("b.json").resolve()),
         )
         with self.assertRaisesRegex(ValueError, "empty path"):
             _comma_separated_paths("a.json,", "excluded")
         with self.assertRaisesRegex(ValueError, "must be unique"):
             _comma_separated_paths("a.json,a.json", "excluded")
+        with self.assertRaisesRegex(ValueError, "must be unique"):
+            _comma_separated_paths("a.json,./a.json", "excluded")
+
+    def test_exact_site_metadata_paths_are_canonical(self):
+        relative = Path("experiments/m336/input/m336_clusters.json")
+        canonical = _resolved_path(relative)
+        self.assertTrue(canonical.is_absolute())
+        self.assertEqual(canonical, relative.resolve())
+        self.assertEqual(
+            resolve_result_path(Path("/tmp/result.json"), str(canonical)),
+            canonical,
+        )
 
     def test_omitted_diversity_keeps_model_unchanged(self):
         cp_model = _load_cp_model()

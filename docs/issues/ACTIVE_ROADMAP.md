@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-131`
+**Evidence through:** `M336-132`
 
 **Active specification:**
 [`experiments/m336/EXACT_QUALITY_SPEC.md`](../../experiments/m336/EXACT_QUALITY_SPEC.md)
@@ -32,7 +32,7 @@ zero overlaps. Its placement SHA-256 is
 
 | Track | Scope | State | Superseded by / next authority |
 | --- | --- | --- | --- |
-| Input and geometry correctness | Parsing, coordinates, footprints, collision quantization, exact replay | Retained prerequisites | Original `SPEC.md` and resolved issue evidence |
+| Input and geometry correctness | Parsing, coordinates, footprints, collision quantization, exact replay, portable dependency paths | Retained prerequisites | Original `SPEC.md` and resolved issue evidence through M336-132 |
 | Historical Q601/two-anchor policy | `M336-012/014/016/018/022/028/030-045` and their declared finite domains | Historical; not an active score blocker | Current EMI601-only policy revalidated by `M336-105` |
 | Current endpoint legality | Manual EMI601, runtime Q601, fixed assignment, 0.05 mm | Stable | M336-118 portable checkpoint and `M336-119` |
 | Exact-site quality optimization | `M336-105` through `M336-131` | **Active** | `EXACT_QUALITY_SPEC.md` |
@@ -63,3 +63,8 @@ incumbent. Add the rank-11 tuple as a no-good and enumerate the next d6 layer;
 in parallel, expand residual support from measured blockers
 `C404/FV704/FV705/FV708`. Seed, guide-weight, or runtime ladders without a
 feasible topology or explicit exclusion remain out of scope.
+
+M336-132 resolves the independent result-metadata path defect found during the
+M336-131 export. Relative launch inputs are now serialized canonically, so
+future portable checkpoint promotion does not require an undocumented path
+override.

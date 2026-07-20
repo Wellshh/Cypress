@@ -1,7 +1,7 @@
 # M336 0.05 mm 精确质量优化规格
 
 文档状态：**Active phase specification**  
-证据范围：`M336-105` 至 `M336-131`
+证据范围：`M336-105` 至 `M336-132`
 
 上位合同：[`SPEC.md`](SPEC.md)
 
@@ -73,6 +73,9 @@ support，并在 page-7 改善后顺序重跑后续 closure。执行时必须应
   hint，使原先 `UNKNOWN` 的 d6/Delta20 模型在 14.332 DT 内证明 rank 11
   `OPTIMAL`。该解的独立 closure 仍回到 M336-129 swap plateau；下一步必须对
   rank-11 tuple 加 no-good，而不是重复 infeasible-hint seed ladder。
+- `M336-132` 修复 exact-site result 对相对环境路径的歧义序列化；source、
+  guide、hint、assignment、diversity/no-good 与输出依赖在 I/O 前统一规范为
+  绝对路径，`/tmp` 结果可在无 exporter override 时直接生成 portable artifact。
 
 当前六个主要乐观 residual 均集中在 page 7：
 
