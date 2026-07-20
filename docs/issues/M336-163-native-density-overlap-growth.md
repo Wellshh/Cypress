@@ -44,6 +44,13 @@ add a feature-gated differentiable same-side overlap signal using the existing
 Cypress objective lifecycle. Do not replace native optimization with an exact
 checkpoint fallback or unbounded discrete legalization.
 
+The M336-169 audit rejects enabling the legacy `MacroOverlap` objective as that
+signal: although it covers all 140 M336 physical nodes and separates sides, its
+gradient is zero at contact, cubic in shallow penetration after the aggregate
+square, negligible at the default weight, and zero again for coincident centers.
+A replacement must use the native objective lifecycle but not inherit that
+zero-contact kernel.
+
 ## Acceptance Criteria
 
 - A legal warm start does not grow a board-wide collision closure at 50 steps.
