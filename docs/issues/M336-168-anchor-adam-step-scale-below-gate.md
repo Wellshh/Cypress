@@ -32,6 +32,21 @@ is only `0.008886 mm`.
 Adam further normalizes gradient magnitude, explaining why a 10x ratio range
 does not materially enlarge proposals.
 
+Native instrumentation now serializes every learning-rate update and optimizer
+step, plus cumulative proposal path, accepted path, and net displacement for all
+movable and constrained nodes. The checkpoint-warm seed-1000 10-step E3 smoke
+records requested/effective learning rates of `0.01/0.02308556`. Across the 100
+constrained nodes, the mean accepted path is only `0.01194159 mm` and the mean
+net displacement is `0.01157887 mm`; net/path is `96.96%`. The maximum accepted
+path is `0.01625257 mm`. Direction cancellation is therefore minor at 10 steps;
+the physical step scale is the dominant limitation.
+
+The instrumentation is read-only: placement and replay retain SHA-256
+`a6445d6a...`, HPWL/RSMT remain `15632.686697721481/17325.676`, and normalized
+score remains `0.9281007794550066`. The run executes 13 backward calls and 10
+changing Adam steps with 100/100 containment, zero keep-in violations, zero
+projection events, and the same 28 unaccepted overlaps.
+
 ## Impact
 
 - The 25%/15% anchor gate is unattainable under the measured step envelope.
@@ -41,10 +56,11 @@ does not materially enlarge proposals.
 
 ## Remediation
 
-Record the effective estimated learning rate and cumulative/net displacement per
-run. Then test a bounded native step-scale policy on seed 1000, with projection,
-overlap, HPWL/RSMT, and objective stability gates. Candidate changes must remain
-inside `NonLinearPlace -> PlaceObj -> backward -> optimizer.step`; no coordinate
+The required instrumentation is complete. Re-run the unchanged 50-step control
+to measure actual path and net displacement, then test a bounded native
+step-scale policy on seed 1000, with projection, overlap, HPWL/RSMT, and
+objective stability gates. Candidate changes must remain inside
+`NonLinearPlace -> PlaceObj -> backward -> optimizer.step`; no coordinate
 teleport, checkpoint fallback, or exact-site closure may count as improvement.
 
 ## Acceptance Criteria

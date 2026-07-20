@@ -77,6 +77,146 @@ def _placement_displacement_stats(
         }
 
 
+def _placement_distance_vector(before, after, num_nodes):
+    """Return Euclidean displacement for every node."""
+    with torch.no_grad():
+        delta_x = after[:num_nodes] - before[:num_nodes]
+        delta_y = after[num_nodes : num_nodes * 2] - before[
+            num_nodes : num_nodes * 2
+        ]
+        return torch.sqrt(delta_x.square() + delta_y.square())
+
+
+def _distance_vector_summary(distances, node_ids, include_quantiles=False):
+    """Summarize a distance vector over one stable node group."""
+    if not node_ids:
+        return {
+            "node_count": 0,
+            "changed_node_count": 0,
+            "mean_distance": 0.0,
+            "max_distance": 0.0,
+        }
+    indices = torch.as_tensor(
+        node_ids, dtype=torch.long, device=distances.device
+    )
+    selected = distances.index_select(0, indices).double()
+    result = {
+        "node_count": len(node_ids),
+        "changed_node_count": int(torch.count_nonzero(selected).item()),
+        "mean_distance": float(selected.mean().item()),
+        "max_distance": float(selected.max().item()),
+    }
+    if include_quantiles:
+        values = selected.detach().cpu().numpy()
+        result.update(
+            {
+                "total_distance": float(values.sum()),
+                "median_distance": float(np.percentile(values, 50)),
+                "p90_distance": float(np.percentile(values, 90)),
+            }
+        )
+    return result
+
+
+def _scale_distance_summary(summary, scale):
+    return {
+        key: (
+            value / scale
+            if key.endswith("_distance") and value is not None
+            else value
+        )
+        for key, value in summary.items()
+    }
+
+
+class _NativeDisplacementTracker:
+    """Accumulate optimizer proposal paths and accepted net displacement."""
+
+    def __init__(self, num_nodes, node_groups):
+        self.num_nodes = int(num_nodes)
+        self.node_groups = {
+            str(name): tuple(int(node_id) for node_id in node_ids)
+            for name, node_ids in node_groups.items()
+        }
+        self.step_count = 0
+        self._initial_position = None
+        self._latest_position = None
+        self._proposal_path = None
+        self._accepted_path = None
+
+    def record_step(self, origin, proposal, accepted):
+        if origin is None or proposal is None or accepted is None:
+            raise RuntimeError(
+                "optimizer step is missing proposal/projection coordinates"
+            )
+        proposal_distances = _placement_distance_vector(
+            origin, proposal, self.num_nodes
+        )
+        accepted_distances = _placement_distance_vector(
+            origin, accepted, self.num_nodes
+        )
+        if self._initial_position is None:
+            self._initial_position = origin.detach().clone()
+            self._proposal_path = torch.zeros_like(proposal_distances)
+            self._accepted_path = torch.zeros_like(accepted_distances)
+        self._proposal_path.add_(proposal_distances)
+        self._accepted_path.add_(accepted_distances)
+        self._latest_position = accepted.detach().clone()
+        self.step_count += 1
+        return {
+            name: {
+                "proposal": _distance_vector_summary(
+                    proposal_distances, node_ids
+                ),
+                "accepted": _distance_vector_summary(
+                    accepted_distances, node_ids
+                ),
+            }
+            for name, node_ids in self.node_groups.items()
+        }
+
+    def summary(self, units_per_mm=None):
+        if self._initial_position is None:
+            net_displacement = torch.zeros(self.num_nodes, dtype=torch.float64)
+            proposal_path = net_displacement.clone()
+            accepted_path = net_displacement.clone()
+        else:
+            net_displacement = _placement_distance_vector(
+                self._initial_position,
+                self._latest_position,
+                self.num_nodes,
+            )
+            proposal_path = self._proposal_path
+            accepted_path = self._accepted_path
+        groups = {}
+        for name, node_ids in self.node_groups.items():
+            group = {
+                "proposal_path": _distance_vector_summary(
+                    proposal_path, node_ids, include_quantiles=True
+                ),
+                "accepted_path": _distance_vector_summary(
+                    accepted_path, node_ids, include_quantiles=True
+                ),
+                "net_displacement": _distance_vector_summary(
+                    net_displacement, node_ids, include_quantiles=True
+                ),
+            }
+            if units_per_mm is not None:
+                group.update(
+                    {
+                        "%s_mm" % key: _scale_distance_summary(value, units_per_mm)
+                        for key, value in group.items()
+                    }
+                )
+            groups[name] = group
+        return {
+            "step_count": self.step_count,
+            "coordinate_units": "cypress",
+            "units_per_mm": units_per_mm,
+            "groups": groups,
+        }
+
+
 class _CompositeProjector:
     """Apply board and footprint constraints at explicit optimizer boundaries."""
 
@@ -89,6 +229,8 @@ class _CompositeProjector:
 
     def reset_step(self):
         self._proposal_origin = None
+        self._proposal_position = None
+        self._accepted_position = None
         self._last_proposal = {
             "changed_node_count": 0,
             "mean_distance": 0.0,
@@ -115,6 +257,7 @@ class _CompositeProjector:
                 self.num_nodes,
                 include_node_ids=False,
             )
+            self._proposal_position = before_projection
 
         self.board_projector(position)
         region_stats = None
@@ -135,6 +278,7 @@ class _CompositeProjector:
         self._projection_max_distance = max(
             self._projection_max_distance, correction["max_distance"]
         )
+        self._accepted_position = position.detach().clone()
         return region_stats
 
     def finish_step(self):
@@ -149,6 +293,9 @@ class _CompositeProjector:
                 else 0.0
             ),
             "projection_max_distance": self._projection_max_distance,
+            "origin_position": self._proposal_origin,
+            "proposal_position": self._proposal_position,
+            "accepted_position": self._accepted_position,
         }
         self.reset_step()
         return summary
@@ -192,8 +339,21 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             "projection_node_events": 0,
             "projection_search_node_events": 0,
             "projection_max_distance": 0.0,
+            "learning_rate_updates": [],
+            "optimizer_steps": [],
             "device": str(self.data_collections.pos[0].device),
         }
+        displacement_groups = {
+            "movable": tuple(range(placedb.num_movable_nodes)),
+        }
+        if self.anchor_keepin_context is not None:
+            displacement_groups["constrained"] = tuple(
+                constraint.node_id
+                for constraint in self.anchor_keepin_context.constraints
+            )
+        displacement_tracker = _NativeDisplacementTracker(
+            placedb.num_nodes, displacement_groups
+        )
         net_crossing_enabled = bool(
             params.net_crossing_flag and float(params.net_crossing_weight) != 0.0
         )
@@ -201,7 +361,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         # global placement
         if params.global_place_flag:
             # global placement may run in multiple stages according to user specification
-            for global_place_params in params.global_place_stages:
+            for stage_index, global_place_params in enumerate(
+                params.global_place_stages
+            ):
 
                 # we formulate each stage as a 3-nested optimization problem
                 # f_gamma(g_density(h(x) ; density weight) ; gamma)
@@ -250,7 +412,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     ),
                     placedb.num_nodes,
                 )
-                
+
                 if optimizer_name.lower() == "adam":
                     optimizer = torch.optim.Adam(position, lr=0)
                 elif optimizer_name.lower() == "sgd":
@@ -320,7 +482,7 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     )
 
                 # a function to initialize learning rate
-                def initialize_learning_rate(pos):
+                def initialize_learning_rate(pos, reason):
                     constraint_projector(pos)
                     constraint_projector.reset_step()
                     learning_rate = model.estimate_initial_learning_rate(
@@ -333,6 +495,19 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = learning_rate.data
                     lrs.append(optimizer.param_groups[0]["lr"])
+                    native_execution["learning_rate_updates"].append(
+                        {
+                            "stage": stage_index,
+                            "reason": reason,
+                            "optimizer": optimizer_name.lower(),
+                            "requested_learning_rate": float(
+                                global_place_params["learning_rate"]
+                            ),
+                            "effective_learning_rate": float(
+                                learning_rate.detach().cpu().item()
+                            ),
+                        }
+                    )
 
                 if iteration == 0:
                     if params.gp_noise_ratio > 0.0 and params.random_center_init_flag:
@@ -340,7 +515,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         model.op_collections.noise_op(
                             model.data_collections.pos[0], params.gp_noise_ratio
                         )
-                    initialize_learning_rate(model.data_collections.pos[0])
+                    initialize_learning_rate(
+                        model.data_collections.pos[0], "initial"
+                    )
                     if (
                         optimizer_name.lower()
                         in [
@@ -651,6 +828,11 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                             )
                         proposal = step_evidence["proposal"]
                         projection = step_evidence["accepted_projection"]
+                        trajectory = displacement_tracker.record_step(
+                            step_evidence["origin_position"],
+                            step_evidence["proposal_position"],
+                            step_evidence["accepted_position"],
+                        )
                         native_execution["optimizer_step_count"] += 1
                         native_execution["proposal_changed_node_events"] += proposal[
                             "changed_node_count"
@@ -671,6 +853,29 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         )
                         if proposal["changed_node_count"]:
                             native_execution["optimizer_changed_step_count"] += 1
+                        native_execution["optimizer_steps"].append(
+                            {
+                                "step": native_execution["optimizer_step_count"],
+                                "stage": stage_index,
+                                "optimizer": optimizer_name.lower(),
+                                "learning_rate": float(
+                                    optimizer.param_groups[0]["lr"]
+                                ),
+                                "proposal": {
+                                    key: value
+                                    for key, value in proposal.items()
+                                    if key != "node_ids"
+                                },
+                                "displacement_by_group": trajectory,
+                                "projection": {
+                                    "changed_node_count": projection[
+                                        "changed_node_count"
+                                    ],
+                                    "mean_distance": projection["mean_distance"],
+                                    "max_distance": projection["max_distance"],
+                                },
+                            }
+                        )
                         logging.info(
                             "native optimizer evidence: optimizer=%s step=%d "
                             "device=%s proposal_changed_nodes=%d "
@@ -1067,7 +1272,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                                 # load state to restart the optimizer
                                 optimizer.load_state_dict(initial_state)
                                 # must after loading the state
-                                initialize_learning_rate(pos)
+                                initialize_learning_rate(
+                                    pos, "routability_restart"
+                                )
                                 # increase iterations of the sub problem to slow down the search
                                 model.Lsub_iteration = model.routability_Lsub_iteration
 
@@ -1287,6 +1494,13 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             for model in native_models
             if model.latest_density_overflow_by_side is not None
         ]
+        native_execution["displacement"] = displacement_tracker.summary(
+            units_per_mm=(
+                abs(self.anchor_keepin_context.alignment.scale)
+                if self.anchor_keepin_context is not None
+                else None
+            )
+        )
         processed_metrics["native_execution"] = native_execution
         logging.info(
             "native execution summary: %s",

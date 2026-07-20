@@ -17,6 +17,10 @@ sys.path.append(REPO_ROOT)
 from dreamplace.NesterovAcceleratedGradientOptimizer import (
     NesterovAcceleratedGradientOptimizer,
 )
+from dreamplace.NonLinearPlace import (
+    _CompositeProjector,
+    _NativeDisplacementTracker,
+)
 from dreamplace.PlaceObj import PlaceObj
 from dreamplace.Placer import seed_all
 from dreamplace.BasicPlace import load_initial_placement
@@ -26,6 +30,64 @@ from tuner.tuner_worker import AutoDMPWorker
 
 
 class ReproducibilityTest(unittest.TestCase):
+    def test_composite_projector_preserves_proposal_and_accepted_snapshots(self):
+        def board_projector(position):
+            with torch.no_grad():
+                position.clamp_(max=1.0)
+
+        projector = _CompositeProjector(board_projector, None, num_nodes=2)
+        position = torch.tensor([0.0, 0.0, 0.0, 0.0])
+        projector.begin_step(position)
+        with torch.no_grad():
+            position.copy_(torch.tensor([2.0, 0.5, 0.0, 0.0]))
+
+        projector(position)
+        evidence = projector.finish_step()
+
+        self.assertEqual(evidence["proposal"]["max_distance"], 2.0)
+        self.assertTrue(
+            torch.equal(
+                evidence["proposal_position"],
+                torch.tensor([2.0, 0.5, 0.0, 0.0]),
+            )
+        )
+        self.assertTrue(
+            torch.equal(
+                evidence["accepted_position"],
+                torch.tensor([1.0, 0.5, 0.0, 0.0]),
+            )
+        )
+
+    def test_native_displacement_tracker_separates_path_and_net_motion(self):
+        tracker = _NativeDisplacementTracker(
+            3, {"movable": (0, 1), "constrained": (1,)}
+        )
+        origin = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        first_proposal = torch.tensor([1.0, 2.0, 0.0, 0.0, 0.0, 0.0])
+        first_accepted = torch.tensor([1.0, 0.5, 0.0, 0.0, 0.0, 0.0])
+        second_proposal = torch.tensor([2.0, 0.5, 0.0, 0.0, 0.0, 0.0])
+        second_accepted = torch.tensor([2.0, 1.5, 0.0, 0.0, 0.0, 0.0])
+
+        first_step = tracker.record_step(
+            origin, first_proposal, first_accepted
+        )
+        tracker.record_step(
+            first_accepted, second_proposal, second_accepted
+        )
+        report = tracker.summary(units_per_mm=2.0)
+
+        self.assertEqual(
+            first_step["constrained"]["proposal"]["mean_distance"], 2.0
+        )
+        self.assertEqual(report["step_count"], 2)
+        constrained = report["groups"]["constrained"]
+        self.assertEqual(constrained["proposal_path"]["mean_distance"], 2.0)
+        self.assertEqual(constrained["accepted_path"]["mean_distance"], 1.5)
+        self.assertEqual(constrained["net_displacement"]["mean_distance"], 1.5)
+        self.assertEqual(
+            constrained["net_displacement_mm"]["mean_distance"], 0.75
+        )
+
     def test_place_objective_is_pure_for_position(self):
         model = PlaceObj.__new__(PlaceObj)
         torch.nn.Module.__init__(model)

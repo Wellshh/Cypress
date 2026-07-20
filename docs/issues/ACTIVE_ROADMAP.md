@@ -216,8 +216,15 @@ M336-168 records the next root cause. Across all four 50-step ratios, maximum
 single-step proposal distance is `0.043936` Cypress units. Even summing that
 maximum in a perfectly aligned direction yields only about `0.10985 mm`, while
 the mean gate requires at least `1.628963 mm`, a `14.83x` deficit. Learning-rate
-and cumulative/net displacement provenance must be added before any bounded
-native step-scale experiment. Exact repair cannot supply this displacement.
+and cumulative/net displacement provenance must precede any bounded native
+step-scale experiment. Exact repair cannot supply this displacement.
+
+M336-168 now serializes that provenance without changing optimization. The
+10-step control estimates LR `0.02308556` from configured `0.01`; constrained
+mean accepted path/net displacement are only `0.01194159/0.01157887 mm`, a
+`96.96%` net/path ratio. The byte-identical placement and native score rule out
+instrumentation side effects and show that cancellation is not the immediate
+cause. Run the committed 50-step control before changing step scale.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
