@@ -317,6 +317,16 @@ anchor-direction gates. Do not run D3, raise the node limit, or resume an LR,
 ratio, seed, or E4-repair ladder; first reduce crossing support upstream under
 an explicitly bounded local trust-region contract.
 
+Code audit refines one part of M336-172: all six D2 limit failures contain
+exactly 32 active nodes plus one or two inactive/frozen reference endpoints.
+The projector changes only active nodes but previously charged inactive
+authorities to the same cap. A default-off candidate now retains the global
+32-active-node budget while reporting total/active and per-component scopes
+separately. Focused CPU/GPU and existing guard, collision, baseline, and
+reproducibility suites pass. This is an implementation signal only; one
+post-fix D2 replay is required before N6 can advance, and a negative anchor
+direction still stops D3 even if the false node-limit backoffs disappear.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

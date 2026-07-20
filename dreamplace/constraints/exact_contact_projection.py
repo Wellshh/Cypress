@@ -57,7 +57,11 @@ def _correction_statistics(before, after, num_nodes):
 
 
 class ExactContactProjector:
-    """Project crossing contact components onto shared proposal motion."""
+    """Project crossing contact components onto shared proposal motion.
+
+    The node budget limits active coordinates that may be corrected. Inactive
+    endpoints only provide authoritative motion and do not consume that budget.
+    """
 
     def __init__(
         self,
@@ -218,7 +222,12 @@ class ExactContactProjector:
                         for node_id in edge
                     }
                 )
-                if len(contact_node_ids) > self.max_contact_nodes:
+                active_contact_node_ids = [
+                    node_id
+                    for node_id in contact_node_ids
+                    if node_id in self.active_node_ids
+                ]
+                if len(active_contact_node_ids) > self.max_contact_nodes:
                     reason = "contact_node_limit"
                     break
 
@@ -241,6 +250,9 @@ class ExactContactProjector:
                         "new_contact_pair_count": len(new_edges),
                         "protected_pair_count": len(protected_edges),
                         "contact_node_count": len(contact_node_ids),
+                        "active_contact_node_count": len(
+                            active_contact_node_ids
+                        ),
                         "component_count": len(components),
                         "correction": correction,
                     }
@@ -256,12 +268,21 @@ class ExactContactProjector:
             {node_id for edge in protected_edges for node_id in edge}
         )
         components = _contact_components(protected_edges)
+        active_contact_node_count = sum(
+            node_id in self.active_node_ids for node_id in contact_node_ids
+        )
+        component_node_counts = [len(component) for component in components]
+        active_component_node_counts = [
+            sum(node_id in self.active_node_ids for node_id in component)
+            for component in components
+        ]
         return {
             "enabled": True,
             "converged": converged,
             "reason": reason,
             "max_iterations": self.max_iterations,
             "max_contact_nodes": self.max_contact_nodes,
+            "contact_node_limit_basis": "active_nodes",
             "validator_call_count": validator_call_count,
             "validator_seconds": validator_seconds,
             "elapsed_seconds": time.perf_counter() - started,
@@ -279,8 +300,13 @@ class ExactContactProjector:
             ),
             "protected_pair_count": len(protected_edges),
             "contact_node_count": len(contact_node_ids),
-            "active_contact_node_count": sum(
-                node_id in self.active_node_ids for node_id in contact_node_ids
+            "active_contact_node_count": active_contact_node_count,
+            "component_count": len(components),
+            "maximum_component_node_count": max(
+                component_node_counts, default=0
+            ),
+            "maximum_active_component_node_count": max(
+                active_component_node_counts, default=0
             ),
             "contact_components": [
                 {

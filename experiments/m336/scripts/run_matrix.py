@@ -2668,7 +2668,10 @@ def main():
         "--exact-contact-projection-max-iterations", type=int, default=8
     )
     parser.add_argument(
-        "--exact-contact-projection-max-nodes", type=int, default=32
+        "--exact-contact-projection-max-nodes",
+        type=int,
+        default=32,
+        help="maximum active contact nodes corrected per native proposal",
     )
     parser.add_argument(
         "--initialization-track",

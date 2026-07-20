@@ -135,11 +135,18 @@ trust region preserves legality but cannot provide sustained larger motion.
 
 ## Root Cause
 
-`ExactContactProjector` bounds the union of all protected contact nodes in one
-proposal. This is an intentional safeguard against turning projection into a
-broad legalizer. At scale `2`, however, the differentiable objective crosses
-many disconnected contacts simultaneously. The exact projector then becomes
-the dominant legality control and reaches its global scope limit.
+`ExactContactProjector` is intended to bound the active coordinates corrected
+in one proposal so projection cannot become a broad legalizer. The affected
+implementation instead bounds the union of active and inactive endpoints.
+Inactive/frozen endpoints provide authoritative motion to
+`_component_displacement()`, but `_apply_consensus()` never writes them and
+optimizer-state cleanup never treats them as corrected coordinates. Counting
+them against the correction budget is inconsistent with the actual operation.
+
+All six D2 rejections have exactly 32 active contact nodes, which is within the
+declared limit, and one or two inactive reference endpoints, which produce the
+reported total of 33/34. This off-by-reference error triggers global backoff
+even though the active correction scope has not exceeded 32.
 
 Blindly raising `exact_contact_projection_max_nodes` would hide this signal and
 allow an increasingly broad exact correction. Treating each disconnected
@@ -152,6 +159,50 @@ The anchor failure is related but distinct. Scale-2 E2 improves anchor metrics
 slightly more than E3 relative to D1, so the small absolute decrease cannot be
 attributed to the anchor objective. Repeated global backoff also applies one LR
 to all nodes, allowing unrelated contacts to suppress anchor-directed motion.
+
+## Active-Budget Correction Candidate
+
+The default-off projector now checks the 32-node limit against active contact
+nodes only. The numerical limit, exact validator, global active scope, closure
+iterations, contact consensus, hard keep-in projection, transactional guard,
+and fail-closed reason remain unchanged. Total endpoints are still serialized
+for audit, together with:
+
+- `contact_node_limit_basis = active_nodes`;
+- total and active contact-node counts per closure iteration;
+- total and active contact-node counts for the complete attempt;
+- component count;
+- maximum total and active nodes in any contact component.
+
+The parameter and runner help text now state that the limit bounds active nodes
+corrected in one native proposal. No automatic cap growth or per-component
+unbounded processing is introduced.
+
+A new mixed active/frozen test creates two independent crossing pairs with four
+total endpoints, two active endpoints, and a limit of two. Projection succeeds,
+does not move either inactive reference, and reports the two scopes separately.
+The existing three-active-node case still fails closed at a limit of two.
+
+Validation after source installation:
+
+```text
+exact contact projection       8/8
+exact accepted-step guard      6/6
+anchor/keep-in/collision      51/51
+M336 baseline/config         104/104
+reproducibility               17/17
+source/install projector      byte-identical
+source/install params         byte-identical
+```
+
+An initial module-style unittest command did not execute because the repository
+directory name `unittest` is shadowed by Python's standard-library module. The
+same test file was then run directly and passed; this was a command-selection
+error, not a test failure.
+
+This candidate is not yet an effect claim. M336-172 remains open until one
+post-fix D2 replay proves whether removing false inactive-node backoffs keeps
+the active scope bounded and restores a positive E3-minus-E2 anchor signal.
 
 ## Impact
 

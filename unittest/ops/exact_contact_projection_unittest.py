@@ -121,6 +121,35 @@ class ExactContactProjectionTest(unittest.TestCase):
             result["contact_components"][0]["active_node_count"], 1
         )
 
+    def test_inactive_references_do_not_consume_active_node_budget(self):
+        projector = _projector(
+            ("A", "B", "C", "D"),
+            (1.0, 1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0, 1.0),
+            ((0, 1), (2, 3)),
+            active_node_ids=(0, 2),
+            max_contact_nodes=2,
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 3.0, 4.0, 0.0, 0.0, 0.0, 0.0],
+            dtype=torch.float64,
+        )
+        candidate = torch.tensor(
+            [0.2, 1.0, 3.2, 4.0, 0.0, 0.0, 0.0, 0.0],
+            dtype=torch.float64,
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertEqual(result["contact_node_limit_basis"], "active_nodes")
+        self.assertEqual(result["contact_node_count"], 4)
+        self.assertEqual(result["active_contact_node_count"], 2)
+        self.assertEqual(result["component_count"], 2)
+        self.assertEqual(result["maximum_component_node_count"], 2)
+        self.assertEqual(result["maximum_active_component_node_count"], 1)
+        self.assertTrue(torch.equal(candidate, origin))
+
     def test_multi_contact_chain_uses_one_shared_displacement(self):
         projector = _projector(
             ("A", "B", "C"),
@@ -195,6 +224,9 @@ class ExactContactProjectionTest(unittest.TestCase):
 
         self.assertFalse(result["converged"])
         self.assertEqual(result["reason"], "contact_node_limit")
+        self.assertEqual(result["contact_node_limit_basis"], "active_nodes")
+        self.assertEqual(result["contact_node_count"], 3)
+        self.assertEqual(result["active_contact_node_count"], 3)
         self.assertTrue(torch.equal(candidate, before))
 
     def test_legal_candidate_is_unchanged(self):
