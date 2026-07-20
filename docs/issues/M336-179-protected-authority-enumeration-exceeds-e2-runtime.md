@@ -101,3 +101,16 @@ also remain within `2x`.
 - Exact legality, protected-edge monotonicity, and all existing bounds remain.
 - Both scale-1 arms pass their independent `2x` GPU and end-to-end gates.
 - M336-180's RSMT gate passes in the same replay before N6 can advance.
+
+## Reviewed Successor Design
+
+M336-181 defines the runtime candidate. Production projection is node-separable
+and exact protected validation is the conjunction of per-node containment and
+two-node edge intersections. The candidate therefore projects each distinct
+node/authority coordinate once, exact-checks each candidate edge pair once,
+uses compatibility products to preserve the existing lexicographic winner,
+and full-validates that winner before mutation. Historical exhaustive behavior
+remains available and default.
+
+No standalone effect run is authorized. M336-181 must be combined with the
+M336-182 topology candidate before the single scale-1 D1.

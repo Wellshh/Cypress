@@ -116,3 +116,17 @@ equals the recorded native score.
   coordinate drift, and M336-179 runtime gates pass.
 - No D2, D3, E4, fallback, exact-site optimization, or parameter ladder runs
   before that D1 is committed, pushed, and pulled.
+
+## Reviewed Successor Design
+
+M336-182 records the required offline trace and candidate contract. Replacing
+only C502 leaves GND FLUTE unchanged and worsens total RSMT; replacing the full
+`C501/C502/R704` component changes GND by only `-0.001`. The topology boundary
+is collective, so local star/MST proxies and component-only rules are rejected.
+
+The candidate is a default-off global projection-boundary tie-break between at
+most two exact, proposal-derived plans: the authority winner and the existing
+proposal-medoid consensus plan. It compares native FLUTE only after
+high-degree-net HPWL ties, invokes no per-authority FLUTE loop, and cannot use a
+checkpoint, repair, or exact-site fallback. It must ship with M336-181 before
+the one combined D1.

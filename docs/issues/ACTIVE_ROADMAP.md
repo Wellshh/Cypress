@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-180`
+**Evidence through:** `M336-182`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (M336-178 closure proven; blocked by M336-179/180) | Prevent native optimizer steps from crossing same-side footprint contacts | Reduce exact enumeration cost and prevent E2 FLUTE regression, then pass one combined scale-1 D1 |
+| N6 (M336-178 closure proven; M336-181/182 designed) | Prevent native optimizer steps from crossing same-side footprint contacts | Implement exact pairwise factorization and a bounded global FLUTE-neutral tie-break, then pass one combined scale-1 D1 |
 
 ## Paused Exact-Site Priorities
 
@@ -547,6 +547,16 @@ replay exactly reproduces the aggregate and attributes `+1.127` RSMT to the
 84-pin `GND` net while its HPWL is unchanged. A reviewed native-Cypress design
 must address this discrete topology signal without checkpoint fallback or
 exact-site optimization. Wait for both candidates, then run one combined D1.
+
+M336-181 and M336-182 now define those candidates without effect claims.
+M336-181 factors the exact authority proof into node/authority projection and
+protected-edge compatibility while requiring a final full validation and
+byte-identical exhaustive winner. M336-182 rejects local C502, median-star, and
+rectilinear-MST proxies after offline artifact replay. Its replacement is a
+default-off global tie-break between at most two plans derived from the same
+native proposal; high-degree HPWL is primary and native FLUTE breaks only an
+HPWL-neutral topology tie. The implementations, installed tests, and one
+combined D1 remain pending. No larger run is authorized.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

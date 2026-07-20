@@ -191,6 +191,8 @@ append-only audit ledger.
 | [M336-178](M336-178-authority-closure-forgets-protected-edges.md) | Critical | Open | Protected closure removes every retry, but the combined D1 is blocked by E2 RSMT and runtime |
 | [M336-179](M336-179-protected-authority-enumeration-exceeds-e2-runtime.md) | Critical | Open | Exact protected-authority enumeration leaves E2 GPU optimization at 2.414x feature-off |
 | [M336-180](M336-180-hpwl-improvement-masks-e2-flute-regression.md) | Critical | Open | Lower E2 HPWL masks a GND-dominated native FLUTE RSMT regression |
+| [M336-181](M336-181-authority-search-pairwise-factorization.md) | Critical | Open | Exact pairwise factorization can remove repeated authority-state geometry work without changing the winner |
+| [M336-182](M336-182-global-flute-neutral-contact-tiebreak.md) | Critical | Open | A bounded global native FLUTE tie-break is required because local C502 substitutions do not control GND topology |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |
