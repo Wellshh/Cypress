@@ -129,6 +129,7 @@ append evidence rather than replacing prior observations.
 | [M336-119](M336-119-ephemeral-checkpoint-dependencies.md) | Critical | Resolved | Certified exact-site incumbents now export as versioned portable checkpoints |
 | [M336-120](M336-120-grid005-page7-seed-weight-stall.md) | Critical | Open | Refreshed page-7 seeds and guide weights retain the incumbent under finite budgets |
 | [M336-121](M336-121-grid005-page7-legal-escape-guides.md) | Critical | Mitigated | Page-7 directed escape produces three durable certified guide topologies |
+| [M336-122](M336-122-grid005-page7-multiguide-stall.md) | Critical | Open | Certified page-7 escape guides change the K4096 domain but all seeds retain the incumbent |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 
