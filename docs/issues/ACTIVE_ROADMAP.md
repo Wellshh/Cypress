@@ -1,7 +1,7 @@
 # M336 Active Roadmap
 
 **Updated:** 2026-07-20  
-**Evidence through:** `M336-167`
+**Evidence through:** `M336-168`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -74,7 +74,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N2 (complete) | Add a differentiable interior keep-in margin and bounded adaptive subgroup-balanced anchor control | M336-144 through M336-146 prove finite inward gradients, bounded serialized control, and an isolated E2/E3 contract; anchor quality remains below the final gate |
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
-| N5 (active) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-167 acceptance evidence, then exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |
+| N5 (active) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 acceptance evidence, then exact E4 legality, native HPWL/RSMT, runtime, anchor metrics, hashes, and acceptance report |
 
 ## Paused Exact-Site Priorities
 
@@ -204,6 +204,20 @@ improve only `0.4044%/0.1611%`. HPWL/RSMT improve by `3.987/16.836`, while exact
 overlaps rise from 66 to 70. Larger ratios are not authorized by this evidence.
 M336-167 now requires a serialized per-component feasible-domain lower bound to
 separate unreachable anchors from optimizer displacement-scale failure.
+
+M336-167 now emits that read-only lower bound in preflight and exact legality.
+The independent footprint-aware floor is mean/p90 `4.402187/10.189970 mm`,
+versus acceptance thresholds `4.886889/10.227884 mm`. The p90 gate therefore
+has only `0.037914 mm` optimistic headroom before collisions. A 10-step replay
+retains the exact M336-166 placement SHA, proving the diagnostic does not alter
+the optimizer. The ratio ladder is closed and ratio `0.10` remains the default.
+
+M336-168 records the next root cause. Across all four 50-step ratios, maximum
+single-step proposal distance is `0.043936` Cypress units. Even summing that
+maximum in a perfectly aligned direction yields only about `0.10985 mm`, while
+the mean gate requires at least `1.628963 mm`, a `14.83x` deficit. Learning-rate
+and cumulative/net displacement provenance must be added before any bounded
+native step-scale experiment. Exact repair cannot supply this displacement.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

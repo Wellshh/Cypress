@@ -1,7 +1,7 @@
 # M336-167: Anchor Signal Misses the 50-Step Quality Gate
 
 **Severity:** High
-**Status:** Open
+**Status:** Mitigated
 **Found:** 2026-07-20
 **Affected commit:** `cc05a44`
 
@@ -44,6 +44,31 @@ to 70. Every run records 53 backward calls, 50 changing Adam steps, no keep-in
 violations, and a distinct placement hash. The controller therefore responds
 correctly; this sweep does not justify a larger ratio or satisfy the anchor gate.
 The next required evidence is the per-component feasible-domain lower bound.
+
+That lower-bound report is now emitted in both preflight and post-serialization
+legality artifacts. It intersects the assigned keep-in translated by every
+footprint boundary vertex, producing an optimistic continuous necessary center
+domain for each component. It is footprint-aware but deliberately ignores
+collisions, density, wirelength, and lattice quantization.
+
+For all 100 constrained components, the independent physical-anchor floor is:
+
+| Metric | Current 10-step E3 | Optimistic geometric floor | Acceptance gate |
+| --- | ---: | ---: | ---: |
+| Mean | `6.523373 mm` | `4.402187 mm` | `4.886889 mm` |
+| P90 | `12.047370 mm` | `10.189970 mm` | `10.227884 mm` |
+
+The floor leaves only `0.484702 mm` mean and `0.037914 mm` p90 headroom below
+the gate before collisions. Exactly 10 components already have individual lower
+bounds above the p90 gate, while 35 have zero lower bound. The projected-target
+witness exceeds the lower bound by only `0.015606 mm` on average and
+`0.048773 mm` at worst. The diagnostic run remains byte-identical to the
+M336-166 control placement (`a6445d6a...`), proving the report is read-only.
+
+This evidence closes the bounded ratio ladder but does not prove the final gate
+feasible under collisions. Ratio `0.10` remains the conservative default; ratio
+`0.50` is not promoted for a `0.1364%` mean gain with four additional overlaps.
+The remaining optimizer displacement-scale defect is tracked as M336-168.
 
 ## Remediation
 

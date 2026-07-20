@@ -868,6 +868,17 @@ def legality_summary(legality):
     }
 
 
+def anchor_feasible_lower_bound_summary(report):
+    lower_bound = report.get("anchor_feasible_lower_bound")
+    if lower_bound is None:
+        return None
+    return {
+        key: value
+        for key, value in lower_bound.items()
+        if key != "per_component"
+    }
+
+
 def preflight_summary(preflight):
     return {
         "resolved_member_count": preflight["resolved_member_count"],
@@ -887,6 +898,9 @@ def preflight_summary(preflight):
         "endpoint_policy": preflight.get("endpoint_policy"),
         "resolved_endpoints": preflight.get("resolved_endpoints", []),
         "domain_cache": preflight.get("domain_cache", {}),
+        "anchor_feasible_lower_bound": (
+            anchor_feasible_lower_bound_summary(preflight)
+        ),
         "timing": preflight.get("timing", {}),
     }
 
@@ -1080,6 +1094,9 @@ def run_one(
         result["metrics"]["projected_anchor_distance_mm"] = legality[
             "projected_anchor_distance_mm"
         ]
+        result["metrics"]["anchor_feasible_lower_bound"] = (
+            anchor_feasible_lower_bound_summary(legality)
+        )
         result["metrics"]["per_group"] = legality["per_group"]
         result["metrics"]["hpwl"] = serialized_score["hpwl"]
         result["metrics"]["rsmt"] = serialized_score["rsmt"]
@@ -1383,6 +1400,9 @@ def run_one(
             "projected_anchor_distance_mm": legality[
                 "projected_anchor_distance_mm"
             ],
+            "anchor_feasible_lower_bound": (
+                anchor_feasible_lower_bound_summary(legality)
+            ),
             "per_group": legality["per_group"],
             "total_projected_nodes": (
                 in_memory_legality.get("total_projected_nodes", 0)

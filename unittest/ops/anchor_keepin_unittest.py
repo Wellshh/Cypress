@@ -468,6 +468,38 @@ class AnchorKeepInTest(unittest.TestCase):
             self.assertEqual(report["preserved_component_count"], 3)
             self.assertEqual(report["repair"]["component_count"], 0)
 
+    def test_anchor_feasible_lower_bound_is_optimistic_and_serialized(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, position = self._initialization_context(directory)
+            context.anchor_centers["A1"] = (-1.0, 0.5)
+
+            report = context.exact_report(
+                torch.as_tensor(position), placedb
+            )
+
+        lower_bound = report["anchor_feasible_lower_bound"]
+        self.assertEqual(
+            lower_bound["model"]["name"],
+            "footprint_vertex_necessary_center_domain",
+        )
+        self.assertTrue(lower_bound["model"]["optimistic"])
+        self.assertEqual(lower_bound["distance_mm"]["count"], 3)
+        self.assertAlmostEqual(lower_bound["distance_mm"]["mean"], 1.5)
+        self.assertAlmostEqual(
+            lower_bound["current_distance_above_lower_bound_mm"]["mean"],
+            1.0,
+        )
+        self.assertEqual(
+            [row["refdes"] for row in lower_bound["per_component"]],
+            ["U1", "U2", "U3"],
+        )
+        self.assertTrue(
+            all(
+                row["lower_bound"] <= row["current_anchor_distance"]
+                for row in lower_bound["per_component"]
+            )
+        )
+
     def test_preserve_legal_repairs_only_overlap_closure(self):
         with tempfile.TemporaryDirectory() as directory:
             context, placedb, position = self._initialization_context(

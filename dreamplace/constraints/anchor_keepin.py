@@ -16,7 +16,7 @@ import shapely
 import torch
 from scipy.spatial import cKDTree
 from shapely import affinity
-from shapely.geometry import box
+from shapely.geometry import Point, box
 
 from dreamplace.constraints.pcb_geometry import GeometryAlignment, load_pcb_geometry
 from dreamplace.constraints.region_assignment import (
@@ -39,6 +39,42 @@ from dreamplace.ops.anchor_keepin.anchor_keepin import AnchorKeepInLoss, SoftKee
 
 def _decode_name(name):
     return name.decode("utf-8") if isinstance(name, bytes) else str(name)
+
+
+def _geometry_boundary_vertices(geometry):
+    vertices = []
+    exterior = getattr(geometry, "exterior", None)
+    if exterior is not None:
+        rings = [exterior, *getattr(geometry, "interiors", ())]
+        for ring in rings:
+            vertices.extend((float(row[0]), float(row[1])) for row in ring.coords)
+    elif getattr(geometry, "geoms", None) is not None:
+        for child in geometry.geoms:
+            vertices.extend(_geometry_boundary_vertices(child))
+    elif getattr(geometry, "coords", None) is not None:
+        vertices.extend(
+            (float(row[0]), float(row[1])) for row in geometry.coords
+        )
+    return tuple(sorted(set(vertices)))
+
+
+def _distance_distribution(values):
+    values = tuple(float(value) for value in values)
+    if not values:
+        return {
+            "count": 0,
+            "mean": None,
+            "median": None,
+            "p90": None,
+            "max": None,
+        }
+    return {
+        "count": len(values),
+        "mean": float(np.mean(values)),
+        "median": float(np.percentile(values, 50)),
+        "p90": float(np.percentile(values, 90)),
+        "max": float(np.max(values)),
+    }
 
 
 def _resolve_path(config_path: Path, value: str) -> Path:
@@ -1567,6 +1603,7 @@ class AnchorKeepInContext:
         )
         self._density_capacity_cache = {}
         self._physical_footprint_local_cache = {}
+        self._anchor_necessary_domain_cache = {}
         self.initial_legal_centers = {}
         self.projector = RegionProjector(
             num_nodes=self.num_nodes,
@@ -2043,6 +2080,137 @@ class AnchorKeepInContext:
         context.write_preflight(infeasible)
         return context
 
+    def _anchor_necessary_center_domain(self, constraint):
+        """Build an optimistic center set from necessary vertex containment."""
+        cache_key = id(constraint.domain)
+        cached = self._anchor_necessary_domain_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        vertices = _geometry_boundary_vertices(
+            constraint.domain.footprint_local
+        )
+        if not vertices:
+            raise ValueError(
+                "component footprint has no boundary vertices: %s"
+                % constraint.refdes
+            )
+        necessary_domain = None
+        for offset_x, offset_y in vertices:
+            shifted_region = affinity.translate(
+                constraint.domain.region,
+                xoff=-offset_x,
+                yoff=-offset_y,
+            )
+            necessary_domain = (
+                shifted_region
+                if necessary_domain is None
+                else necessary_domain.intersection(shifted_region)
+            )
+        if necessary_domain.is_empty:
+            raise InfeasibleDomainError(
+                "footprint vertex necessary domain is empty: %s"
+                % constraint.refdes
+            )
+        cached = (necessary_domain, len(vertices))
+        self._anchor_necessary_domain_cache[cache_key] = cached
+        return cached
+
+    def anchor_feasible_lower_bound_report(
+        self, constraints=None, current_centers=None
+    ):
+        """Report independent physical-anchor floors without changing placement."""
+        active_constraints = (
+            self.constraints if constraints is None else tuple(constraints)
+        )
+        current_centers = current_centers or {}
+        scale = abs(self.alignment.scale)
+        rows = []
+        lower_bounds = []
+        lower_bounds_mm = []
+        current_slack = []
+        current_slack_mm = []
+        for constraint in sorted(active_constraints, key=lambda row: row.refdes):
+            anchor_center = self.anchor_centers.get(constraint.anchor_refdes)
+            if anchor_center is None:
+                continue
+            necessary_domain, vertex_count = (
+                self._anchor_necessary_center_domain(constraint)
+            )
+            lower_bound = float(
+                necessary_domain.distance(Point(anchor_center))
+            )
+            target_witness = math.hypot(
+                constraint.target_center[0] - anchor_center[0],
+                constraint.target_center[1] - anchor_center[1],
+            )
+            row = {
+                "refdes": constraint.refdes,
+                "anchor_refdes": constraint.anchor_refdes,
+                "side": constraint.side,
+                "group_id": constraint.group_id,
+                "subgroup_id": constraint.subgroup_id,
+                "region_id": constraint.region_id,
+                "necessary_vertex_count": vertex_count,
+                "lower_bound": lower_bound,
+                "lower_bound_mm": lower_bound / scale,
+                "projected_target_witness": target_witness,
+                "projected_target_witness_mm": target_witness / scale,
+            }
+            center = current_centers.get(constraint.node_id)
+            if center is not None:
+                current_distance = math.hypot(
+                    center[0] - anchor_center[0],
+                    center[1] - anchor_center[1],
+                )
+                slack = max(current_distance - lower_bound, 0.0)
+                row.update(
+                    {
+                        "current_anchor_distance": current_distance,
+                        "current_anchor_distance_mm": current_distance / scale,
+                        "current_distance_above_lower_bound": slack,
+                        "current_distance_above_lower_bound_mm": slack / scale,
+                    }
+                )
+                current_slack.append(slack)
+                current_slack_mm.append(slack / scale)
+            rows.append(row)
+            lower_bounds.append(lower_bound)
+            lower_bounds_mm.append(lower_bound / scale)
+
+        report = {
+            "model": {
+                "name": "footprint_vertex_necessary_center_domain",
+                "optimistic": True,
+                "independent_components": True,
+                "continuous_coordinates": True,
+                "guarantee": (
+                    "lower bound for every exactly contained center in the "
+                    "assigned keep-in"
+                ),
+                "relaxations": [
+                    (
+                        "tests footprint boundary vertices rather than every "
+                        "edge point"
+                    ),
+                    "ignores component collisions",
+                    "ignores density and wirelength objectives",
+                    "ignores lattice quantization",
+                ],
+            },
+            "distance": _distance_distribution(lower_bounds),
+            "distance_mm": _distance_distribution(lower_bounds_mm),
+            "per_component": rows,
+        }
+        if current_centers:
+            report["current_distance_above_lower_bound"] = (
+                _distance_distribution(current_slack)
+            )
+            report["current_distance_above_lower_bound_mm"] = (
+                _distance_distribution(current_slack_mm)
+            )
+        return report
+
     def write_preflight(self, infeasible):
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.alignment.dump(self.output_dir / "input_alignment.json")
@@ -2063,6 +2231,9 @@ class AnchorKeepInContext:
             "domain_cache": self.domain_cache_stats,
             "timing": dict(self.timing),
             "alignment": self.alignment.to_dict(),
+            "anchor_feasible_lower_bound": (
+                self.anchor_feasible_lower_bound_report()
+            ),
             "keepin_margin_mm": self.keepin_margin / abs(self.alignment.scale),
             "keepin_margin_tau_mm": self.keepin_margin_tau
             / abs(self.alignment.scale),
@@ -2894,6 +3065,17 @@ class AnchorKeepInContext:
             report["keepin_violation_area"] / (scale * scale)
         )
         report["overlap_area_mm2"] = report["overlap_area"] / (scale * scale)
+        report["anchor_feasible_lower_bound"] = (
+            self.anchor_feasible_lower_bound_report(
+                active_constraints,
+                {
+                    constraint.node_id: component.center
+                    for constraint, component in zip(
+                        active_constraints, constrained
+                    )
+                },
+            )
+        )
         report["anchor_distance_mm"] = {
             key: (value / scale if value is not None and key != "count" else value)
             for key, value in report["anchor_distance"].items()
