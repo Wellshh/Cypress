@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-185`
+**Evidence through:** `M336-186`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (M336-184 implemented; M336-185 counted-path blocker) | Prevent native optimizer steps from crossing same-side footprint contacts | Reduce the fixed GPU metric through a strict-equivalent counted-path change, then pass one combined scale-1 D1 |
+| N6 (M336-186 counted-path candidate) | Prevent native optimizer steps from crossing same-side footprint contacts | Batch exact-validator coordinates, safely cache fixed geometry, then pass one combined scale-1 D1 |
 
 ## Paused Exact-Site Priorities
 
@@ -632,6 +632,18 @@ outside the measured window and no M336 effect ran. Offline serialization of
 the duplicated guard evidence costs only about `33 ms`, so compact logging is
 not a credible substitute for the `184.8 ms` counted-path gap. The preserved
 profile instead directs the next review to exact contact validation.
+
+M336-186 identifies a strict-equivalent counted-path candidate. Each global
+exact audit reads 100 constrained and 40 obstacle nodes through 280 individual
+`detach().cpu()` scalar conversions. The M336-183 contact path calls that audit
+27 times, accounting for 7,560 scalar synchronizations and
+`0.332145968 s`. An isolated 140-node float32 probe measures `4.203 ms` per
+scalar extraction versus `0.047 ms` for one batched H100 transfer (`88.9x`),
+with an optimistic 27-call saving near `0.112 s`. Because that is only about
+61% of the counted gap, the reviewed candidate also caches fixed footprints
+and STRtrees under an exact coordinate/PlaceDB key while rebuilding all moving
+constrained geometry. No approximation, timing reclassification, or effect run
+is authorized.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
