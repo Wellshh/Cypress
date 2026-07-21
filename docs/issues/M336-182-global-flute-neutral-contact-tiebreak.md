@@ -158,3 +158,12 @@ bytes gives HPWL `15632.948904753` and FLUTE RSMT `17327.972` with zero
 coordinate drift. Both M336-174 E2 quality sub-gates pass, but this diagnostic
 is not a complete combined D1 and does not resolve the runtime or missing-E3
 requirements.
+
+M336-188 supplies the missing atomic evidence. Both E2/E3 execute the complete
+native path, remain exact legal, and preserve zero-drift float64 scoring. The
+tie-break selects authority/consensus `10/7` times in each arm; E2 retains
+`15632.948904753/17327.972`, and E3 improves to
+`15632.785998106/17327.737` with a strictly positive anchor direction. The
+quality mechanism therefore works as intended, but the issue remains open
+because the combined gate also requires M336-179: E2 GPU time is
+`2.245768752 s`, above `2.161724 s`.

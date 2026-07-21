@@ -130,3 +130,13 @@ proposal-medoid consensus plan. It compares native FLUTE only after
 high-degree-net HPWL ties, invokes no per-authority FLUTE loop, and cannot use a
 checkpoint, repair, or exact-site fallback. It must ship with M336-181 before
 the one combined D1.
+
+## M336-188 Combined Evidence
+
+The fresh combined D1 closes the original quality symptom. E2 reaches HPWL
+`15632.948904753` and FLUTE RSMT `17327.972`, both below the M336-174 limits,
+while E3 improves further to `15632.785998106/17327.737`. Exact legality and
+zero-drift serialization also pass. This issue remains open because its
+conjunctive acceptance requires M336-179's runtime gates, and E2 still takes
+`2.245768752 s` against the fixed `2.161724 s` limit. M336-188 owns that
+remaining stop condition.

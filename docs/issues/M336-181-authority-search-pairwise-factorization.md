@@ -120,3 +120,9 @@ the single combined D1 passes its runtime gates.
 The first combined D1 attempt is quarantined by M336-183: E2 GPU time fell to
 `2.346527902 s` but still missed the `2.161724 s` gate, and a scoring-config
 dependency stopped the runner before E3. This does not satisfy acceptance.
+
+M336-188 completes the fresh combined D1 after the strict-equivalent validator
+work. E2 remains byte-identical to M336-183 and GPU time falls again to
+`2.245768752 s`, proving a `4.293968%` counted-path improvement without a
+winner change. E3 passes its runtime limit, but E2 remains `0.084044752 s`
+high. The issue therefore remains open and no larger experiment is promoted.

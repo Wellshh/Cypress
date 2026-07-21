@@ -190,13 +190,15 @@ append-only audit ledger.
 | [M336-177](M336-177-origin-rollback-recaptures-contact-scope.md) | Critical | Open | Proposal-authority D1 reduces correction writes but fails native quality and GPU-runtime gates |
 | [M336-178](M336-178-authority-closure-forgets-protected-edges.md) | Critical | Open | Protected closure removes every retry, but the combined D1 is blocked by E2 RSMT and runtime |
 | [M336-179](M336-179-protected-authority-enumeration-exceeds-e2-runtime.md) | Critical | Open | Exact protected-authority enumeration leaves E2 GPU optimization at 2.414x feature-off |
-| [M336-180](M336-180-hpwl-improvement-masks-e2-flute-regression.md) | Critical | Open | Lower E2 HPWL masks a GND-dominated native FLUTE RSMT regression |
-| [M336-181](M336-181-authority-search-pairwise-factorization.md) | Critical | Open | Exact pairwise factorization is implemented and parity-tested; the combined D1 runtime gate remains pending |
-| [M336-182](M336-182-global-flute-neutral-contact-tiebreak.md) | Critical | Open | A bounded native FLUTE tie-break now covers runtime GND; the combined D1 quality gate remains pending |
+| [M336-180](M336-180-hpwl-improvement-masks-e2-flute-regression.md) | Critical | Open | M336-188 closes the GND-dominated quality regression, but its conjunctive E2 runtime gate still fails |
+| [M336-181](M336-181-authority-search-pairwise-factorization.md) | Critical | Open | Exact factorization preserves E2 bytes and saves 4.29%, but E2 remains 3.89% above its runtime limit |
+| [M336-182](M336-182-global-flute-neutral-contact-tiebreak.md) | Critical | Open | The bounded native FLUTE tie-break passes quality in M336-188; the combined runtime gate remains open |
 | [M336-183](M336-183-serialized-scorer-retains-topology-tiebreak.md) | Critical | Resolved | Scoring-only config now clears topology dependencies; the quarantined E2 replay passes quality sub-gates but its runtime remains above the fixed gate |
-| [M336-184](M336-184-exact-guard-revalidates-contact-bytes.md) | Critical | Open | Tensor-proven single-use validation reuse is implemented and tested; an authorized D1 runtime gate remains pending |
+| [M336-184](M336-184-exact-guard-revalidates-contact-bytes.md) | Critical | Open | Tensor-proven validation reuse works in M336-188, but the independent counted E2 runtime gate still fails |
 | [M336-185](M336-185-guard-cache-outside-gpu-runtime-gate.md) | Critical | Open | Timing domains are now explicit and fail-closed; a strict-equivalent counted-path optimization is still required |
-| [M336-186](M336-186-global-validator-scalar-device-sync.md) | Critical | Open | Counted contact validation performs 7,560 scalar device synchronizations and rebuilds unchanged fixed geometry |
+| [M336-186](M336-186-global-validator-scalar-device-sync.md) | Critical | Open | Batched snapshots and fixed caching preserve bytes, but M336-188 leaves an E2 counted-path shortfall |
+| [M336-187](M336-187-scalar-shapely-exact-audit.md) | Critical | Open | Vectorized exact geometry preserves report bytes and materially reduces validator-only audit time |
+| [M336-188](M336-188-vectorized-audit-d1-runtime-shortfall.md) | Critical | Open | Combined D1 is exact legal and improves quality, but E2 remains 3.89% above its fixed GPU runtime gate |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |

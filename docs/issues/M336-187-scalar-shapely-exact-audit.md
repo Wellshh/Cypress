@@ -174,3 +174,14 @@ keep-in `59`, exact guard `11`, exact contact projection `61`, reproducibility
 OR-Tools tests were explicitly excluded. Source/install hashes match. No M336
 placement, objective, backward pass, optimizer, score, repair, fallback,
 CP-SAT solve, parameter change, or M336-141 work was run.
+
+## Authorized Effect Evidence
+
+M336-188 runs the one explicitly authorized combined scale-1 D1. E2 remains
+byte-identical to M336-183 while GPU optimization falls from `2.346527902 s`
+to `2.245768752 s` and contact projection falls from `0.943923393 s` to
+`0.774890117 s`. Both E2/E3 remain exact legal and satisfy the declared quality
+direction. The strict-equivalent vectorization is therefore effective, but E2
+still misses its unchanged `2.161724 s` gate by `0.084044752 s`. This issue
+remains open; M336-188 owns the residual keep-in-audit profile and stop
+condition.

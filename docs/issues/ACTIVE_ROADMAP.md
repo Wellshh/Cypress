@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-187`
+**Evidence through:** `M336-188`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (M336-187 counted-path candidate) | Prevent native optimizer steps from crossing same-side footprint contacts | Vectorize exact Shapely audit operations without changing reports, then pass one combined scale-1 D1 |
+| N6 (blocked by M336-188 E2 runtime) | Prevent native optimizer steps from crossing same-side footprint contacts | Preserve M336-188 legality/quality bytes and close the remaining `0.084045 s` E2 counted-path gap before another authorized D1 |
 
 ## Paused Exact-Site Priorities
 
@@ -681,6 +681,20 @@ additional projected `0.106357 s` over 27 calls. Applicable tests pass
 `263/263`, excluding five optional OR-Tools tests. This closes implementation
 and offline performance evidence only; D1 and all larger effects remain
 unauthorized until explicit user approval.
+
+M336-188 records the explicitly authorized fresh combined scale-1 D1 at
+`7c03b8c`. Both E2 and E3 execute 13 backward calls and ten changing CUDA Adam
+steps, accept every proposal without retry, preserve every protected edge, and
+finish 100/100 contained with zero keep-in violations and overlaps. Float64
+replay has zero coordinate drift. E2 is byte-identical to M336-183 and passes
+its HPWL/RSMT sub-gates; E3 improves HPWL/RSMT and has a strictly positive but
+tiny anchor direction. M336-187 reduces E2 GPU time from `2.346527902 s` to
+`2.245768752 s`, but the unchanged limit is `2.161724 s`; the conjunctive D1
+therefore fails by `0.084044752 s` (`3.887858%`). The residual exact-audit
+profile attributes `0.166264551 s` of its `0.198150292 s` to batched keep-in
+difference/area work. Profile and parity-test a strict covered-by fast path
+before requesting another D1. D2, D3, E4, reruns, tuning, fallback, repair, and
+CP-SAT remain prohibited.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
