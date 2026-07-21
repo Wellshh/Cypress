@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-186`
+**Evidence through:** `M336-187`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (M336-186 counted-path candidate) | Prevent native optimizer steps from crossing same-side footprint contacts | Batch exact-validator coordinates, safely cache fixed geometry, then pass one combined scale-1 D1 |
+| N6 (M336-187 counted-path candidate) | Prevent native optimizer steps from crossing same-side footprint contacts | Vectorize exact Shapely audit operations without changing reports, then pass one combined scale-1 D1 |
 
 ## Paused Exact-Site Priorities
 
@@ -656,6 +656,19 @@ and fixed-obstacle cases; fixed-coordinate invalidation matches a fresh
 context. Applicable installed/source tests pass `260/260`, excluding five
 optional OR-Tools tests. A combined scale-1 D1 remains unauthorized until the
 user explicitly resets or approves it.
+
+M336-187 profiles the residual exact-audit path before authorizing D1. On the
+real fixed 100-constrained/40-obstacle M336-183 placement, M336-186 reduces the
+old scalar/rebuild audit from `11.153275 ms` to `5.925002 ms` median (`1.88x`),
+an optimistic `0.141163 s` over 27 calls but still short of the fixed GPU gap.
+The residual cost is dominated by 100 scalar Shapely translations,
+differences, and tree queries per audit. A read-only vectorized Shapely 2.1.2
+prototype preserves serialized reports across legal, keep-in, constrained-pair,
+and fixed-obstacle cases while reducing current audit time from `6.053330 ms`
+to `2.209201 ms` (`2.74x`), an additional projected `0.103791 s`. This is a
+material strict-equivalence candidate, not effect evidence. Commit/push/pull
+the issue and implementation separately; a combined scale-1 D1 remains
+unauthorized until the user explicitly resets or approves it.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
