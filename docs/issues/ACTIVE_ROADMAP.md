@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-189`
+**Evidence through:** `M336-190`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (M336-189 offline gate) | Prevent native optimizer steps from crossing same-side footprint contacts | Prove strict covered/fallback parity and save `>= 0.12 s` keep-in time or reduce total position-audit time to `<= 0.075 s`, then run exactly one unchanged D1 |
+| N6 (blocked by M336-190 E2 runtime) | Prevent native optimizer steps from crossing same-side footprint contacts | Preserve exact bytes while closing the remaining `0.058411 s` E2 gap; delta-audit/full-counted-path evidence or a human architecture decision is required before another D1 |
 
 ## Paused Exact-Site Priorities
 
@@ -723,6 +723,20 @@ applicable installed/source tests pass, including 61 authority-selection tests;
 five optional OR-Tools tests remain excluded. One unchanged combined scale-1
 D1 is now authorized. D2, D3, E4, tuning, repair, fallback, Legalization, and
 CP-SAT remain prohibited.
+
+M336-190 records that the single authorized D1 does not close N6. E2/E3 remain
+byte-identical to M336-188, execute 13 backward calls and ten changing CUDA
+Adam steps, accept every first proposal, and finish exact legal. E2 keep-in and
+total audit fall by `0.161745317 s` and `0.159391845 s`, but the fixed GPU
+metric improves only `0.025634047 s` to `2.220134705 s`; it still misses the
+limit by `0.058410705 s`. E3 passes at `2.211762168 s`. The non-contact counted
+remainder rises by `0.105783337 s`, while one-second GPU monitoring shows no
+sustained contention. Since the entire current E2 position audit is only
+`0.038758447 s`, deleting it would still leave a measured `0.019652258 s` gap.
+An exact delta audit must therefore prove complete provenance/report parity and
+additional full-counted-path margin before any further D1. Otherwise stop
+micro-optimization and request a human architecture decision; all tuning,
+repair, Legalization, CP-SAT, D2, D3, and E4 remain prohibited.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

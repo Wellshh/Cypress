@@ -199,7 +199,8 @@ append-only audit ledger.
 | [M336-186](M336-186-global-validator-scalar-device-sync.md) | Critical | Open | Batched snapshots and fixed caching preserve bytes, but M336-188 leaves an E2 counted-path shortfall |
 | [M336-187](M336-187-scalar-shapely-exact-audit.md) | Critical | Open | Vectorized exact geometry preserves report bytes and materially reduces validator-only audit time |
 | [M336-188](M336-188-vectorized-audit-d1-runtime-shortfall.md) | Critical | Open | Combined D1 is exact legal and improves quality, but E2 remains 3.89% above its fixed GPU runtime gate |
-| [M336-189](M336-189-strict-covered-keepin-fast-path.md) | Critical | Open | Strict covered/fallback parity passes and total E2 audit falls to 0.0293 s; one unchanged D1 remains |
+| [M336-189](M336-189-strict-covered-keepin-fast-path.md) | Critical | Open | D1 preserves bytes and cuts exact audit to 0.0388 s, but E2 remains 58.4 ms above its runtime limit |
+| [M336-190](M336-190-covered-fast-path-d1-runtime-shortfall.md) | Critical | Open | Covered fast path is effective, but its D1 runtime gain is offset and exact delta audit alone lacks a sufficient measured bound |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |

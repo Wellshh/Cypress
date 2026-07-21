@@ -191,3 +191,16 @@ Both offline promotion alternatives pass. Exactly one unchanged combined
 scale-1 D1 is now authorized by this issue. No optimizer, objective, repair,
 fallback, Legalization, scorer, CP-SAT solve, D2, D3, or E4 was run while
 producing this implementation evidence.
+
+## Authorized D1 Effect Evidence
+
+The one authorized D1 ran at implementation commit `d17a243`. E2 and E3 are
+byte-identical to M336-188, execute the full native CUDA path, and remain exact
+legal. The fast path records 3100 covered footprints and zero fallback per arm;
+E2 total position-audit time falls from `0.198150292 s` to `0.038758447 s`.
+
+The combined gate nevertheless fails. E2 GPU optimization is
+`2.220134705 s`, still `0.058410705 s` above its fixed `2.161724 s` limit;
+E3 passes at `2.211762168 s`. M336-190 records the complete timing
+decomposition, delta-audit upper bound, and stop condition. This issue remains
+open and authorizes no second D1 by itself.
