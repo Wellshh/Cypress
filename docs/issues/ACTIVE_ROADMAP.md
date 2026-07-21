@@ -555,8 +555,23 @@ byte-identical exhaustive winner. M336-182 rejects local C502, median-star, and
 rectilinear-MST proxies after offline artifact replay. Its replacement is a
 default-off global tie-break between at most two plans derived from the same
 native proposal; high-degree HPWL is primary and native FLUTE breaks only an
-HPWL-neutral topology tie. The implementations, installed tests, and one
-combined D1 remain pending. No larger run is authorized.
+HPWL-neutral topology tie. At that review point the implementations, installed
+tests, and one combined D1 were pending. No larger run was authorized.
+
+Both candidates are now implemented and installed without an M336 effect run.
+M336-181 retains exhaustive search as the default and exposes an explicit
+pairwise-factorized strategy whose random, cycle, protected-merge, inactive,
+hard-projection, dtype, and CPU/GPU fixtures select the exhaustive winner
+byte-for-byte. Direct `HEAD`/current replay across all four historical modes
+passes 16/16 coordinate and non-timing comparisons. M336-182 compares no more
+than two proposal-derived candidates and uses native FLUTE only after
+selected-net HPWL ties. Native `PlaceDB` deduplicates GND from 114 raw pin rows
+to runtime `net_id=6`, degree 84; with threshold 32 and ignore limit 100 it is
+the only selected net. A real five-pin native fixture proves equal HPWL `8/8`
+and distinct FLUTE `9/8` select the lower-RSMT candidate. Applicable installed
+tests pass `247/247`; five optional OR-Tools tests remain unavailable and are
+not reported green. The single combined scale-1 checkpoint-warm E2/E3 D1 is
+the next and only authorized effect run after signed commit, push, and pull.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

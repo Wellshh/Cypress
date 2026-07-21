@@ -49,6 +49,9 @@ from dreamplace.constraints.exact_step_guard import (
     ExactStepGuardFailure,
 )
 from dreamplace.constraints.exact_contact_projection import (
+    AUTHORITY_SEARCH_STRATEGIES,
+    EXHAUSTIVE_AUTHORITY_SEARCH,
+    PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
     CONTACT_PROJECTION_MODES,
     PROPOSAL_AUTHORITY_MODES,
     ExactContactProjector,
@@ -604,6 +607,19 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 4096,
             )
         )
+        exact_contact_projection_authority_search_strategy = str(
+            getattr(
+                params,
+                "exact_contact_projection_authority_search_strategy",
+                EXHAUSTIVE_AUTHORITY_SEARCH,
+            )
+        )
+        exact_contact_topology_tiebreak_enabled = bool(
+            getattr(params, "exact_contact_topology_tiebreak_flag", False)
+        )
+        exact_contact_topology_min_net_degree = int(
+            getattr(params, "exact_contact_topology_min_net_degree", 32)
+        )
         if exact_overlap_interval < 0:
             raise ValueError("exact overlap diagnostic interval must be non-negative")
         if exact_overlap_interval and self.anchor_keepin_context is None:
@@ -669,6 +685,39 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             raise ValueError(
                 "exact contact projection authority state limit must be positive"
             )
+        if (
+            exact_contact_projection_authority_search_strategy
+            not in AUTHORITY_SEARCH_STRATEGIES
+        ):
+            raise ValueError(
+                "unknown exact contact projection authority search strategy: %s"
+                % exact_contact_projection_authority_search_strategy
+            )
+        if (
+            exact_contact_projection_authority_search_strategy
+            != EXHAUSTIVE_AUTHORITY_SEARCH
+            and exact_contact_projection_mode not in PROPOSAL_AUTHORITY_MODES
+        ):
+            raise ValueError(
+                "factorized authority search requires proposal authority mode"
+            )
+        if exact_contact_topology_min_net_degree < 2:
+            raise ValueError(
+                "exact contact topology minimum net degree must be at least two"
+            )
+        if exact_contact_topology_tiebreak_enabled:
+            if not exact_contact_projection_enabled:
+                raise ValueError(
+                    "contact topology tie-break requires exact contact projection"
+                )
+            if (
+                exact_contact_projection_mode
+                != "protected_proposal_authority_search"
+            ):
+                raise ValueError(
+                    "contact topology tie-break requires protected proposal "
+                    "authority mode"
+                )
         if exact_contact_projection_enabled:
             native_execution.update(
                 {
@@ -694,6 +743,22 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 native_execution[
                     "exact_contact_projection_max_authority_states"
                 ] = exact_contact_projection_max_authority_states
+                if (
+                    exact_contact_projection_authority_search_strategy
+                    != EXHAUSTIVE_AUTHORITY_SEARCH
+                ):
+                    native_execution[
+                        "exact_contact_projection_authority_search_strategy"
+                    ] = exact_contact_projection_authority_search_strategy
+            if exact_contact_topology_tiebreak_enabled:
+                native_execution.update(
+                    {
+                        "exact_contact_topology_tiebreak_enabled": True,
+                        "exact_contact_topology_min_net_degree": (
+                            exact_contact_topology_min_net_degree
+                        ),
+                    }
+                )
         if exact_overlap_interval:
             native_execution.update(
                 {
@@ -807,7 +872,11 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         self.op_collections.footprint_collision_loss_op
                     )
                     component_validator = None
+                    component_edge_validator = None
                     component_projector = None
+                    topology_evaluator = None
+                    topology_net_ids = ()
+                    topology_net_degrees = ()
                     if (
                         exact_contact_projection_mode
                         in PROPOSAL_AUTHORITY_MODES
@@ -819,14 +888,91 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                                 coordinates, edges, placedb
                             )
 
+                        def component_edge_validator(coordinates, edges):
+                            return constraint_context.exact_contact_component_report(
+                                coordinates, edges, placedb
+                            )
+
                         def component_projector(coordinates, active_node_ids):
                             return constraint_context.project_contact_component(
                                 coordinates, active_node_ids
                             )
 
+                        if exact_contact_topology_tiebreak_enabled:
+                            netpin_start = np.asarray(
+                                placedb.flat_net2pin_start_map,
+                                dtype=np.int64,
+                            )
+                            net_degrees = np.diff(netpin_start)
+                            topology_net_ids = tuple(
+                                int(net_id)
+                                for net_id, degree in enumerate(net_degrees)
+                                if degree
+                                >= exact_contact_topology_min_net_degree
+                                and degree < int(params.ignore_net_degree)
+                            )
+                            topology_net_degrees = tuple(
+                                int(net_degrees[net_id])
+                                for net_id in topology_net_ids
+                            )
+
+                            if topology_net_ids:
+
+                                def topology_evaluator(candidate):
+                                    with torch.no_grad():
+                                        hpwl_by_net = (
+                                            self.op_collections.hpwl_op(
+                                                candidate, reduction=False
+                                            )
+                                        )
+                                        rsmt_by_net = (
+                                            self.op_collections.rsmt_wl_op(
+                                                candidate, reduction=False
+                                            )
+                                        )
+                                        hpwl_index = torch.as_tensor(
+                                            topology_net_ids,
+                                            dtype=torch.long,
+                                            device=hpwl_by_net.device,
+                                        )
+                                        rsmt_index = torch.as_tensor(
+                                            topology_net_ids,
+                                            dtype=torch.long,
+                                            device=rsmt_by_net.device,
+                                        )
+                                        return {
+                                            "hpwl": float(
+                                                hpwl_by_net.index_select(
+                                                    0, hpwl_index
+                                                )
+                                                .sum()
+                                                .detach()
+                                                .cpu()
+                                            ),
+                                            "rsmt": float(
+                                                rsmt_by_net.index_select(
+                                                    0, rsmt_index
+                                                )
+                                                .sum()
+                                                .detach()
+                                                .cpu()
+                                            ),
+                                        }
+
+                            native_execution[
+                                "exact_contact_topology_selected_nets"
+                            ] = [
+                                {"net_id": net_id, "degree": degree}
+                                for net_id, degree in zip(
+                                    topology_net_ids,
+                                    topology_net_degrees,
+                                )
+                            ]
+
                     contact_projector = ExactContactProjector(
                         validator=guard_validator,
                         component_validator=component_validator,
+                        component_edge_validator=component_edge_validator,
                         component_projector=component_projector,
                         refdes_to_node_id={
                             refdes: node_id
@@ -847,6 +993,19 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         max_authority_states=(
                             exact_contact_projection_max_authority_states
                         ),
+                        authority_search_strategy=(
+                            exact_contact_projection_authority_search_strategy
+                        ),
+                        authority_factorization_compatible=(
+                            exact_contact_projection_authority_search_strategy
+                            == PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+                        ),
+                        topology_tiebreak=(
+                            exact_contact_topology_tiebreak_enabled
+                        ),
+                        topology_evaluator=topology_evaluator,
+                        topology_net_ids=topology_net_ids,
+                        topology_net_degrees=topology_net_degrees,
                     )
 
                 constraint_projector = _CompositeProjector(

@@ -115,3 +115,34 @@ repair, fallback, and parameter ladders remain prohibited.
 - It controls the recorded zero-HPWL-delta FLUTE direction without a local
   heuristic or post-failure output substitution.
 - The one combined D1 passes M336-179 and M336-180 together.
+
+## Implementation Evidence (2026-07-21)
+
+The default-off tie-break is implemented only for protected proposal-authority
+mode. Each affected pass compares at most the exact authority winner and the
+existing proposal-medoid consensus plan from the same immutable optimizer
+proposal. Consensus is footprint-projected on scratch coordinates and must
+close every affected historical protected edge. It is never a retry, repair,
+checkpoint, or exact-site fallback.
+
+The configured default threshold is degree `32`. A read-only input audit found
+an important representation distinction: `m336.nets` contains 114 raw GND pin
+rows, while native `PlaceDB` removes same-node duplicate pins and exposes GND
+as `net_id=6`, degree `84`. The implementation selects from the runtime
+`flat_net2pin_start_map`, not raw text. With `ignore_net_degree=100`, GND is the
+only selected topology-sensitive net, so the mechanism covers the M336-180
+blocker rather than silently excluding it.
+
+The selector orders candidates by selected-net `(HPWL, FLUTE RSMT, authority
+preference)`, reports both costs and call counts, and performs zero score calls
+when the runtime set is empty. A native five-pin fixture holds HPWL at `8` for
+both candidates while FLUTE changes from `9` to `8`; the lower-RSMT consensus
+is selected. Other tests prove lower HPWL wins despite worse RSMT, complete
+ties preserve authority bytes, reopened protected edges are ineligible, and
+27 authority states still cause only two score calls.
+
+The installed applicable focused suite is `247/247`, including real native
+HPWL/FLUTE execution. No M336 effect result has been produced by this code.
+M336-180 remains open until the one combined D1 satisfies E2
+`RSMT <= 17328.300` together with legality, HPWL, anchor, determinism, and
+runtime gates.

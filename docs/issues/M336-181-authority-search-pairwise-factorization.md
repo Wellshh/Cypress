@@ -93,3 +93,26 @@ collision ratio, repair, fallback, CP-SAT, D2, D3, or E4 change is authorized.
 - Every prune has an exact proof and complete count provenance.
 - Exact legality, protected-edge monotonicity, and all M336-178 bounds remain.
 - The combined D1 passes both independent runtime gates.
+
+## Implementation Evidence (2026-07-21)
+
+The default-off `pairwise_factorized` strategy is now implemented. Production
+enables it only with an explicit node-separable projector and edge-decomposable
+validator contract. It projects each `(node, authority)` once, caches exact
+candidate-edge checks, retains the exhaustive lexicographic key, and runs the
+full component validator on the winner before any real position write. A
+contradiction fails closed as `authority_factorization_mismatch`.
+
+Diagnostics separately reconcile duplicate projected states, node-infeasible
+states, incompatible-edge states, objective-dominated states, and the one full
+winner check. This separation was added after review found that an initial
+implementation incorrectly grouped keep-in failures with pair incompatibility.
+
+Focused tests cover random components, stable ties, cycles, protected-edge
+merges, inactive endpoints, hard projection, float32/float64, and CPU/GPU.
+Sixteen direct `HEAD`/current fixtures across all four historical modes produce
+byte-identical coordinates and identical non-timing diagnostics. The combined
+installed applicable suite is `247/247`; five unrelated CP-SAT tests remain
+excluded because the production environment does not install optional
+OR-Tools. This is implementation evidence only. M336-179 remains open until
+the single combined D1 passes its runtime gates.

@@ -35,6 +35,7 @@ DEFAULT_M336_CHECKPOINT_PL = (
 DEFAULT_M336_CONSTRAINT_GRID_MM = 0.05
 DEFAULT_M336_TARGET_DENSITY = 0.85
 DEFAULT_M336_LEARNING_RATE = 0.01
+DEFAULT_M336_TOPOLOGY_MIN_NET_DEGREE = 32
 M336_ANCHOR_WEIGHT_UPDATE_INTERVAL = 1
 M336_ANCHOR_WEIGHT_EMA_DECAY = 0.8
 M336_ANCHOR_WEIGHT_MIN = 0.0
@@ -47,6 +48,12 @@ DEFAULT_CUBLAS_WORKSPACE_CONFIG = ":4096:8"
 PROPOSAL_AUTHORITY_MODES = (
     "proposal_authority_search",
     "protected_proposal_authority_search",
+)
+EXHAUSTIVE_AUTHORITY_SEARCH = "exhaustive"
+PAIRWISE_FACTORIZED_AUTHORITY_SEARCH = "pairwise_factorized"
+AUTHORITY_SEARCH_STRATEGIES = (
+    EXHAUSTIVE_AUTHORITY_SEARCH,
+    PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
 )
 CONTACT_PROJECTION_MODES = (
     "component_consensus",
@@ -414,6 +421,13 @@ def placement_config(
     exact_contact_projection_max_nodes=32,
     exact_contact_projection_max_cover_component_nodes=16,
     exact_contact_projection_max_authority_states=4096,
+    exact_contact_projection_authority_search_strategy=(
+        EXHAUSTIVE_AUTHORITY_SEARCH
+    ),
+    exact_contact_topology_tiebreak=False,
+    exact_contact_topology_min_net_degree=(
+        DEFAULT_M336_TOPOLOGY_MIN_NET_DEGREE
+    ),
 ):
     learning_rate_scale = float(learning_rate_scale)
     if (
@@ -466,6 +480,15 @@ def placement_config(
     exact_contact_projection_max_authority_states = int(
         exact_contact_projection_max_authority_states
     )
+    exact_contact_projection_authority_search_strategy = str(
+        exact_contact_projection_authority_search_strategy
+    )
+    exact_contact_topology_tiebreak = bool(
+        exact_contact_topology_tiebreak
+    )
+    exact_contact_topology_min_net_degree = int(
+        exact_contact_topology_min_net_degree
+    )
     if (
         not math.isfinite(exact_step_guard_backoff)
         or not 0 < exact_step_guard_backoff < 1
@@ -502,6 +525,39 @@ def placement_config(
         raise ValueError(
             "exact contact projection authority state limit must be positive"
         )
+    if (
+        exact_contact_projection_authority_search_strategy
+        not in AUTHORITY_SEARCH_STRATEGIES
+    ):
+        raise ValueError(
+            "unknown exact contact projection authority search strategy: %s"
+            % exact_contact_projection_authority_search_strategy
+        )
+    if (
+        exact_contact_projection_authority_search_strategy
+        != EXHAUSTIVE_AUTHORITY_SEARCH
+        and exact_contact_projection_mode not in PROPOSAL_AUTHORITY_MODES
+    ):
+        raise ValueError(
+            "factorized authority search requires proposal authority mode"
+        )
+    if exact_contact_topology_min_net_degree < 2:
+        raise ValueError(
+            "exact contact topology minimum net degree must be at least two"
+        )
+    if exact_contact_topology_tiebreak:
+        if not exact_contact_projection:
+            raise ValueError(
+                "contact topology tie-break requires exact contact projection"
+            )
+        if (
+            exact_contact_projection_mode
+            != "protected_proposal_authority_search"
+        ):
+            raise ValueError(
+                "contact topology tie-break requires protected proposal "
+                "authority mode"
+            )
     initialization_modes = {
         "cold_source": "preserve_legal",
         "checkpoint_warm_start": "checkpoint_warm_start",
@@ -664,6 +720,21 @@ def placement_config(
             config["exact_contact_projection_max_authority_states"] = (
                 exact_contact_projection_max_authority_states
             )
+            if (
+                exact_contact_projection_authority_search_strategy
+                != EXHAUSTIVE_AUTHORITY_SEARCH
+            ):
+                config[
+                    "exact_contact_projection_authority_search_strategy"
+                ] = exact_contact_projection_authority_search_strategy
+            if (
+                exact_contact_topology_tiebreak
+                and config["exact_contact_projection_flag"]
+            ):
+                config["exact_contact_topology_tiebreak_flag"] = True
+                config["exact_contact_topology_min_net_degree"] = (
+                    exact_contact_topology_min_net_degree
+                )
     return config
 
 
@@ -678,6 +749,41 @@ def parse_placement(path):
         except ValueError:
             continue
     return positions
+
+
+def _contact_projection_run_tags(config, args):
+    contact_projection_enabled = bool(
+        config.get("exact_contact_projection_flag", False)
+    )
+    contact_tag = (
+        "-contact-%s" % args.exact_contact_projection_mode
+        if contact_projection_enabled
+        else ""
+    )
+    authority_search_strategy = str(
+        config.get(
+            "exact_contact_projection_authority_search_strategy",
+            EXHAUSTIVE_AUTHORITY_SEARCH,
+        )
+    )
+    authority_search_tag = (
+        "-authority-%s" % authority_search_strategy
+        if authority_search_strategy != EXHAUSTIVE_AUTHORITY_SEARCH
+        else ""
+    )
+    topology_tiebreak_enabled = bool(
+        config.get("exact_contact_topology_tiebreak_flag", False)
+    )
+    topology_tag = (
+        "-topology-degree-%d" % args.exact_contact_topology_min_net_degree
+        if topology_tiebreak_enabled
+        else ""
+    )
+    return {
+        "contact": contact_tag,
+        "authority_search": authority_search_tag,
+        "topology": topology_tag,
+    }
 
 
 def evaluate_feature_off(
@@ -1313,6 +1419,26 @@ def _require_collision_contract(config, args, spec, result_path, action):
             "component_consensus",
         )
     )
+    actual_authority_search_strategy = str(
+        config.get(
+            "exact_contact_projection_authority_search_strategy",
+            EXHAUSTIVE_AUTHORITY_SEARCH,
+        )
+    )
+    expected_authority_search_strategy = str(
+        getattr(
+            args,
+            "exact_contact_projection_authority_search_strategy",
+            EXHAUSTIVE_AUTHORITY_SEARCH,
+        )
+    )
+    actual_topology_tiebreak = bool(
+        config.get("exact_contact_topology_tiebreak_flag", False)
+    )
+    expected_topology_tiebreak = bool(
+        getattr(args, "exact_contact_topology_tiebreak", False)
+        and expected_contact_projection
+    )
     checks = (
         ("enabled", float(actual_enabled), float(expected_enabled)),
         (
@@ -1413,6 +1539,25 @@ def _require_collision_contract(config, args, spec, result_path, action):
                     ),
                 ),
             )
+        if actual_topology_tiebreak or expected_topology_tiebreak:
+            checks += (
+                (
+                    "contact topology minimum net degree",
+                    float(
+                        config.get(
+                            "exact_contact_topology_min_net_degree",
+                            DEFAULT_M336_TOPOLOGY_MIN_NET_DEGREE,
+                        )
+                    ),
+                    float(
+                        getattr(
+                            args,
+                            "exact_contact_topology_min_net_degree",
+                            DEFAULT_M336_TOPOLOGY_MIN_NET_DEGREE,
+                        )
+                    ),
+                ),
+            )
     mismatches = [
         label
         for label, actual, expected in checks
@@ -1422,6 +1567,18 @@ def _require_collision_contract(config, args, spec, result_path, action):
         actual_contact_projection or expected_contact_projection
     ) and actual_contact_projection_mode != expected_contact_projection_mode:
         mismatches.append("contact projection mode")
+    if (
+        (actual_contact_projection or expected_contact_projection)
+        and (
+            actual_contact_projection_mode in PROPOSAL_AUTHORITY_MODES
+            or expected_contact_projection_mode in PROPOSAL_AUTHORITY_MODES
+        )
+        and actual_authority_search_strategy
+        != expected_authority_search_strategy
+    ):
+        mismatches.append("contact projection authority search strategy")
+    if actual_topology_tiebreak != expected_topology_tiebreak:
+        mismatches.append("contact topology tie-break")
     if mismatches:
         raise RuntimeError(
             "cannot %s with changed collision contract (%s): %s"
@@ -1624,6 +1781,39 @@ def run_one(
                     4096,
                 )
             )
+            authority_search_strategy = str(
+                config.get(
+                    "exact_contact_projection_authority_search_strategy",
+                    EXHAUSTIVE_AUTHORITY_SEARCH,
+                )
+            )
+            if authority_search_strategy != EXHAUSTIVE_AUTHORITY_SEARCH:
+                result[
+                    "exact_contact_projection_authority_search_strategy"
+                ] = authority_search_strategy
+            else:
+                result.pop(
+                    "exact_contact_projection_authority_search_strategy",
+                    None,
+                )
+            topology_tiebreak_enabled = bool(
+                config.get("exact_contact_topology_tiebreak_flag", False)
+            )
+            if topology_tiebreak_enabled:
+                result["exact_contact_topology_tiebreak_enabled"] = True
+                result["exact_contact_topology_min_net_degree"] = int(
+                    config.get(
+                        "exact_contact_topology_min_net_degree",
+                        DEFAULT_M336_TOPOLOGY_MIN_NET_DEGREE,
+                    )
+                )
+            else:
+                result.pop(
+                    "exact_contact_topology_tiebreak_enabled", None
+                )
+                result.pop(
+                    "exact_contact_topology_min_net_degree", None
+                )
         result["irregular_density_enabled"] = bool(
             config.get("irregular_density_flag", False)
         )
@@ -1804,6 +1994,15 @@ def run_one(
         exact_contact_projection_max_authority_states=(
             args.exact_contact_projection_max_authority_states
         ),
+        exact_contact_projection_authority_search_strategy=(
+            args.exact_contact_projection_authority_search_strategy
+        ),
+        exact_contact_topology_tiebreak=(
+            args.exact_contact_topology_tiebreak
+        ),
+        exact_contact_topology_min_net_degree=(
+            args.exact_contact_topology_min_net_degree
+        ),
     )
     write_json(config_path, config)
     command = [args.python, str(args.placer), str(config_path)]
@@ -1881,14 +2080,19 @@ def run_one(
     contact_projection_enabled = bool(
         config.get("exact_contact_projection_flag", False)
     )
-    contact_tag = (
-        "-contact-%s" % args.exact_contact_projection_mode
-        if contact_projection_enabled
-        else ""
+    contact_tags = _contact_projection_run_tags(config, args)
+    authority_search_strategy = str(
+        config.get(
+            "exact_contact_projection_authority_search_strategy",
+            EXHAUSTIVE_AUTHORITY_SEARCH,
+        )
+    )
+    topology_tiebreak_enabled = bool(
+        config.get("exact_contact_topology_tiebreak_flag", False)
     )
 
     result = {
-        "run_id": "%s-%s-ar-%s%s%s%s%s-margin-%s-seed-%d"
+        "run_id": "%s-%s-ar-%s%s%s%s%s%s%s-margin-%s-seed-%d"
         % (
             initialization_track,
             experiment_id.lower(),
@@ -1896,7 +2100,9 @@ def run_one(
             learning_rate_tag,
             collision_tag,
             guard_tag,
-            contact_tag,
+            contact_tags["contact"],
+            contact_tags["authority_search"],
+            contact_tags["topology"],
             format(args.keepin_margin_mm, "g"),
             seed,
         ),
@@ -2030,6 +2236,15 @@ def run_one(
                 4096,
             )
         )
+        if authority_search_strategy != EXHAUSTIVE_AUTHORITY_SEARCH:
+            result[
+                "exact_contact_projection_authority_search_strategy"
+            ] = authority_search_strategy
+        if topology_tiebreak_enabled:
+            result["exact_contact_topology_tiebreak_enabled"] = True
+            result["exact_contact_topology_min_net_degree"] = int(
+                args.exact_contact_topology_min_net_degree
+            )
     initialization_path = run_dir / "constraints" / "initialization.json"
     if initialization_path.exists():
         result["initialization"] = json.loads(initialization_path.read_text())
@@ -2798,6 +3013,24 @@ def reproduction_command(args, weights=None):
                 str(args.exact_contact_projection_max_authority_states),
             ]
         )
+        if (
+            args.exact_contact_projection_authority_search_strategy
+            != EXHAUSTIVE_AUTHORITY_SEARCH
+        ):
+            command.extend(
+                [
+                    "--exact-contact-projection-authority-search-strategy",
+                    args.exact_contact_projection_authority_search_strategy,
+                ]
+            )
+        if args.exact_contact_topology_tiebreak:
+            command.extend(
+                [
+                    "--exact-contact-topology-tiebreak",
+                    "--exact-contact-topology-min-net-degree",
+                    str(args.exact_contact_topology_min_net_degree),
+                ]
+            )
     if weights:
         command.extend(
             [
@@ -2905,6 +3138,23 @@ def main():
         type=int,
         default=4096,
         help="maximum proposal-authority assignments per contact component",
+    )
+    parser.add_argument(
+        "--exact-contact-projection-authority-search-strategy",
+        choices=AUTHORITY_SEARCH_STRATEGIES,
+        default=EXHAUSTIVE_AUTHORITY_SEARCH,
+        help="proposal-authority implementation; exhaustive is unchanged",
+    )
+    parser.add_argument(
+        "--exact-contact-topology-tiebreak",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="compare protected authority and consensus with native scoring",
+    )
+    parser.add_argument(
+        "--exact-contact-topology-min-net-degree",
+        type=int,
+        default=DEFAULT_M336_TOPOLOGY_MIN_NET_DEGREE,
     )
     parser.add_argument(
         "--initialization-track",
@@ -3018,6 +3268,7 @@ def main():
         or args.exact_contact_projection_max_iterations <= 0
         or args.exact_contact_projection_max_nodes < 2
         or args.exact_contact_projection_max_cover_component_nodes < 2
+        or args.exact_contact_topology_min_net_degree < 2
         or (
             args.exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES
             and args.exact_contact_projection_max_authority_states <= 0
@@ -3049,6 +3300,28 @@ def main():
         )
     if args.exact_contact_projection and not args.exact_step_guard:
         parser.error("--exact-contact-projection requires --exact-step-guard")
+    if (
+        args.exact_contact_projection_authority_search_strategy
+        != EXHAUSTIVE_AUTHORITY_SEARCH
+        and args.exact_contact_projection_mode not in PROPOSAL_AUTHORITY_MODES
+    ):
+        parser.error(
+            "factorized authority search requires a proposal-authority mode"
+        )
+    if args.exact_contact_topology_tiebreak:
+        if not args.exact_contact_projection:
+            parser.error(
+                "--exact-contact-topology-tiebreak requires "
+                "--exact-contact-projection"
+            )
+        if (
+            args.exact_contact_projection_mode
+            != "protected_proposal_authority_search"
+        ):
+            parser.error(
+                "--exact-contact-topology-tiebreak requires protected "
+                "proposal-authority mode"
+            )
     if args.anchor_gradient_ratio_sweep and any(
         ratio <= 0 for ratio in args.anchor_gradient_ratio_sweep
     ):
@@ -3142,6 +3415,18 @@ def main():
             summary["exact_contact_projection_max_authority_states"] = (
                 args.exact_contact_projection_max_authority_states
             )
+            if (
+                args.exact_contact_projection_authority_search_strategy
+                != EXHAUSTIVE_AUTHORITY_SEARCH
+            ):
+                summary[
+                    "exact_contact_projection_authority_search_strategy"
+                ] = args.exact_contact_projection_authority_search_strategy
+            if args.exact_contact_topology_tiebreak:
+                summary["exact_contact_topology_tiebreak"] = True
+                summary["exact_contact_topology_min_net_degree"] = (
+                    args.exact_contact_topology_min_net_degree
+                )
         summary_path = args.summary_path or (
             REPO_ROOT / "results/m336/weight_sweep/summary.json"
         )
@@ -3222,6 +3507,18 @@ def main():
             summary["exact_contact_projection_max_authority_states"] = (
                 args.exact_contact_projection_max_authority_states
             )
+            if (
+                args.exact_contact_projection_authority_search_strategy
+                != EXHAUSTIVE_AUTHORITY_SEARCH
+            ):
+                summary[
+                    "exact_contact_projection_authority_search_strategy"
+                ] = args.exact_contact_projection_authority_search_strategy
+            if args.exact_contact_topology_tiebreak:
+                summary["exact_contact_topology_tiebreak"] = True
+                summary["exact_contact_topology_min_net_degree"] = (
+                    args.exact_contact_topology_min_net_degree
+                )
         if sweep_summary:
             summary["weight_sweep"] = {
                 "artifact": repo_path(sweep_path),

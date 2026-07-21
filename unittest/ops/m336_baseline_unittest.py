@@ -117,12 +117,15 @@ from score_exact_site_result import (  # noqa: E402
     _require_objective_replay_audit,
 )
 from run_matrix import (  # noqa: E402
+    EXHAUSTIVE_AUTHORITY_SEARCH,
     DEFAULT_M336_ASSIGNMENT,
     DEFAULT_M336_CHECKPOINT_PL,
     DEFAULT_M336_CONSTRAINT_GRID_MM,
     DEFAULT_M336_TARGET_DENSITY,
     DEFAULT_CUBLAS_WORKSPACE_CONFIG,
     EXPERIMENTS,
+    PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+    _contact_projection_run_tags,
     _configured_anchor_control,
     _native_subprocess_environment,
     _require_collision_contract,
@@ -138,6 +141,7 @@ from run_matrix import (  # noqa: E402
     preflight_summary,
     require_exact_e4_legality,
     require_finite_native_scores,
+    reproduction_command,
 )
 from exact_site_checkpoint import (  # noqa: E402
     export_checkpoint,
@@ -465,6 +469,21 @@ class M336BaselineTest(unittest.TestCase):
                 "protected_proposal_authority_search"
             ),
             exact_contact_projection_max_authority_states=1024,
+            exact_contact_projection_authority_search_strategy=(
+                PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+            ),
+        )
+        topology_controlled = placement_config(
+            *arguments,
+            source_placement=Path("/tmp/m336.pl"),
+            footprint_collision=True,
+            exact_step_guard=True,
+            exact_contact_projection=True,
+            exact_contact_projection_mode=(
+                "protected_proposal_authority_search"
+            ),
+            exact_contact_topology_tiebreak=True,
+            exact_contact_topology_min_net_degree=64,
         )
 
         self.assertFalse(disabled["footprint_collision_loss_flag"])
@@ -504,6 +523,24 @@ class M336BaselineTest(unittest.TestCase):
             protected["exact_contact_projection_max_authority_states"],
             1024,
         )
+        self.assertEqual(
+            protected[
+                "exact_contact_projection_authority_search_strategy"
+            ],
+            PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+        )
+        self.assertNotIn(
+            "exact_contact_projection_authority_search_strategy",
+            controlled,
+        )
+        self.assertTrue(
+            topology_controlled["exact_contact_topology_tiebreak_flag"]
+        )
+        self.assertEqual(
+            topology_controlled["exact_contact_topology_min_net_degree"],
+            64,
+        )
+        self.assertNotIn("exact_contact_topology_tiebreak_flag", controlled)
         minimum_cover = placement_config(
             *arguments,
             source_placement=Path("/tmp/m336.pl"),
@@ -581,6 +618,43 @@ class M336BaselineTest(unittest.TestCase):
                 exact_contact_projection_mode="proposal_authority_search",
                 exact_contact_projection_max_authority_states=0,
             )
+        with self.assertRaisesRegex(ValueError, "unknown exact contact"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                exact_contact_projection_mode="proposal_authority_search",
+                exact_contact_projection_authority_search_strategy="fast",
+            )
+        with self.assertRaisesRegex(ValueError, "requires proposal authority"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                exact_contact_projection_authority_search_strategy=(
+                    PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+                ),
+            )
+        with self.assertRaisesRegex(ValueError, "minimum net degree"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                exact_contact_topology_min_net_degree=1,
+            )
+        with self.assertRaisesRegex(ValueError, "requires exact contact"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                exact_contact_topology_tiebreak=True,
+            )
+        with self.assertRaisesRegex(ValueError, "requires protected proposal"):
+            placement_config(
+                *arguments,
+                source_placement=Path("/tmp/m336.pl"),
+                footprint_collision=True,
+                exact_step_guard=True,
+                exact_contact_projection=True,
+                exact_contact_projection_mode="proposal_authority_search",
+                exact_contact_topology_tiebreak=True,
+            )
         with self.assertRaisesRegex(ValueError, "authority state"):
             placement_config(
                 *arguments,
@@ -623,6 +697,11 @@ class M336BaselineTest(unittest.TestCase):
             exact_contact_projection_max_nodes=32,
             exact_contact_projection_max_cover_component_nodes=16,
             exact_contact_projection_max_authority_states=4096,
+            exact_contact_projection_authority_search_strategy=(
+                EXHAUSTIVE_AUTHORITY_SEARCH
+            ),
+            exact_contact_topology_tiebreak=False,
+            exact_contact_topology_min_net_degree=32,
         )
 
         _require_collision_contract(
@@ -637,6 +716,7 @@ class M336BaselineTest(unittest.TestCase):
                 Path("/tmp/result.json"),
                 "resume",
             )
+
         args.collision_gradient_ratio = 0.1
         args.collision_pair_diagnostics = True
         with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
@@ -712,6 +792,45 @@ class M336BaselineTest(unittest.TestCase):
                 "resume",
             )
         args.exact_contact_projection_max_authority_states = 4096
+        args.exact_contact_projection_authority_search_strategy = (
+            PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+        )
+        with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
+            _require_collision_contract(
+                config,
+                args,
+                EXPERIMENTS["E3"],
+                Path("/tmp/result.json"),
+                "resume",
+            )
+        args.exact_contact_projection_authority_search_strategy = (
+            EXHAUSTIVE_AUTHORITY_SEARCH
+        )
+        args.exact_contact_topology_tiebreak = True
+        with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
+            _require_collision_contract(
+                config,
+                args,
+                EXPERIMENTS["E3"],
+                Path("/tmp/result.json"),
+                "resume",
+            )
+        config["exact_contact_topology_tiebreak_flag"] = True
+        _require_collision_contract(
+            config, args, EXPERIMENTS["E3"], Path("/tmp/result.json"), "resume"
+        )
+        args.exact_contact_topology_min_net_degree = 64
+        with self.assertRaisesRegex(RuntimeError, "changed collision contract"):
+            _require_collision_contract(
+                config,
+                args,
+                EXPERIMENTS["E3"],
+                Path("/tmp/result.json"),
+                "resume",
+            )
+        args.exact_contact_topology_min_net_degree = 32
+        args.exact_contact_topology_tiebreak = False
+        config["exact_contact_topology_tiebreak_flag"] = False
         args.exact_contact_projection = False
         config["exact_contact_projection_flag"] = False
         args.exact_step_guard_backoff = 0.25
@@ -723,6 +842,81 @@ class M336BaselineTest(unittest.TestCase):
                 Path("/tmp/result.json"),
                 "resume",
             )
+
+    def test_contact_projection_run_identity_and_reproduction_are_explicit(self):
+        config = {
+            "exact_contact_projection_flag": True,
+            "exact_contact_projection_authority_search_strategy": (
+                PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+            ),
+            "exact_contact_topology_tiebreak_flag": True,
+        }
+        args = SimpleNamespace(
+            python="python3.11",
+            experiments=["E2", "E3"],
+            seeds=[1000],
+            iterations=10,
+            learning_rate_scale=1.0,
+            gpu=True,
+            irregular_density=True,
+            footprint_collision=True,
+            collision_gradient_ratio=0.1,
+            collision_margin_mm=0.0,
+            collision_tau_mm=0.025,
+            exact_step_guard=True,
+            exact_step_guard_backoff=0.5,
+            exact_step_guard_max_retries=4,
+            collision_pair_diagnostics=True,
+            exact_contact_projection=True,
+            exact_contact_projection_max_iterations=8,
+            exact_contact_projection_mode=(
+                "protected_proposal_authority_search"
+            ),
+            exact_contact_projection_max_nodes=32,
+            exact_contact_projection_max_cover_component_nodes=16,
+            exact_contact_projection_max_authority_states=4096,
+            exact_contact_projection_authority_search_strategy=(
+                PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+            ),
+            exact_contact_topology_tiebreak=True,
+            exact_contact_topology_min_net_degree=32,
+            initialization_track="checkpoint_warm_start",
+            checkpoint_placement=Path("/tmp/checkpoint.pl"),
+            feasible_domain_cache_dir=Path("/tmp/cache"),
+            grid_mm=0.05,
+            clearance_mm=0.0,
+            keepin_margin_mm=0.1,
+            keepin_margin_tau_mm=0.05,
+            site_mm=0.05,
+            assignment=Path("/tmp/assignment.json"),
+            baseline_geometry=Path("/tmp/pcb_geometry.json"),
+            bookshelf_dir=Path("/tmp/bookshelf"),
+            baseline_output_dir=Path("/tmp/baseline"),
+            placer=Path("/tmp/Placer.py"),
+            anchor_gradient_ratio=0.1,
+            output_dir=Path("/tmp/output"),
+        )
+
+        tags = _contact_projection_run_tags(config, args)
+        command = reproduction_command(args)
+
+        self.assertEqual(
+            tags["contact"],
+            "-contact-protected_proposal_authority_search",
+        )
+        self.assertEqual(
+            tags["authority_search"], "-authority-pairwise_factorized"
+        )
+        self.assertEqual(tags["topology"], "-topology-degree-32")
+        self.assertIn(
+            "--exact-contact-projection-authority-search-strategy "
+            "pairwise_factorized",
+            command,
+        )
+        self.assertIn("--exact-contact-topology-tiebreak", command)
+        self.assertIn(
+            "--exact-contact-topology-min-net-degree 32", command
+        )
 
     def test_serialized_native_score_disables_context_diagnostics(self):
         optimization_config = {

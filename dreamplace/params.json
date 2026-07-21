@@ -487,6 +487,18 @@
         "description": "maximum proposal-authority assignments evaluated per current or affected protected contact component",
         "default": 4096
     },
+    "exact_contact_projection_authority_search_strategy": {
+        "description": "proposal-authority search implementation: exhaustive or pairwise_factorized",
+        "default": "exhaustive"
+    },
+    "exact_contact_topology_tiebreak_flag": {
+        "description": "compare protected authority and legal consensus candidates with native HPWL/FLUTE on topology-sensitive nets",
+        "default": false
+    },
+    "exact_contact_topology_min_net_degree": {
+        "description": "minimum net degree included in the protected contact topology tie-break",
+        "default": 32
+    },
     "keepin_projection_flag": {
         "description": "project constrained components into footprint-aware feasible domains",
         "default": false

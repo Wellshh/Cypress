@@ -1,11 +1,16 @@
 import json
+import random
 import unittest
+from pathlib import Path
 
 import torch
 from shapely import affinity
 from shapely.geometry import Polygon, box
 
-from dreamplace.constraints.exact_contact_projection import ExactContactProjector
+from dreamplace.constraints.exact_contact_projection import (
+    PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+    ExactContactProjector,
+)
 
 
 def _aabb_validator(names, widths, heights, pairs):
@@ -103,9 +108,21 @@ def _projector(
     max_cover_component_nodes=16,
     max_authority_states=4096,
     component_projector=_identity_component_projector,
+    authority_search_strategy="exhaustive",
+    authority_factorization_compatible=False,
+    component_validator=None,
+    component_edge_validator=None,
+    topology_tiebreak=False,
+    topology_evaluator=None,
+    topology_net_ids=(),
+    topology_net_degrees=(),
 ):
     if active_node_ids is None:
         active_node_ids = range(len(names))
+    if component_validator is None:
+        component_validator = _aabb_component_validator(widths, heights)
+    if component_edge_validator is None:
+        component_edge_validator = component_validator
     return ExactContactProjector(
         validator=_aabb_validator(names, widths, heights, pairs),
         refdes_to_node_id={name: index for index, name in enumerate(names)},
@@ -115,9 +132,18 @@ def _projector(
         max_contact_nodes=max_contact_nodes,
         mode=mode,
         max_cover_component_nodes=max_cover_component_nodes,
-        component_validator=_aabb_component_validator(widths, heights),
+        component_validator=component_validator,
+        component_edge_validator=component_edge_validator,
         component_projector=component_projector,
         max_authority_states=max_authority_states,
+        authority_search_strategy=authority_search_strategy,
+        authority_factorization_compatible=(
+            authority_factorization_compatible
+        ),
+        topology_tiebreak=topology_tiebreak,
+        topology_evaluator=topology_evaluator,
+        topology_net_ids=topology_net_ids,
+        topology_net_degrees=topology_net_degrees,
     )
 
 
@@ -509,6 +535,648 @@ class ExactContactProjectionTest(unittest.TestCase):
             ),
             rtol=0,
             atol=0,
+        )
+
+    def test_factorized_authority_requires_compatible_callbacks(self):
+        with self.assertRaisesRegex(ValueError, "explicitly compatible"):
+            _projector(
+                ("A", "B"),
+                (1.0, 1.0),
+                (1.0, 1.0),
+                ((0, 1),),
+                mode="protected_proposal_authority_search",
+                authority_search_strategy=(
+                    PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+                ),
+            )
+
+    def test_factorized_authority_matches_exhaustive_random_components(self):
+        generator = random.Random(336181)
+        for dtype in (torch.float32, torch.float64):
+            for _ in range(20):
+                displacements = [
+                    generator.choice((-0.25, -0.125, 0.125, 0.25))
+                    for _ in range(4)
+                ]
+                displacements[0] = 0.25
+                displacements[1] = -0.125
+                origin = torch.tensor(
+                    [0.0, 1.0, 2.0, 3.0] + [0.0] * 4,
+                    dtype=dtype,
+                )
+                proposal = origin.clone()
+                proposal[:4] += torch.tensor(
+                    displacements, dtype=dtype
+                )
+                arguments = (
+                    ("A", "B", "C", "D"),
+                    (1.0,) * 4,
+                    (1.0,) * 4,
+                    ((0, 1), (1, 2), (2, 3)),
+                )
+                exhaustive = _projector(
+                    *arguments,
+                    mode="protected_proposal_authority_search",
+                )
+                factorized = _projector(
+                    *arguments,
+                    mode="protected_proposal_authority_search",
+                    authority_search_strategy=(
+                        PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+                    ),
+                    authority_factorization_compatible=True,
+                )
+                exhaustive_candidate = proposal.clone()
+                factorized_candidate = proposal.clone()
+
+                exhaustive_result = exhaustive(
+                    origin, exhaustive_candidate, lambda position: None
+                )
+                factorized_result = factorized(
+                    origin, factorized_candidate, lambda position: None
+                )
+
+                self.assertTrue(
+                    torch.equal(exhaustive_candidate, factorized_candidate)
+                )
+                self.assertEqual(
+                    exhaustive_result["reason"], factorized_result["reason"]
+                )
+                self.assertEqual(
+                    exhaustive_result["corrected_contact_node_ids"],
+                    factorized_result["corrected_contact_node_ids"],
+                )
+                self.assertEqual(
+                    [
+                        [
+                            component["authority_assignments"]
+                            for component in iteration["contact_components"]
+                        ]
+                        for iteration in exhaustive_result["iterations"]
+                    ],
+                    [
+                        [
+                            component["authority_assignments"]
+                            for component in iteration["contact_components"]
+                        ]
+                        for iteration in factorized_result["iterations"]
+                    ],
+                )
+                self.assertEqual(
+                    exhaustive_result["authority_search_state_count"],
+                    factorized_result["authority_search_state_count"],
+                )
+                self.assertEqual(
+                    exhaustive_result["valid_authority_state_count"],
+                    factorized_result["valid_authority_state_count"],
+                )
+                self.assertEqual(
+                    factorized_result["authority_search_state_count"],
+                    factorized_result[
+                        "authority_duplicate_state_prune_count"
+                    ]
+                    + factorized_result[
+                        "authority_node_infeasible_state_count"
+                    ]
+                    + factorized_result[
+                        "authority_pairwise_pruned_state_count"
+                    ]
+                    + factorized_result[
+                        "authority_objective_pruned_state_count"
+                    ]
+                    + factorized_result["authority_full_exact_test_count"],
+                )
+                self.assertEqual(
+                    factorized_result["authority_unique_state_count"],
+                    factorized_result[
+                        "authority_node_infeasible_state_count"
+                    ]
+                    + factorized_result[
+                        "authority_pairwise_pruned_state_count"
+                    ]
+                    + factorized_result[
+                        "authority_objective_pruned_state_count"
+                    ]
+                    + factorized_result["authority_full_exact_test_count"],
+                )
+                self.assertEqual(
+                    factorized_result["authority_node_candidate_count"],
+                    factorized_result["authority_node_exact_test_count"],
+                )
+                self.assertLess(
+                    factorized_result["authority_exact_test_count"],
+                    exhaustive_result["authority_exact_test_count"],
+                )
+
+    def test_factorized_authority_matches_structural_edge_cases(self):
+        def bounded_projector(coordinates, active_node_ids):
+            projected = dict(coordinates)
+            projected_node_ids = []
+            distances = []
+            for node_id in active_node_ids:
+                x, y = projected[node_id]
+                bounded_x = min(x, 1.5)
+                projected[node_id] = (bounded_x, y)
+                if bounded_x != x:
+                    projected_node_ids.append(node_id)
+                    distances.append(x - bounded_x)
+            return {
+                "coordinates": projected,
+                "projected_node_ids": projected_node_ids,
+                "mean_distance": (
+                    sum(distances) / len(distances) if distances else 0.0
+                ),
+                "max_distance": max(distances, default=0.0),
+            }
+
+        fixtures = (
+            {
+                "name": "protected_cycle_with_inactive_endpoint",
+                "names": ("A", "B", "C"),
+                "pairs": ((0, 1), (1, 2)),
+                "active": (0, 1),
+                "origin": (0.0, 1.0, 2.0, 0.0, 0.0, 0.0),
+                "proposal": (0.2, 1.2, 2.0, 0.0, 0.0, 0.0),
+                "projector": _identity_component_projector,
+                "hard_projector": lambda position: None,
+            },
+            {
+                "name": "protected_edge_merge",
+                "names": ("A", "B", "C", "D"),
+                "pairs": ((0, 1), (1, 2), (2, 3)),
+                "active": (0, 1, 2, 3),
+                "origin": (0.0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 0.0),
+                "proposal": (0.2, 1.0, 2.0, 2.8, 0.0, 0.0, 0.0, 0.0),
+                "projector": _identity_component_projector,
+                "hard_projector": lambda position: None,
+            },
+            {
+                "name": "hard_projection",
+                "names": ("A", "B"),
+                "pairs": ((0, 1),),
+                "active": (0, 1),
+                "origin": (0.0, 1.25, 0.0, 0.0),
+                "proposal": (0.375, 1.3125, 0.0, 0.0),
+                "projector": bounded_projector,
+                "hard_projector": lambda position: position[:2].clamp_(
+                    max=1.5
+                ),
+            },
+        )
+        devices = ("cpu", "cuda") if torch.cuda.is_available() else ("cpu",)
+        for fixture in fixtures:
+            for dtype in (torch.float32, torch.float64):
+                for device in devices:
+                    with self.subTest(
+                        fixture=fixture["name"], dtype=dtype, device=device
+                    ):
+                        arguments = (
+                            fixture["names"],
+                            (1.0,) * len(fixture["names"]),
+                            (1.0,) * len(fixture["names"]),
+                            fixture["pairs"],
+                        )
+                        exhaustive = _projector(
+                            *arguments,
+                            active_node_ids=fixture["active"],
+                            mode="protected_proposal_authority_search",
+                            component_projector=fixture["projector"],
+                        )
+                        factorized = _projector(
+                            *arguments,
+                            active_node_ids=fixture["active"],
+                            mode="protected_proposal_authority_search",
+                            component_projector=fixture["projector"],
+                            authority_search_strategy=(
+                                PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+                            ),
+                            authority_factorization_compatible=True,
+                        )
+                        origin = torch.tensor(
+                            fixture["origin"], dtype=dtype, device=device
+                        )
+                        exhaustive_candidate = torch.tensor(
+                            fixture["proposal"], dtype=dtype, device=device
+                        )
+                        factorized_candidate = exhaustive_candidate.clone()
+
+                        exhaustive_result = exhaustive(
+                            origin,
+                            exhaustive_candidate,
+                            fixture["hard_projector"],
+                        )
+                        factorized_result = factorized(
+                            origin,
+                            factorized_candidate,
+                            fixture["hard_projector"],
+                        )
+
+                        self.assertTrue(
+                            torch.equal(
+                                exhaustive_candidate,
+                                factorized_candidate,
+                            )
+                        )
+                        self.assertEqual(
+                            exhaustive_result["reason"],
+                            factorized_result["reason"],
+                        )
+                        self.assertEqual(
+                            exhaustive_result[
+                                "corrected_contact_node_ids"
+                            ],
+                            factorized_result[
+                                "corrected_contact_node_ids"
+                            ],
+                        )
+                        self.assertEqual(
+                            [
+                                [
+                                    component["authority_assignments"]
+                                    for component in row[
+                                        "contact_components"
+                                    ]
+                                ]
+                                for row in exhaustive_result["iterations"]
+                            ],
+                            [
+                                [
+                                    component["authority_assignments"]
+                                    for component in row[
+                                        "contact_components"
+                                    ]
+                                ]
+                                for row in factorized_result["iterations"]
+                            ],
+                        )
+
+    def test_factorized_authority_deduplicates_projected_states(self):
+        def canonical_projector(coordinates, active_node_ids):
+            projected = dict(coordinates)
+            projected_ids = []
+            for node_id in active_node_ids:
+                value = (float(node_id), 0.0)
+                if projected[node_id] != value:
+                    projected_ids.append(node_id)
+                projected[node_id] = value
+            return {
+                "coordinates": projected,
+                "projected_node_ids": projected_ids,
+                "mean_distance": 0.0,
+                "max_distance": 0.0,
+            }
+
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="protected_proposal_authority_search",
+            component_projector=canonical_projector,
+            authority_search_strategy=PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+            authority_factorization_compatible=True,
+        )
+        origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+
+        def hard_projector(position):
+            position[0] = 0.0
+            position[1] = 1.0
+
+        result = projector(origin, candidate, hard_projector)
+
+        self.assertTrue(result["converged"])
+        self.assertEqual(result["authority_search_state_count"], 4)
+        self.assertEqual(result["authority_unique_state_count"], 1)
+        self.assertEqual(result["authority_duplicate_state_prune_count"], 3)
+        self.assertEqual(result["authority_full_exact_test_count"], 1)
+        self.assertEqual(
+            result["authority_admissibly_pruned_state_count"], 3
+        )
+
+    def test_factorized_authority_fails_on_full_validator_mismatch(self):
+        exact_edge_validator = _aabb_component_validator(
+            (1.0, 1.0), (1.0, 1.0)
+        )
+
+        def contradictory_validator(coordinates, edges):
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": 1,
+                "overlap_edges": list(edges),
+                "overlap_area_mm2": 1.0,
+            }
+
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="protected_proposal_authority_search",
+            component_validator=contradictory_validator,
+            component_edge_validator=exact_edge_validator,
+            authority_search_strategy=PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+            authority_factorization_compatible=True,
+        )
+        origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+        before = candidate.clone()
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["reason"], "authority_factorization_mismatch")
+        self.assertEqual(result["authority_full_exact_test_count"], 1)
+        self.assertTrue(torch.equal(candidate, before))
+
+    def _run_topology_tiebreak(
+        self,
+        authority_score,
+        consensus_score,
+        component_validator=None,
+        selected_nets=True,
+        authority_search_strategy="exhaustive",
+    ):
+        calls = []
+
+        def evaluator(position):
+            candidate = position.detach().cpu().clone()
+            calls.append(candidate)
+            is_consensus = float(candidate[4]) > 0.05
+            hpwl, rsmt = (
+                consensus_score if is_consensus else authority_score
+            )
+            return {"hpwl": hpwl, "rsmt": rsmt}
+
+        projector = _projector(
+            ("CENTER", "RIGHT", "TOP"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1), (0, 2)),
+            mode="protected_proposal_authority_search",
+            component_validator=component_validator,
+            component_edge_validator=component_validator,
+            topology_tiebreak=True,
+            topology_evaluator=evaluator if selected_nets else None,
+            topology_net_ids=(7,) if selected_nets else (),
+            topology_net_degrees=(84,) if selected_nets else (),
+            authority_search_strategy=authority_search_strategy,
+            authority_factorization_compatible=(
+                authority_search_strategy
+                == PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+            ),
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.2, 1.0, 0.0, 0.2, 0.0, 1.1], dtype=torch.float64
+        )
+        result = projector(origin, candidate, lambda position: None)
+        return candidate, result, calls
+
+    def test_topology_tiebreak_uses_rsmt_only_after_equal_hpwl(self):
+        candidate, result, calls = self._run_topology_tiebreak(
+            authority_score=(10.0, 20.0),
+            consensus_score=(10.0, 19.0),
+        )
+
+        self.assertTrue(result["converged"])
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor(
+                [0.0, 1.0, 0.0, 0.1, 0.1, 1.1],
+                dtype=torch.float64,
+            ),
+            rtol=0,
+            atol=1e-15,
+        )
+        decision = result["iterations"][0]["topology_tiebreak"]
+        self.assertEqual(decision["selected_candidate"], "component_consensus")
+        self.assertEqual(decision["selection_reason"], "consensus_lower_rsmt")
+        self.assertEqual(decision["score_call_count"], 2)
+        self.assertEqual(len(calls), 2)
+
+    def test_topology_tiebreak_uses_native_flute_on_equal_hpwl_pair(self):
+        try:
+            from dreamplace.ops.hpwl.hpwl import HPWL
+            from dreamplace.ops.rmst_wl.rmst_wl import RmstWL
+        except ImportError as error:
+            self.skipTest("installed native HPWL/FLUTE operators are required: %s" % error)
+
+        repo_root = Path(__file__).resolve().parents[2]
+        degree = 5
+        flat_netpin = torch.arange(degree, dtype=torch.int32)
+        netpin_start = torch.tensor([0, degree], dtype=torch.int32)
+        hpwl = HPWL(
+            flat_netpin=flat_netpin,
+            netpin_start=netpin_start,
+            net_weights=torch.ones(1, dtype=torch.float64),
+            net_mask=torch.ones(1, dtype=torch.uint8),
+            algorithm="net-by-net",
+        )
+        rmst = RmstWL(
+            flat_netpin=flat_netpin,
+            netpin_start=netpin_start,
+            ignore_net_degree=100,
+            POWVFILE=str(
+                repo_root / "thirdparty/NCTUgr.ICCAD2012/POWV9.dat"
+            ),
+            POSTFILE=str(
+                repo_root / "thirdparty/NCTUgr.ICCAD2012/POST9.dat"
+            ),
+        )
+        authority_points = ((0, 0), (4, 4), (0, 1), (0, 2), (1, 0))
+        consensus_points = ((0, 0), (4, 4), (0, 1), (0, 2), (0, 3))
+        read_lut = True
+
+        def evaluator(position):
+            nonlocal read_lut
+            points = (
+                consensus_points
+                if float(position.detach().cpu()[4]) > 0.05
+                else authority_points
+            )
+            pin_position = torch.tensor(
+                [value[0] for value in points]
+                + [value[1] for value in points],
+                dtype=torch.float64,
+            )
+            score = {
+                "hpwl": float(hpwl(pin_position)[0]),
+                "rsmt": float(rmst(pin_position, read_lut)[0]),
+            }
+            read_lut = False
+            return score
+
+        projector = _projector(
+            ("CENTER", "RIGHT", "TOP"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1), (0, 2)),
+            mode="protected_proposal_authority_search",
+            topology_tiebreak=True,
+            topology_evaluator=evaluator,
+            topology_net_ids=(0,),
+            topology_net_degrees=(degree,),
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.2, 1.0, 0.0, 0.2, 0.0, 1.1], dtype=torch.float64
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        decision = result["iterations"][0]["topology_tiebreak"]
+        authority = decision["candidates"]["proposal_authority"]
+        consensus = decision["candidates"]["component_consensus"]
+        self.assertEqual(authority["selected_net_hpwl"], 8.0)
+        self.assertEqual(consensus["selected_net_hpwl"], 8.0)
+        self.assertEqual(authority["selected_net_rsmt"], 9.0)
+        self.assertEqual(consensus["selected_net_rsmt"], 8.0)
+        self.assertEqual(decision["selected_candidate"], "component_consensus")
+        self.assertEqual(decision["selection_reason"], "consensus_lower_rsmt")
+
+    def test_topology_tiebreak_never_buys_rsmt_with_worse_hpwl(self):
+        candidate, result, calls = self._run_topology_tiebreak(
+            authority_score=(9.0, 30.0),
+            consensus_score=(10.0, 1.0),
+        )
+
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor(
+                [0.0, 1.0, 0.0, 0.1, 0.0, 1.1],
+                dtype=torch.float64,
+            ),
+            rtol=0,
+            atol=1e-15,
+        )
+        decision = result["iterations"][0]["topology_tiebreak"]
+        self.assertEqual(decision["selected_candidate"], "proposal_authority")
+        self.assertEqual(decision["selection_reason"], "authority_lower_hpwl")
+        self.assertEqual(len(calls), 2)
+
+    def test_topology_tiebreak_exact_tie_preserves_authority_bytes(self):
+        candidate, result, calls = self._run_topology_tiebreak(
+            authority_score=(10.0, 20.0),
+            consensus_score=(10.0, 20.0),
+        )
+
+        self.assertTrue(torch.equal(candidate, calls[0]))
+        decision = result["iterations"][0]["topology_tiebreak"]
+        self.assertEqual(decision["selected_candidate"], "proposal_authority")
+        self.assertEqual(decision["selection_reason"], "exact_tie_authority")
+        self.assertEqual(len(calls), 2)
+
+    def test_topology_tiebreak_discards_reopened_consensus_edge(self):
+        base_validator = _aabb_component_validator(
+            (1.0, 1.0, 1.0), (1.0, 1.0, 1.0)
+        )
+
+        def consensus_reopening_validator(coordinates, edges):
+            report = base_validator(coordinates, edges)
+            if (
+                1 in coordinates
+                and float(coordinates[1][1]) > 0.05
+                and not report["overlap_pair_count"]
+            ):
+                report = dict(report)
+                report["overlap_pair_count"] = 1
+                report["overlap_edges"] = [(0, 1)]
+                report["overlap_area_mm2"] = 1.0
+            return report
+
+        candidate, result, calls = self._run_topology_tiebreak(
+            authority_score=(10.0, 20.0),
+            consensus_score=(1.0, 1.0),
+            component_validator=consensus_reopening_validator,
+        )
+
+        self.assertTrue(result["converged"])
+        decision = result["iterations"][0]["topology_tiebreak"]
+        self.assertEqual(decision["selected_candidate"], "proposal_authority")
+        self.assertEqual(decision["selection_reason"], "consensus_ineligible")
+        self.assertFalse(
+            decision["candidates"]["component_consensus"]["eligible"]
+        )
+        self.assertEqual(
+            decision["candidates"]["component_consensus"][
+                "ineligible_reason"
+            ],
+            "protected_edge_reopened",
+        )
+        self.assertEqual(len(calls), 1)
+
+    def test_topology_tiebreak_without_selected_nets_makes_no_score_calls(self):
+        candidate, result, calls = self._run_topology_tiebreak(
+            authority_score=(10.0, 20.0),
+            consensus_score=(1.0, 1.0),
+            selected_nets=False,
+        )
+
+        decision = result["iterations"][0]["topology_tiebreak"]
+        self.assertEqual(decision["selected_candidate"], "proposal_authority")
+        self.assertEqual(
+            decision["selection_reason"], "no_topology_sensitive_nets"
+        )
+        self.assertEqual(decision["score_call_count"], 0)
+        self.assertEqual(calls, [])
+        self.assertEqual(result["topology_tiebreak"]["score_call_count"], 0)
+
+    def test_topology_score_calls_do_not_scale_with_authority_states(self):
+        _, result, calls = self._run_topology_tiebreak(
+            authority_score=(10.0, 20.0),
+            consensus_score=(10.0, 19.0),
+            authority_search_strategy=(
+                PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+            ),
+        )
+
+        iteration = result["iterations"][0]
+        self.assertEqual(iteration["authority_state_count"], 27)
+        self.assertEqual(
+            iteration["topology_tiebreak"]["score_call_count"], 2
+        )
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(
+            result["authority_search_strategy"],
+            PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+        )
+
+    def test_disabled_topology_tiebreak_keeps_authority_schema_and_bytes(self):
+        projector = _projector(
+            ("CENTER", "RIGHT", "TOP"),
+            (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            ((0, 1), (0, 2)),
+            mode="protected_proposal_authority_search",
+        )
+        origin = torch.tensor(
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0], dtype=torch.float64
+        )
+        candidate = torch.tensor(
+            [0.2, 1.0, 0.0, 0.2, 0.0, 1.1], dtype=torch.float64
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertNotIn("topology_tiebreak", result)
+        self.assertNotIn("topology_tiebreak", result["iterations"][0])
+        torch.testing.assert_close(
+            candidate,
+            torch.tensor(
+                [0.0, 1.0, 0.0, 0.1, 0.0, 1.1],
+                dtype=torch.float64,
+            ),
+            rtol=0,
+            atol=1e-15,
         )
 
     def test_authority_search_uses_mixed_exact_legal_authorities(self):
