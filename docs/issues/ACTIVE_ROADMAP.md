@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-191`
+**Evidence through:** `M336-192`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (blocked by M336-190/M336-191 E2 runtime) | Prevent native optimizer steps from crossing same-side footprint contacts | Preserve exact bytes while closing the remaining `0.058411 s` E2 gap; legal-origin deltas are not sparse, so only offline generalized-delta/full-counted-path evidence or a human architecture decision can authorize another D1 |
+| N6 (blocked by M336-192 E2 runtime) | Prevent native optimizer steps from crossing same-side footprint contacts | Strict covered-region and incremental audits are exhausted; no further D1 is authorized without a human decision on authority/FLUTE frequency or the fixed runtime gate |
 
 ## Paused Exact-Site Priorities
 
@@ -737,6 +737,19 @@ An exact delta audit must therefore prove complete provenance/report parity and
 additional full-counted-path margin before any further D1. Otherwise stop
 micro-optimization and request a human architecture decision; all tuning,
 repair, Legalization, CP-SAT, D2, D3, and E4 remain prohibited.
+
+M336-191 and M336-192 close that final audit experiment. Legal accepted origins
+differ from proposals at all 100 constrained nodes, while only the 17
+post-correction transitions are sparse. A provenance-bound incremental audit
+therefore retains complete overlap rows from the preceding exact,
+Keep-in-legal candidate and recomputes every interaction incident to the
+changed nodes. A 51-position real M336 corpus passes `204/204` CPU/H100
+float32/float64 full-report comparisons. On the observed 17-call changed-count
+sequence, median time falls from `0.016575098 s` to `0.006642381 s`, a saving
+of only `0.009932717 s`. E2 would still be about `0.048478 s` above its fixed
+limit, and even deleting all position-audit time cannot pass the measured run.
+N6 now requires a human architecture/runtime-contract decision. No additional
+D1, tuning, repair, Legalization, CP-SAT, D2, D3, or E4 is authorized.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

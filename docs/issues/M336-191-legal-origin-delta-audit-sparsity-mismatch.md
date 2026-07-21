@@ -1,7 +1,7 @@
 # M336-191: Legal-Origin Delta Audit Is Not Sparse
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Mitigated
 **Found:** 2026-07-21
 **Affected commit:** `7526d27`
 
@@ -79,3 +79,12 @@ stable end-to-end margin beyond the fixed gate. If it does not, stop D1
 micro-optimization and request the already identified human architecture
 decision about authority/FLUTE selection frequency. Collision behavior,
 anchor control, learning rate, and Legalization remain frozen.
+
+## Resolution Evidence
+
+M336-192 implements the only useful strict-equivalent variant: reuse is bound
+to the immediately preceding exact, Keep-in-legal candidate while complete
+overlap rows are merged rather than assumed absent. It passes `204/204` real
+M336 CPU/H100 float32/float64 report comparisons. The measured saving is only
+`0.009932717 s` across the 17 sparse correction calls, so the implementation
+mitigates validator cost but cannot authorize another D1.

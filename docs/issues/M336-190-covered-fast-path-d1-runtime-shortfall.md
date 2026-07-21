@@ -123,6 +123,10 @@ changes all 100 constrained nodes relative to its legal origin, so that narrow
 contract cannot accelerate the validator. Only post-correction deltas relative
 to an immediately preceding exact but overlap-illegal report are sparse; any
 implementation must retain and merge those unchanged conflict rows exactly.
+M336-192 implements that generalized contract and measures only
+`0.009932717 s` median saving over all 17 sparse correction calls. The runtime
+gate remains mathematically unreachable by audit elimination alone, so the
+required next action is now the human architecture decision, not another D1.
 
 ## Artifact Identity
 

@@ -966,11 +966,11 @@ class NonLinearPlace(BasicPlace.BasicPlace):
 
                 guard_validator = None
                 if exact_step_guard_enabled:
-
-                    def guard_validator(candidate):
-                        return self.anchor_keepin_context.exact_overlap_report(
-                            candidate, placedb
+                    guard_validator = (
+                        self.anchor_keepin_context.exact_overlap_validator(
+                            placedb
                         )
+                    )
 
                 contact_projector = None
                 if exact_contact_projection_enabled:

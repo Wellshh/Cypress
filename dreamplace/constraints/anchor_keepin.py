@@ -9,6 +9,7 @@ import math
 import os
 import time
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -1754,6 +1755,45 @@ def _pack_region(constraints, obstacles, preferred_centers=None):
     )
 
 
+@dataclass(frozen=True)
+class _ExactPositionAuditState:
+    """Private geometry state for one provenance-bound exact audit."""
+
+    validator_token: object
+    context: object
+    placedb: object
+    templates: dict
+    position: np.ndarray
+    constrained_footprints: np.ndarray
+    fixed_node_ids: tuple
+    fixed_cache_key: tuple
+    epsilon: float
+    scale_squared: float
+    audit: dict
+
+
+class _ExactOverlapValidator:
+    """Expose full and incremental reports through one bound validator."""
+
+    def __init__(self, context, placedb):
+        self.context = context
+        self.placedb = placedb
+        self._token = object()
+
+    def __call__(self, position):
+        return self.context.exact_overlap_report(position, self.placedb)
+
+    def validate_with_state(self, position):
+        return self.context._exact_overlap_report_with_state(
+            position, self.placedb, self._token
+        )
+
+    def validate_delta(self, state, position):
+        return self.context._exact_overlap_delta_report(
+            state, position, self.placedb, self._token
+        )
+
+
 class AnchorKeepInContext:
     """Resolved geometry and node constraints shared by placement stages."""
 
@@ -1844,6 +1884,16 @@ class AnchorKeepInContext:
         self._position_audit_fixed_cache = None
         self._position_audit_stats = {
             "audit_call_count": 0,
+            "full_audit_call_count": 0,
+            "delta_audit_attempt_count": 0,
+            "delta_audit_hit_count": 0,
+            "delta_audit_fallback_count": 0,
+            "delta_audit_changed_node_count": 0,
+            "delta_audit_elapsed_seconds": 0.0,
+            "delta_keepin_seconds": 0.0,
+            "delta_fixed_overlap_seconds": 0.0,
+            "delta_constrained_overlap_seconds": 0.0,
+            "delta_fallback_reasons": {},
             "batched_coordinate_snapshot_count": 0,
             "batched_coordinate_snapshot_seconds": 0.0,
             "batched_footprint_translation_seconds": 0.0,
@@ -2758,6 +2808,14 @@ class AnchorKeepInContext:
                 constraint.node_id: constraint.refdes
                 for constraint in self.constraints
             },
+            "constraint_index_by_node_id": {
+                constraint.node_id: index
+                for index, constraint in enumerate(self.constraints)
+            },
+            "constraint_index_by_refdes": {
+                constraint.refdes: index
+                for index, constraint in enumerate(self.constraints)
+            },
         }
         self._position_audit_constrained_templates_cache = cache
         return cache
@@ -2770,10 +2828,17 @@ class AnchorKeepInContext:
         )
         return diagnostics
 
-    def _position_audit(self, position, placedb):
+    def _position_audit(
+        self,
+        position,
+        placedb,
+        _capture_state=False,
+        _validator_token=None,
+    ):
         """Return exact invalid/conflicting nodes using side-local STRtrees."""
         audit_started = time.perf_counter()
         self._position_audit_stats["audit_call_count"] += 1
+        self._position_audit_stats["full_audit_call_count"] += 1
         try:
             snapshot_started = time.perf_counter()
             position = self._position_host_snapshot(position)
@@ -2967,15 +3032,42 @@ class AnchorKeepInContext:
                     id_to_refdes[node_id] for node_id in sorted(repair_ids)
                 ],
             }
+            if _capture_state:
+                if _validator_token is None:
+                    raise ValueError(
+                        "captured exact audit requires a validator token"
+                    )
+                position.setflags(write=False)
+                constrained_footprints.setflags(write=False)
+                cache = self._position_audit_fixed_cache
+                if cache is None or cache["placedb"] is not placedb:
+                    raise RuntimeError("fixed audit cache provenance is missing")
+                state = _ExactPositionAuditState(
+                    validator_token=_validator_token,
+                    context=self,
+                    placedb=placedb,
+                    templates=templates,
+                    position=position,
+                    constrained_footprints=constrained_footprints,
+                    fixed_node_ids=fixed_node_ids,
+                    fixed_cache_key=cache["key"],
+                    epsilon=epsilon,
+                    scale_squared=abs(self.alignment.scale) ** 2,
+                    audit=report,
+                )
+                return report, repair_ids, state
             return report, repair_ids
         finally:
             self._position_audit_stats["elapsed_seconds"] += (
                 time.perf_counter() - audit_started
             )
 
-    def exact_overlap_report(self, position, placedb):
-        """Return lightweight exact collision metrics for optimizer diagnostics."""
-        audit, _ = self._position_audit(position, placedb)
+    def exact_overlap_validator(self, placedb):
+        """Return a validator with private provenance-bound delta support."""
+        return _ExactOverlapValidator(self, placedb)
+
+    def _exact_overlap_report_from_audit(self, audit):
+        """Convert one complete internal audit into the public exact report."""
         scale_squared = abs(self.alignment.scale) ** 2
         fixed_area = sum(row["overlap_area"] for row in audit["fixed_overlaps"])
         constrained_area = sum(
@@ -3019,6 +3111,443 @@ class AnchorKeepInContext:
             "overlap_area_mm2": (fixed_area + constrained_area) / scale_squared,
             "conflict_closure_count": audit["conflict_closure_count"],
             "overlap_pairs": overlap_pairs,
+        }
+
+    def _exact_overlap_report_with_state(
+        self, position, placedb, validator_token
+    ):
+        audit, _, state = self._position_audit(
+            position,
+            placedb,
+            _capture_state=True,
+            _validator_token=validator_token,
+        )
+        return self._exact_overlap_report_from_audit(audit), state
+
+    def exact_overlap_report(self, position, placedb):
+        """Return lightweight exact collision metrics for optimizer diagnostics."""
+        audit, _ = self._position_audit(position, placedb)
+        return self._exact_overlap_report_from_audit(audit)
+
+    def _exact_overlap_delta_report(
+        self, state, position, placedb, validator_token
+    ):
+        """Re-audit sparse corrections against one exact Keep-in-legal state."""
+        started = time.perf_counter()
+        stats = self._position_audit_stats
+        stats["delta_audit_attempt_count"] += 1
+        changed_node_ids = ()
+
+        def fallback(reason):
+            reasons = stats["delta_fallback_reasons"]
+            reasons[reason] = int(reasons.get(reason, 0)) + 1
+            stats["delta_audit_fallback_count"] += 1
+            report, next_state = self._exact_overlap_report_with_state(
+                position, placedb, validator_token
+            )
+            stats["delta_audit_elapsed_seconds"] += (
+                time.perf_counter() - started
+            )
+            return report, next_state, {
+                "used_delta": False,
+                "fallback_reason": reason,
+                "changed_node_count": len(changed_node_ids),
+            }
+
+        if not isinstance(state, _ExactPositionAuditState):
+            return fallback("invalid_state_type")
+        if state.validator_token is not validator_token:
+            return fallback("validator_token_mismatch")
+        if state.context is not self or state.placedb is not placedb:
+            return fallback("geometry_context_mismatch")
+
+        templates = self._position_audit_constrained_templates()
+        if state.templates is not templates:
+            return fallback("constrained_template_mismatch")
+        epsilon = float(
+            self.config.get("reporting", {}).get(
+                "area_epsilon_mm2", 1e-5
+            )
+        ) * abs(self.alignment.scale) ** 2
+        scale_squared = abs(self.alignment.scale) ** 2
+        if state.epsilon != epsilon or state.scale_squared != scale_squared:
+            return fallback("reporting_context_mismatch")
+        if int(state.audit.get("keepin_invalid_count", 0)):
+            return fallback("origin_keepin_invalid")
+
+        snapshot_started = time.perf_counter()
+        candidate_position = self._position_host_snapshot(position)
+        snapshot_elapsed = time.perf_counter() - snapshot_started
+        if (
+            candidate_position.dtype != state.position.dtype
+            or candidate_position.shape != state.position.shape
+        ):
+            return fallback("position_layout_mismatch")
+
+        physical_node_count = int(placedb.num_physical_nodes)
+        changed_physical = np.flatnonzero(
+            np.not_equal(
+                candidate_position[:physical_node_count],
+                state.position[:physical_node_count],
+            )
+            | np.not_equal(
+                candidate_position[
+                    self.num_nodes : self.num_nodes + physical_node_count
+                ],
+                state.position[
+                    self.num_nodes : self.num_nodes + physical_node_count
+                ],
+            )
+        )
+        constraint_index_by_node_id = templates[
+            "constraint_index_by_node_id"
+        ]
+        changed_node_ids = tuple(int(value) for value in changed_physical)
+        if any(
+            node_id not in constraint_index_by_node_id
+            for node_id in changed_node_ids
+        ):
+            return fallback("nonconstrained_physical_change")
+        changed_indices = np.asarray(
+            [constraint_index_by_node_id[node_id] for node_id in changed_node_ids],
+            dtype=np.intp,
+        )
+        max_delta_nodes = max(
+            1, min(32, (len(self.constraints) - 1) // 2)
+        )
+        if len(changed_indices) > max_delta_nodes:
+            return fallback("dense_constrained_change")
+
+        fixed_cache_key = self._fixed_audit_cache_key(
+            candidate_position, placedb, state.fixed_node_ids
+        )
+        if fixed_cache_key != state.fixed_cache_key:
+            return fallback("fixed_geometry_mismatch")
+
+        translation_started = time.perf_counter()
+        candidate_footprints = state.constrained_footprints.copy()
+        if len(changed_indices):
+            changed_local = templates["local_footprints"][
+                changed_indices
+            ].copy()
+            local_coordinates, local_geometry_indices = (
+                shapely.get_coordinates(changed_local, return_index=True)
+            )
+            changed_centers = np.empty(
+                (len(changed_indices), 2), dtype=np.float64
+            )
+            changed_node_array = templates["node_ids"][changed_indices]
+            np.add(
+                candidate_position[changed_node_array],
+                templates["half_widths"][changed_indices],
+                out=changed_centers[:, 0],
+            )
+            np.add(
+                candidate_position[self.num_nodes + changed_node_array],
+                templates["half_heights"][changed_indices],
+                out=changed_centers[:, 1],
+            )
+            changed_footprints = shapely.set_coordinates(
+                changed_local,
+                local_coordinates
+                + changed_centers[local_geometry_indices],
+            )
+            candidate_footprints[changed_indices] = changed_footprints
+        translation_elapsed = time.perf_counter() - translation_started
+
+        changed_index_set = set(int(value) for value in changed_indices)
+        changed_constraint_mask = np.zeros(len(self.constraints), dtype=bool)
+        changed_constraint_mask[changed_indices] = True
+
+        keepin_started = time.perf_counter()
+        keepin_invalid = set()
+        keepin_covered_count = 0
+        keepin_fallback_count = 0
+        keepin_predicate_seconds = 0.0
+        keepin_fallback_seconds = 0.0
+        changed_region_groups = defaultdict(list)
+        for constraint_index in changed_indices:
+            constraint = self.constraints[int(constraint_index)]
+            changed_region_groups[constraint.region_id].append(
+                int(constraint_index)
+            )
+        for region_id, indices in changed_region_groups.items():
+            indices = np.asarray(indices, dtype=np.intp)
+            predicate_started = time.perf_counter()
+            covered = np.asarray(
+                shapely.covers(
+                    templates["prepared_regions"][region_id],
+                    candidate_footprints[indices],
+                ),
+                dtype=bool,
+            )
+            keepin_predicate_seconds += (
+                time.perf_counter() - predicate_started
+            )
+            fallback_started = time.perf_counter()
+            local_fallback = np.flatnonzero(~covered)
+            if len(local_fallback):
+                fallback_indices = indices[local_fallback]
+                fallback_areas = shapely.area(
+                    shapely.difference(
+                        candidate_footprints[fallback_indices],
+                        templates["regions"][fallback_indices],
+                    )
+                )
+                invalid_indices = fallback_indices[
+                    np.flatnonzero(fallback_areas > epsilon)
+                ]
+                keepin_invalid.update(
+                    int(node_id)
+                    for node_id in templates["node_ids"][invalid_indices]
+                )
+            keepin_fallback_seconds += (
+                time.perf_counter() - fallback_started
+            )
+            keepin_covered_count += int(np.count_nonzero(covered))
+            keepin_fallback_count += int(len(local_fallback))
+        keepin_elapsed = time.perf_counter() - keepin_started
+
+        fixed_overlap_started = time.perf_counter()
+        fixed_rows, fixed_trees, fixed_shapes = self._fixed_audit_geometry(
+            candidate_position, placedb, state.fixed_node_ids
+        )
+        origin_fixed_rows = state.audit["fixed_overlaps"]
+        origin_fixed = {
+            (row["refdes"], row["fixed_refdes"]): row
+            for row in origin_fixed_rows
+        }
+        if len(origin_fixed) != len(origin_fixed_rows):
+            return fallback("duplicate_origin_fixed_pair")
+        retained_fixed_keys = {
+            key
+            for key in origin_fixed
+            if templates["constraint_index_by_refdes"][key[0]]
+            not in changed_index_set
+        }
+        seen_retained_fixed = set()
+        fixed_conflicts = []
+        for side in ("TOP", "BOTTOM"):
+            constraint_indices = templates["side_indices"][side]
+            side_footprints = candidate_footprints[constraint_indices]
+            fixed_tree = fixed_trees[side]
+            if fixed_tree is None or not len(side_footprints):
+                continue
+            candidate_pairs = fixed_tree.query(side_footprints)
+            if not candidate_pairs.shape[1]:
+                continue
+            global_constraint_indices = constraint_indices[
+                candidate_pairs[0]
+            ]
+            changed_columns = np.flatnonzero(
+                changed_constraint_mask[global_constraint_indices]
+            )
+            changed_areas = shapely.area(
+                shapely.intersection(
+                    side_footprints[candidate_pairs[0, changed_columns]],
+                    fixed_shapes[side][
+                        candidate_pairs[1, changed_columns]
+                    ],
+                )
+            )
+            changed_area_by_column = {
+                int(column): float(area)
+                for column, area in zip(changed_columns, changed_areas)
+            }
+            for pair_column in range(candidate_pairs.shape[1]):
+                constraint_index = int(
+                    global_constraint_indices[pair_column]
+                )
+                constraint = self.constraints[constraint_index]
+                fixed_row = fixed_rows[side][
+                    int(candidate_pairs[1, pair_column])
+                ]
+                key = (constraint.refdes, fixed_row[1])
+                if changed_constraint_mask[constraint_index]:
+                    area = changed_area_by_column[pair_column]
+                    if area > epsilon:
+                        fixed_conflicts.append(
+                            {
+                                "refdes": constraint.refdes,
+                                "fixed_refdes": fixed_row[1],
+                                "overlap_area": area,
+                            }
+                        )
+                else:
+                    row = origin_fixed.get(key)
+                    if row is not None:
+                        fixed_conflicts.append(dict(row))
+                        seen_retained_fixed.add(key)
+        if seen_retained_fixed != retained_fixed_keys:
+            return fallback("fixed_conflict_merge_mismatch")
+        fixed_overlap_elapsed = time.perf_counter() - fixed_overlap_started
+
+        constrained_overlap_started = time.perf_counter()
+        origin_pair_rows = state.audit["constrained_overlaps"]
+        origin_pairs = {
+            (row["first_refdes"], row["second_refdes"]): row
+            for row in origin_pair_rows
+        }
+        if len(origin_pairs) != len(origin_pair_rows):
+            return fallback("duplicate_origin_constrained_pair")
+        constraint_index_by_refdes = templates[
+            "constraint_index_by_refdes"
+        ]
+        retained_pair_keys = {
+            key
+            for key in origin_pairs
+            if constraint_index_by_refdes[key[0]] not in changed_index_set
+            and constraint_index_by_refdes[key[1]] not in changed_index_set
+        }
+        seen_retained_pairs = set()
+        pair_conflicts = []
+        for side in ("TOP", "BOTTOM"):
+            constraint_indices = templates["side_indices"][side]
+            side_footprints = candidate_footprints[constraint_indices]
+            if not len(side_footprints):
+                continue
+            tree = shapely.STRtree(side_footprints)
+            candidate_pairs = tree.query(side_footprints)
+            candidate_pairs = candidate_pairs[
+                :, candidate_pairs[1] > candidate_pairs[0]
+            ]
+            if not candidate_pairs.shape[1]:
+                continue
+            first_constraint_indices = constraint_indices[
+                candidate_pairs[0]
+            ]
+            second_constraint_indices = constraint_indices[
+                candidate_pairs[1]
+            ]
+            changed_columns = np.flatnonzero(
+                changed_constraint_mask[first_constraint_indices]
+                | changed_constraint_mask[second_constraint_indices]
+            )
+            changed_areas = shapely.area(
+                shapely.intersection(
+                    side_footprints[candidate_pairs[0, changed_columns]],
+                    side_footprints[candidate_pairs[1, changed_columns]],
+                )
+            )
+            changed_area_by_column = {
+                int(column): float(area)
+                for column, area in zip(changed_columns, changed_areas)
+            }
+            for pair_column in range(candidate_pairs.shape[1]):
+                first_index = int(first_constraint_indices[pair_column])
+                second_index = int(second_constraint_indices[pair_column])
+                first = self.constraints[first_index]
+                second = self.constraints[second_index]
+                key = (first.refdes, second.refdes)
+                if (
+                    changed_constraint_mask[first_index]
+                    or changed_constraint_mask[second_index]
+                ):
+                    area = changed_area_by_column[pair_column]
+                    if area > epsilon:
+                        pair_conflicts.append(
+                            {
+                                "first_refdes": first.refdes,
+                                "second_refdes": second.refdes,
+                                "overlap_area": area,
+                            }
+                        )
+                else:
+                    row = origin_pairs.get(key)
+                    if row is not None:
+                        pair_conflicts.append(dict(row))
+                        seen_retained_pairs.add(key)
+        if seen_retained_pairs != retained_pair_keys:
+            return fallback("constrained_conflict_merge_mismatch")
+        constrained_overlap_elapsed = (
+            time.perf_counter() - constrained_overlap_started
+        )
+
+        repair_ids = set(keepin_invalid)
+        for row in fixed_conflicts:
+            repair_ids.add(
+                templates["node_ids"][
+                    constraint_index_by_refdes[row["refdes"]]
+                ]
+            )
+        for row in pair_conflicts:
+            repair_ids.update(
+                (
+                    int(
+                        templates["node_ids"][
+                            constraint_index_by_refdes[
+                                row["first_refdes"]
+                            ]
+                        ]
+                    ),
+                    int(
+                        templates["node_ids"][
+                            constraint_index_by_refdes[
+                                row["second_refdes"]
+                            ]
+                        ]
+                    ),
+                )
+            )
+        id_to_refdes = templates["refdes_by_node_id"]
+        audit = {
+            "keepin_invalid_count": len(keepin_invalid),
+            "keepin_invalid_refdes": [
+                id_to_refdes[node_id] for node_id in sorted(keepin_invalid)
+            ],
+            "fixed_overlap_count": len(fixed_conflicts),
+            "fixed_overlaps": fixed_conflicts,
+            "constrained_overlap_count": len(pair_conflicts),
+            "constrained_overlaps": pair_conflicts,
+            "conflict_closure_count": len(repair_ids),
+            "conflict_closure_refdes": [
+                id_to_refdes[node_id] for node_id in sorted(repair_ids)
+            ],
+        }
+        candidate_position.setflags(write=False)
+        candidate_footprints.setflags(write=False)
+        next_state = _ExactPositionAuditState(
+            validator_token=validator_token,
+            context=self,
+            placedb=placedb,
+            templates=templates,
+            position=candidate_position,
+            constrained_footprints=candidate_footprints,
+            fixed_node_ids=state.fixed_node_ids,
+            fixed_cache_key=fixed_cache_key,
+            epsilon=epsilon,
+            scale_squared=scale_squared,
+            audit=audit,
+        )
+
+        elapsed = time.perf_counter() - started
+        stats["audit_call_count"] += 1
+        stats["delta_audit_hit_count"] += 1
+        stats["delta_audit_changed_node_count"] += len(changed_indices)
+        stats["delta_audit_elapsed_seconds"] += elapsed
+        stats["batched_coordinate_snapshot_count"] += 1
+        stats["batched_coordinate_snapshot_seconds"] += snapshot_elapsed
+        stats["batched_footprint_translation_seconds"] += translation_elapsed
+        stats["batched_keepin_seconds"] += keepin_elapsed
+        stats["keepin_predicate_seconds"] += keepin_predicate_seconds
+        stats["keepin_fallback_seconds"] += keepin_fallback_seconds
+        stats["keepin_covered_count"] += keepin_covered_count
+        stats["keepin_fallback_count"] += keepin_fallback_count
+        stats["keepin_invalid_count"] += len(keepin_invalid)
+        stats["batched_fixed_overlap_seconds"] += fixed_overlap_elapsed
+        stats["batched_constrained_overlap_seconds"] += (
+            constrained_overlap_elapsed
+        )
+        stats["delta_keepin_seconds"] += keepin_elapsed
+        stats["delta_fixed_overlap_seconds"] += fixed_overlap_elapsed
+        stats["delta_constrained_overlap_seconds"] += (
+            constrained_overlap_elapsed
+        )
+        stats["elapsed_seconds"] += elapsed
+        return self._exact_overlap_report_from_audit(audit), next_state, {
+            "used_delta": True,
+            "fallback_reason": None,
+            "changed_node_count": len(changed_indices),
         }
 
     def exact_contact_component_report(

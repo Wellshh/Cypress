@@ -151,6 +151,20 @@ def _projector(
 
 class ExactContactProjectionTest(unittest.TestCase):
     def test_minimum_cover_configuration_fails_closed(self):
+        class IncompleteIncrementalValidator:
+            def __call__(self, position):
+                return {}
+
+            def validate_with_state(self, position):
+                return {}, position
+
+        with self.assertRaisesRegex(ValueError, "full and delta methods"):
+            ExactContactProjector(
+                validator=IncompleteIncrementalValidator(),
+                refdes_to_node_id={"A": 0, "B": 1},
+                active_node_ids=(0, 1),
+                num_nodes=2,
+            )
         with self.assertRaisesRegex(ValueError, "unknown exact contact"):
             _projector(
                 ("A", "B"),
@@ -1551,6 +1565,77 @@ class ExactContactProjectionTest(unittest.TestCase):
                 ((0, 1),),
             )(candidate)["overlap_pair_count"],
             0,
+        )
+
+    def test_incremental_validator_runs_only_after_full_initial_report(self):
+        names = ("A", "B")
+        widths = (1.0, 1.0)
+        heights = (1.0, 1.0)
+        pairs = ((0, 1),)
+        full_validator = _aabb_validator(names, widths, heights, pairs)
+
+        class IncrementalValidator:
+            def __init__(self):
+                self.full_call_count = 0
+                self.delta_call_count = 0
+
+            def __call__(self, position):
+                return full_validator(position)
+
+            def validate_with_state(self, position):
+                self.full_call_count += 1
+                return full_validator(position), position.detach().clone()
+
+            def validate_delta(self, state, position):
+                self.delta_call_count += 1
+                changed = _correction_node_count(state, position, len(names))
+                return (
+                    full_validator(position),
+                    position.detach().clone(),
+                    {
+                        "used_delta": True,
+                        "fallback_reason": None,
+                        "changed_node_count": changed,
+                    },
+                )
+
+        def _correction_node_count(before, after, num_nodes):
+            changed = (before[:num_nodes] != after[:num_nodes]) | (
+                before[num_nodes : 2 * num_nodes]
+                != after[num_nodes : 2 * num_nodes]
+            )
+            return int(torch.count_nonzero(changed).item())
+
+        validator = IncrementalValidator()
+        projector = ExactContactProjector(
+            validator=validator,
+            component_validator=_aabb_component_validator(widths, heights),
+            component_projector=_identity_component_projector,
+            refdes_to_node_id={"A": 0, "B": 1},
+            active_node_ids=(0, 1),
+            num_nodes=2,
+            mode="proposal_authority_search",
+        )
+        origin = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertTrue(result["converged"])
+        self.assertEqual(result["validator_call_count"], 2)
+        self.assertEqual(validator.full_call_count, 1)
+        self.assertEqual(validator.delta_call_count, 1)
+        self.assertEqual(result["incremental_validator_attempt_count"], 1)
+        self.assertEqual(result["incremental_validator_hit_count"], 1)
+        self.assertEqual(result["incremental_validator_fallback_count"], 0)
+        self.assertEqual(
+            [row["mode"] for row in result["validator_modes"]],
+            ["full", "delta"],
+        )
+        self.assertEqual(
+            result["validator_modes"][1]["changed_node_count"], 1
         )
 
     def test_authority_search_preserves_concave_corner_tangency(self):

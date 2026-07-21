@@ -201,7 +201,8 @@ append-only audit ledger.
 | [M336-188](M336-188-vectorized-audit-d1-runtime-shortfall.md) | Critical | Open | Combined D1 is exact legal and improves quality, but E2 remains 3.89% above its fixed GPU runtime gate |
 | [M336-189](M336-189-strict-covered-keepin-fast-path.md) | Critical | Open | D1 preserves bytes and cuts exact audit to 0.0388 s, but E2 remains 58.4 ms above its runtime limit |
 | [M336-190](M336-190-covered-fast-path-d1-runtime-shortfall.md) | Critical | Open | Covered fast path is effective, but its D1 runtime gain is offset and exact delta audit alone lacks a sufficient measured bound |
-| [M336-191](M336-191-legal-origin-delta-audit-sparsity-mismatch.md) | Critical | Open | Saved D1 traces show legal-origin deltas touch 97-100 nodes; only provenance-bound post-correction candidates are sparse |
+| [M336-191](M336-191-legal-origin-delta-audit-sparsity-mismatch.md) | Critical | Mitigated | Saved D1 traces show legal-origin deltas touch 97-100 nodes; provenance-bound post-correction reuse is now exact |
+| [M336-192](M336-192-incremental-audit-runtime-gate-shortfall.md) | Critical | Open | Exact incremental audit saves about 9.93 ms offline, leaving E2 about 48.48 ms above its fixed runtime gate |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |

@@ -168,6 +168,17 @@ class ExactContactProjector:
         self.validation_provenance_cache = bool(
             validation_provenance_cache
         )
+        validate_with_state = getattr(validator, "validate_with_state", None)
+        validate_delta = getattr(validator, "validate_delta", None)
+        has_state_validator = callable(validate_with_state)
+        has_delta_validator = callable(validate_delta)
+        if has_state_validator != has_delta_validator:
+            raise ValueError(
+                "incremental exact validator requires full and delta methods"
+            )
+        self.incremental_validator = (
+            validator if has_state_validator else None
+        )
         self._validation_provenance = None
         if self.num_nodes <= 0:
             raise ValueError("contact projection requires a positive node count")
@@ -1786,6 +1797,12 @@ class ExactContactProjector:
         started = time.perf_counter()
         validator_seconds = 0.0
         validator_call_count = 0
+        incremental_validator_attempt_count = 0
+        incremental_validator_hit_count = 0
+        incremental_validator_fallback_count = 0
+        incremental_validator_changed_node_count = 0
+        validator_modes = []
+        incremental_validation_state = None
         reference = position.detach().clone()
         before = position.detach().clone()
         reference_displacement = torch.stack(
@@ -1881,9 +1898,49 @@ class ExactContactProjector:
         with torch.no_grad():
             for iteration in range(self.max_iterations + 1):
                 validation_started = time.perf_counter()
-                report = self.validator(position)
+                delta_metadata = None
+                if self.incremental_validator is None:
+                    report = self.validator(position)
+                    validation_mode = "full"
+                elif incremental_validation_state is None:
+                    report, incremental_validation_state = (
+                        self.incremental_validator.validate_with_state(position)
+                    )
+                    validation_mode = "full"
+                else:
+                    report, incremental_validation_state, delta_metadata = (
+                        self.incremental_validator.validate_delta(
+                            incremental_validation_state, position
+                        )
+                    )
+                    incremental_validator_attempt_count += 1
+                    incremental_validator_changed_node_count += int(
+                        delta_metadata.get("changed_node_count", 0)
+                    )
+                    if delta_metadata.get("used_delta"):
+                        incremental_validator_hit_count += 1
+                        validation_mode = "delta"
+                    else:
+                        incremental_validator_fallback_count += 1
+                        validation_mode = "full_fallback"
                 validator_call_count += 1
                 validator_seconds += time.perf_counter() - validation_started
+                validator_modes.append(
+                    {
+                        "iteration": iteration,
+                        "mode": validation_mode,
+                        "changed_node_count": (
+                            int(delta_metadata.get("changed_node_count", 0))
+                            if delta_metadata is not None
+                            else None
+                        ),
+                        "fallback_reason": (
+                            delta_metadata.get("fallback_reason")
+                            if delta_metadata is not None
+                            else None
+                        ),
+                    }
+                )
                 if self.validation_provenance_cache:
                     validation_provenance = (
                         ExactValidationProvenance.capture(
@@ -2555,6 +2612,19 @@ class ExactContactProjector:
             "contact_node_limit_basis": "cumulative_corrected_active_nodes",
             "validator_call_count": validator_call_count,
             "validator_seconds": validator_seconds,
+            "validator_modes": validator_modes,
+            "incremental_validator_attempt_count": (
+                incremental_validator_attempt_count
+            ),
+            "incremental_validator_hit_count": (
+                incremental_validator_hit_count
+            ),
+            "incremental_validator_fallback_count": (
+                incremental_validator_fallback_count
+            ),
+            "incremental_validator_changed_node_count": (
+                incremental_validator_changed_node_count
+            ),
             "elapsed_seconds": time.perf_counter() - started,
             "initial_overlap_pair_count": int(
                 initial_report.get("overlap_pair_count", 0)

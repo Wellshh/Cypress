@@ -1351,6 +1351,204 @@ class AnchorKeepInTest(unittest.TestCase):
                                 json.dumps(scalar_report, sort_keys=True),
                             )
 
+    def test_exact_delta_audit_matches_full_report_across_sparse_chain(self):
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+        for dtype in (torch.float32, torch.float64):
+            for device in devices:
+                with self.subTest(dtype=dtype, device=device):
+                    with tempfile.TemporaryDirectory() as directory:
+                        context, placedb, base = self._vector_audit_context(
+                            directory
+                        )
+                        origin = base.copy()
+                        origin[1] = origin[0]
+                        origin[context.num_nodes + 1] = origin[
+                            context.num_nodes
+                        ]
+                        origin[3] = origin[2]
+                        origin[context.num_nodes + 3] = origin[
+                            context.num_nodes + 2
+                        ]
+                        validator = context.exact_overlap_validator(placedb)
+                        origin_tensor = torch.as_tensor(
+                            origin, dtype=dtype, device=device
+                        )
+                        origin_report, state = validator.validate_with_state(
+                            origin_tensor
+                        )
+                        self.assertEqual(origin_report["overlap_pair_count"], 2)
+
+                        candidates = []
+                        constrained = origin.copy()
+                        constrained[1] = origin[0] + 0.75
+                        candidates.append(constrained)
+                        fixed = constrained.copy()
+                        fixed[1] = fixed[4]
+                        fixed[context.num_nodes + 1] = fixed[
+                            context.num_nodes + 4
+                        ]
+                        candidates.append(fixed)
+                        keepin = fixed.copy()
+                        keepin[1] = -0.75
+                        candidates.append(keepin)
+
+                        metadata_rows = []
+                        for candidate in candidates:
+                            tensor = torch.as_tensor(
+                                candidate, dtype=dtype, device=device
+                            )
+                            delta_report, state, metadata = (
+                                validator.validate_delta(state, tensor)
+                            )
+                            full_report = context.exact_overlap_report(
+                                tensor, placedb
+                            )
+                            self.assertEqual(delta_report, full_report)
+                            self.assertEqual(
+                                json.dumps(delta_report, sort_keys=True),
+                                json.dumps(full_report, sort_keys=True),
+                            )
+                            metadata_rows.append(metadata)
+
+                        self.assertTrue(
+                            all(row["used_delta"] for row in metadata_rows)
+                        )
+                        self.assertEqual(
+                            [row["changed_node_count"] for row in metadata_rows],
+                            [1, 1, 1],
+                        )
+                        self.assertEqual(
+                            candidates[-1][1], float(state.position[1])
+                        )
+                        self.assertGreater(
+                            state.audit["keepin_invalid_count"], 0
+                        )
+
+                        legal_again = torch.as_tensor(
+                            fixed, dtype=dtype, device=device
+                        )
+                        fallback_report, _, fallback = (
+                            validator.validate_delta(state, legal_again)
+                        )
+                        self.assertFalse(fallback["used_delta"])
+                        self.assertEqual(
+                            fallback["fallback_reason"],
+                            "origin_keepin_invalid",
+                        )
+                        self.assertEqual(
+                            fallback_report,
+                            context.exact_overlap_report(legal_again, placedb),
+                        )
+
+    def test_exact_delta_audit_fails_back_on_stale_or_dense_provenance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, base = self._vector_audit_context(directory)
+            validator = context.exact_overlap_validator(placedb)
+            tensor = torch.as_tensor(base, dtype=torch.float64)
+            _, state = validator.validate_with_state(tensor)
+
+            dense = tensor.clone()
+            dense[0] += 0.25
+            dense[1] += 0.25
+            dense_report, dense_state, dense_metadata = (
+                validator.validate_delta(state, dense)
+            )
+            self.assertFalse(dense_metadata["used_delta"])
+            self.assertEqual(
+                dense_metadata["fallback_reason"],
+                "dense_constrained_change",
+            )
+            self.assertEqual(
+                dense_report, context.exact_overlap_report(dense, placedb)
+            )
+
+            fixed = dense.clone()
+            fixed[4] += 0.25
+            fixed_report, _, fixed_metadata = validator.validate_delta(
+                dense_state, fixed
+            )
+            self.assertFalse(fixed_metadata["used_delta"])
+            self.assertEqual(
+                fixed_metadata["fallback_reason"],
+                "nonconstrained_physical_change",
+            )
+            self.assertEqual(
+                fixed_report, context.exact_overlap_report(fixed, placedb)
+            )
+
+            other_validator = context.exact_overlap_validator(placedb)
+            token_report, _, token_metadata = other_validator.validate_delta(
+                dense_state, dense
+            )
+            self.assertFalse(token_metadata["used_delta"])
+            self.assertEqual(
+                token_metadata["fallback_reason"],
+                "validator_token_mismatch",
+            )
+            self.assertEqual(
+                token_report, context.exact_overlap_report(dense, placedb)
+            )
+
+            context._position_audit_constrained_templates_cache = None
+            template_report, _, template_metadata = validator.validate_delta(
+                dense_state, dense
+            )
+            self.assertFalse(template_metadata["used_delta"])
+            self.assertEqual(
+                template_metadata["fallback_reason"],
+                "constrained_template_mismatch",
+            )
+            self.assertEqual(
+                template_report, context.exact_overlap_report(dense, placedb)
+            )
+
+            diagnostics = context.position_audit_diagnostics()
+            self.assertEqual(diagnostics["delta_audit_attempt_count"], 4)
+            self.assertEqual(diagnostics["delta_audit_hit_count"], 0)
+            self.assertEqual(diagnostics["delta_audit_fallback_count"], 4)
+            self.assertEqual(
+                diagnostics["delta_fallback_reasons"],
+                {
+                    "constrained_template_mismatch": 1,
+                    "dense_constrained_change": 1,
+                    "nonconstrained_physical_change": 1,
+                    "validator_token_mismatch": 1,
+                },
+            )
+
+    def test_exact_delta_audit_preserves_keepin_epsilon_semantics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, _ = self._keepin_epsilon_context(directory)
+            origin = np.asarray(
+                [0.0] * context.num_nodes
+                + [0.0, 1.0, 2.0, 3.0],
+                dtype=np.float64,
+            )
+            validator = context.exact_overlap_validator(placedb)
+            _, state = validator.validate_with_state(
+                torch.as_tensor(origin)
+            )
+
+            outcomes = []
+            for lower_left_x in (0.0, -0.125, -0.25, -0.5):
+                candidate = origin.copy()
+                candidate[0] = lower_left_x
+                tensor = torch.as_tensor(candidate)
+                delta_report, state, metadata = validator.validate_delta(
+                    state, tensor
+                )
+                full_report = context.exact_overlap_report(tensor, placedb)
+                self.assertTrue(metadata["used_delta"])
+                self.assertEqual(delta_report, full_report)
+                outcomes.append(delta_report["keepin_violation_count"])
+
+                if lower_left_x != -0.5:
+                    origin = candidate
+
+        self.assertEqual(outcomes, [0, 0, 0, 1])
+
     def test_keepin_covered_fast_path_preserves_epsilon_area_semantics(self):
         devices = ["cpu"]
         if torch.cuda.is_available():
