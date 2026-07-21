@@ -116,6 +116,7 @@ def _projector(
     topology_evaluator=None,
     topology_net_ids=(),
     topology_net_degrees=(),
+    validation_provenance_cache=False,
 ):
     if active_node_ids is None:
         active_node_ids = range(len(names))
@@ -144,6 +145,7 @@ def _projector(
         topology_evaluator=topology_evaluator,
         topology_net_ids=topology_net_ids,
         topology_net_degrees=topology_net_degrees,
+        validation_provenance_cache=validation_provenance_cache,
     )
 
 
@@ -255,6 +257,113 @@ class ExactContactProjectionTest(unittest.TestCase):
                 },
             ],
         )
+        self.assertIsNone(projector.consume_validation_provenance())
+
+    def test_validation_provenance_is_exact_and_single_use(self):
+        devices = [torch.device("cpu")]
+        if torch.cuda.is_available():
+            devices.append(torch.device("cuda"))
+        for device in devices:
+            for dtype in (torch.float32, torch.float64):
+                with self.subTest(device=device, dtype=dtype):
+                    projector = _projector(
+                        ("A", "B"),
+                        (1.0, 1.0),
+                        (1.0, 1.0),
+                        ((0, 1),),
+                        mode="proposal_authority_search",
+                        validation_provenance_cache=True,
+                    )
+                    origin = torch.tensor(
+                        [0.0, 1.25, 0.0, 0.0],
+                        dtype=dtype,
+                        device=device,
+                    )
+                    candidate = torch.tensor(
+                        [0.375, 1.3125, 0.0, 0.0],
+                        dtype=dtype,
+                        device=device,
+                    )
+                    proposal = candidate.detach().clone()
+
+                    result = projector(
+                        origin, candidate, lambda position: None
+                    )
+                    provenance = projector.consume_validation_provenance()
+
+                    self.assertTrue(result["converged"])
+                    self.assertIsNotNone(provenance)
+                    self.assertTrue(
+                        torch.equal(
+                            provenance["initial"].position, proposal
+                        )
+                    )
+                    self.assertTrue(
+                        torch.equal(
+                            provenance["final"].position, candidate
+                        )
+                    )
+                    self.assertEqual(
+                        provenance["initial"].report[
+                            "overlap_pair_count"
+                        ],
+                        1,
+                    )
+                    self.assertEqual(
+                        provenance["final"].report[
+                            "overlap_pair_count"
+                        ],
+                        0,
+                    )
+                    self.assertIsNone(
+                        projector.consume_validation_provenance()
+                    )
+
+    def test_nonconverged_projection_does_not_publish_provenance(self):
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="component_consensus",
+            max_iterations=2,
+            max_contact_nodes=2,
+            validation_provenance_cache=True,
+        )
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+        origin = candidate.detach().clone()
+
+        result = projector(origin, candidate, lambda position: None)
+
+        self.assertFalse(result["converged"])
+        self.assertIsNone(projector.consume_validation_provenance())
+
+    def test_projector_exception_clears_prior_provenance(self):
+        projector = _projector(
+            ("A", "B"),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            ((0, 1),),
+            mode="component_consensus",
+            validation_provenance_cache=True,
+        )
+        legal = torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        first = projector(legal, legal.detach().clone(), lambda position: None)
+        self.assertTrue(first["converged"])
+
+        candidate = torch.tensor(
+            [0.375, 1.3125, 0.0, 0.0], dtype=torch.float64
+        )
+
+        def fail_hard_projection(position):
+            raise RuntimeError("hard projection failed")
+
+        with self.assertRaisesRegex(RuntimeError, "hard projection failed"):
+            projector(legal, candidate, fail_hard_projection)
+
+        self.assertIsNone(projector.consume_validation_provenance())
 
     def test_authority_search_leaves_legal_candidate_byte_identical(self):
         projector = _projector(

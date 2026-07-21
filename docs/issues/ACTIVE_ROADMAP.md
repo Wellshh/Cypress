@@ -599,6 +599,18 @@ be single-use, fail closed on mismatch, and preserve normal validation whenever
 board/region projection changes the proposal. This is a design opportunity,
 not authorization for another effect run.
 
+That strict-equivalence candidate is now implemented for the M336-181
+`pairwise_factorized` path only. Contact provenance is published only after
+convergence, consumed once, and reused only after shape, dtype, device, and
+exact tensor checks. A mismatched cache rolls back the full optimizer
+transaction. Integrated fixtures reduce a matching guarded step from five
+global validator calls to three and preserve fresh proposal validation after a
+board/region coordinate change. Applicable installed/source tests pass
+`257/257`; five optional OR-Tools tests were excluded and no CP-SAT solve was
+run. This closes the implementation proof, not the runtime issue: no new D1 or
+other M336 effect was run, and the fixed E2/E3 gates remain pending explicit
+authorization.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

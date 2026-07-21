@@ -6,6 +6,10 @@ import time
 
 import torch
 
+from dreamplace.constraints.exact_step_guard import (
+    ExactValidationProvenance,
+)
+
 
 COMPONENT_CONSENSUS = "component_consensus"
 MINIMUM_COVER_ROLLBACK = "minimum_cover_rollback"
@@ -130,6 +134,7 @@ class ExactContactProjector:
         topology_evaluator=None,
         topology_net_ids=(),
         topology_net_degrees=(),
+        validation_provenance_cache=False,
     ):
         self.validator = validator
         self.refdes_to_node_id = {
@@ -160,6 +165,10 @@ class ExactContactProjector:
         self.topology_net_degrees = tuple(
             int(value) for value in topology_net_degrees
         )
+        self.validation_provenance_cache = bool(
+            validation_provenance_cache
+        )
+        self._validation_provenance = None
         if self.num_nodes <= 0:
             raise ValueError("contact projection requires a positive node count")
         if self.max_iterations <= 0:
@@ -257,6 +266,11 @@ class ExactContactProjector:
         )
         if invalid_active:
             raise ValueError("contact projection has invalid active node ids")
+
+    def consume_validation_provenance(self):
+        provenance = self._validation_provenance
+        self._validation_provenance = None
+        return provenance
 
     def _overlap_edges(self, report):
         edges = set()
@@ -1761,6 +1775,7 @@ class ExactContactProjector:
         ]
 
     def __call__(self, origin, position, hard_projector):
+        self._validation_provenance = None
         if origin.shape != position.shape:
             raise ValueError("contact projection position shapes do not match")
         if origin.device != position.device or origin.dtype != position.dtype:
@@ -1829,6 +1844,8 @@ class ExactContactProjector:
         iterations = []
         initial_report = None
         final_report = None
+        initial_validation_provenance = None
+        final_validation_provenance = None
         last_component_plans = ()
         required_corrected_contact_node_count = 0
         maximum_corrected_component_node_count = 0
@@ -1867,6 +1884,17 @@ class ExactContactProjector:
                 report = self.validator(position)
                 validator_call_count += 1
                 validator_seconds += time.perf_counter() - validation_started
+                if self.validation_provenance_cache:
+                    validation_provenance = (
+                        ExactValidationProvenance.capture(
+                            position,
+                            report,
+                            "exact_contact_iteration_%d" % iteration,
+                        )
+                    )
+                    if initial_validation_provenance is None:
+                        initial_validation_provenance = validation_provenance
+                    final_validation_provenance = validation_provenance
                 if initial_report is None:
                     initial_report = report
                 final_report = report
@@ -2715,4 +2743,16 @@ class ExactContactProjector:
                     ),
                     "elapsed_seconds": topology_tiebreak_seconds,
                 }
+        if self.validation_provenance_cache and converged:
+            if (
+                initial_validation_provenance is None
+                or final_validation_provenance is None
+            ):
+                raise RuntimeError(
+                    "contact validation provenance is incomplete"
+                )
+            self._validation_provenance = {
+                "initial": initial_validation_provenance,
+                "final": final_validation_provenance,
+            }
         return result

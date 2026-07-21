@@ -25,12 +25,186 @@ from dreamplace.PlaceObj import PlaceObj
 from dreamplace.Placer import seed_all
 from dreamplace.BasicPlace import load_initial_placement
 from dreamplace.constraints.exact_contact_projection import ExactContactProjector
+from dreamplace.constraints.exact_step_guard import ExactAcceptedStepGuard
 from dreamplace.constraints.region_projection import zero_optimizer_state
 from dreamplace.ops.anchor_keepin.anchor_keepin import AdaptiveAnchorWeight
 from tuner.tuner_worker import AutoDMPWorker
 
 
 class ReproducibilityTest(unittest.TestCase):
+    def test_contact_provenance_removes_guard_revalidation(self):
+        num_nodes = 2
+        validator_calls = []
+
+        def validator(position):
+            validator_calls.append(position.detach().clone())
+            overlap = float(position[0]) + 1.0 > float(position[1])
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": int(overlap),
+                "overlap_area_mm2": (
+                    float(position[0]) + 1.0 - float(position[1])
+                    if overlap
+                    else 0.0
+                ),
+                "overlap_pairs": (
+                    [
+                        {
+                            "kind": "constrained_constrained",
+                            "first_refdes": "A",
+                            "second_refdes": "B",
+                            "overlap_area_mm2": 0.0625,
+                        }
+                    ]
+                    if overlap
+                    else []
+                ),
+            }
+
+        def component_validator(coordinates, edges):
+            if not edges:
+                return {
+                    "keepin_violation_count": 0,
+                    "overlap_pair_count": 0,
+                    "overlap_edges": [],
+                    "overlap_area_mm2": 0.0,
+                }
+            overlap = coordinates[0][0] + 1.0 > coordinates[1][0]
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": int(overlap),
+                "overlap_edges": list(edges) if overlap else [],
+                "overlap_area_mm2": (
+                    coordinates[0][0] + 1.0 - coordinates[1][0]
+                    if overlap
+                    else 0.0
+                ),
+            }
+
+        contact_projector = ExactContactProjector(
+            validator=validator,
+            component_validator=component_validator,
+            component_edge_validator=component_validator,
+            component_projector=(
+                lambda coordinates, active_node_ids: {
+                    "coordinates": dict(coordinates),
+                    "projected_node_ids": [],
+                    "mean_distance": 0.0,
+                    "max_distance": 0.0,
+                }
+            ),
+            refdes_to_node_id={"A": 0, "B": 1},
+            active_node_ids=(0, 1),
+            num_nodes=num_nodes,
+            mode="proposal_authority_search",
+            authority_search_strategy="pairwise_factorized",
+            authority_factorization_compatible=True,
+            validation_provenance_cache=True,
+        )
+        projector = _CompositeProjector(
+            lambda position: None,
+            None,
+            num_nodes=num_nodes,
+            contact_projector=contact_projector,
+        )
+        position = torch.nn.Parameter(
+            torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        )
+        optimizer = torch.optim.SGD([position], lr=1.0)
+        position.grad = torch.tensor(
+            [-0.375, -0.0625, 0.0, 0.0], dtype=torch.float64
+        )
+
+        def attempt():
+            projector.begin_step(position)
+            optimizer.step()
+            projector(position)
+            return projector.finish_step()
+
+        result = ExactAcceptedStepGuard(validator).run(
+            position, optimizer, attempt
+        )
+
+        self.assertEqual(len(validator_calls), 3)
+        self.assertTrue(
+            result["attempts"][0]["proposal_validation_cache_hit"]
+        )
+        self.assertTrue(
+            result["attempts"][0]["accepted_validation_cache_hit"]
+        )
+        torch.testing.assert_close(
+            position,
+            torch.tensor(
+                [0.375, 1.625, 0.0, 0.0], dtype=torch.float64
+            ),
+            rtol=0,
+            atol=1e-15,
+        )
+
+    def test_region_changed_proposal_uses_only_accepted_provenance(self):
+        validator_calls = []
+
+        def validator(position):
+            validator_calls.append(position.detach().clone())
+            return {
+                "keepin_violation_count": 0,
+                "overlap_pair_count": 0,
+                "overlap_area_mm2": 0.0,
+                "overlap_pairs": [],
+            }
+
+        contact_projector = ExactContactProjector(
+            validator=validator,
+            refdes_to_node_id={"A": 0, "B": 1},
+            active_node_ids=(0, 1),
+            num_nodes=2,
+            validation_provenance_cache=True,
+        )
+
+        def board_projector(position):
+            with torch.no_grad():
+                position[0].clamp_(max=0.2)
+
+        projector = _CompositeProjector(
+            board_projector,
+            None,
+            num_nodes=2,
+            contact_projector=contact_projector,
+        )
+        position = torch.nn.Parameter(
+            torch.tensor([0.0, 1.25, 0.0, 0.0], dtype=torch.float64)
+        )
+        optimizer = torch.optim.SGD([position], lr=1.0)
+        position.grad = torch.tensor(
+            [-0.375, -0.0625, 0.0, 0.0], dtype=torch.float64
+        )
+
+        def attempt():
+            projector.begin_step(position)
+            optimizer.step()
+            projector(position)
+            return projector.finish_step()
+
+        result = ExactAcceptedStepGuard(validator).run(
+            position, optimizer, attempt
+        )
+
+        self.assertEqual(len(validator_calls), 3)
+        self.assertFalse(
+            result["attempts"][0]["proposal_validation_cache_hit"]
+        )
+        self.assertTrue(
+            result["attempts"][0]["accepted_validation_cache_hit"]
+        )
+        torch.testing.assert_close(
+            position,
+            torch.tensor(
+                [0.2, 1.3125, 0.0, 0.0], dtype=torch.float64
+            ),
+            rtol=0,
+            atol=1e-15,
+        )
+
     def test_authority_projection_clears_corrected_adam_coordinates(self):
         num_nodes = 2
 

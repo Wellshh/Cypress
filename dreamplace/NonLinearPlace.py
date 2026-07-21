@@ -47,6 +47,7 @@ import dreamplace.ops.place_io.place_io_cpp as place_io_cpp
 from dreamplace.constraints.exact_step_guard import (
     ExactAcceptedStepGuard,
     ExactStepGuardFailure,
+    ExactValidationProvenance,
 )
 from dreamplace.constraints.exact_contact_projection import (
     AUTHORITY_SEARCH_STRATEGIES,
@@ -433,6 +434,8 @@ class _CompositeProjector:
         }
         self._last_correction = dict(self._last_proposal)
         self._last_contact_projection = None
+        self._proposal_validation_provenance = None
+        self._accepted_validation_provenance = None
         self._projected_node_ids = set()
         self._projection_event_count = 0
         self._projection_distance_sum = 0.0
@@ -465,11 +468,59 @@ class _CompositeProjector:
         if not track_step:
             return region_stats
         if self.contact_projector is not None:
+            contact_input = position.detach().clone()
             self._last_contact_projection = self.contact_projector(
                 self._proposal_origin,
                 position,
                 self._apply_hard_constraints,
             )
+            consume_provenance = getattr(
+                self.contact_projector,
+                "consume_validation_provenance",
+                None,
+            )
+            provenance = (
+                consume_provenance()
+                if consume_provenance is not None
+                else None
+            )
+            if provenance is not None:
+                if not isinstance(provenance, dict) or set(provenance) != {
+                    "initial",
+                    "final",
+                }:
+                    raise RuntimeError(
+                        "contact validation provenance is malformed"
+                    )
+                initial = provenance["initial"]
+                final = provenance["final"]
+                if not isinstance(
+                    initial, ExactValidationProvenance
+                ) or not isinstance(final, ExactValidationProvenance):
+                    raise RuntimeError(
+                        "contact validation provenance has invalid entries"
+                    )
+                if (
+                    initial.position.shape != contact_input.shape
+                    or initial.position.dtype != contact_input.dtype
+                    or initial.position.device != contact_input.device
+                    or not torch.equal(initial.position, contact_input)
+                ):
+                    raise RuntimeError(
+                        "contact initial validation provenance is stale"
+                    )
+                if (
+                    final.position.shape != position.shape
+                    or final.position.dtype != position.dtype
+                    or final.position.device != position.device
+                    or not torch.equal(final.position, position)
+                ):
+                    raise RuntimeError(
+                        "contact final validation provenance is stale"
+                    )
+                if torch.equal(before_projection, contact_input):
+                    self._proposal_validation_provenance = initial
+                self._accepted_validation_provenance = final
         correction = _placement_displacement_stats(
             before_projection, position.detach(), self.num_nodes
         )
@@ -498,6 +549,12 @@ class _CompositeProjector:
             ),
             "projection_max_distance": self._projection_max_distance,
             "contact_projection": self._last_contact_projection,
+            "proposal_validation_provenance": (
+                self._proposal_validation_provenance
+            ),
+            "accepted_validation_provenance": (
+                self._accepted_validation_provenance
+            ),
             "origin_position": self._proposal_origin,
             "proposal_position": self._proposal_position,
             "accepted_position": self._accepted_position,
@@ -1006,6 +1063,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                         topology_evaluator=topology_evaluator,
                         topology_net_ids=topology_net_ids,
                         topology_net_degrees=topology_net_degrees,
+                        validation_provenance_cache=(
+                            exact_contact_projection_authority_search_strategy
+                            == PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+                        ),
                     )
 
                 constraint_projector = _CompositeProjector(

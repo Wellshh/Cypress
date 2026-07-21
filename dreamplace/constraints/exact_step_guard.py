@@ -17,6 +17,30 @@ class _ParameterReference:
     parameter_index: int
 
 
+@dataclass(frozen=True)
+class ExactValidationProvenance:
+    """Bind one exact report to the tensor bytes that produced it."""
+
+    position: torch.Tensor
+    report: dict
+    source: str
+
+    @classmethod
+    def capture(cls, position, report, source):
+        if not torch.is_tensor(position):
+            raise TypeError("exact validation provenance requires a tensor")
+        if not isinstance(report, dict):
+            raise TypeError("exact validation provenance requires a report")
+        source = str(source)
+        if not source:
+            raise ValueError("exact validation provenance requires a source")
+        return cls(
+            position=position.detach().clone(),
+            report=copy.deepcopy(report),
+            source=source,
+        )
+
+
 def _parameter_layout(optimizer):
     layout = []
     references = {}
@@ -286,6 +310,24 @@ def _overlap_pair_key(row):
     )
 
 
+def _provenance_report(evidence, key, position):
+    provenance = evidence.get(key)
+    if provenance is None:
+        return None, None
+    if not isinstance(provenance, ExactValidationProvenance):
+        raise TypeError("%s must be exact validation provenance" % key)
+    snapshot = provenance.position
+    if snapshot.shape != position.shape:
+        raise RuntimeError("%s shape mismatch" % key)
+    if snapshot.dtype != position.dtype:
+        raise RuntimeError("%s dtype mismatch" % key)
+    if snapshot.device != position.device:
+        raise RuntimeError("%s device mismatch" % key)
+    if not torch.equal(snapshot, position):
+        raise RuntimeError("%s coordinate mismatch" % key)
+    return copy.deepcopy(provenance.report), provenance.source
+
+
 class ExactStepGuardFailure(RuntimeError):
     def __init__(self, reason, before, attempts, timing=None):
         super().__init__("exact accepted-step guard failed: %s" % reason)
@@ -369,19 +411,48 @@ class ExactAcceptedStepGuard:
                 accepted = evidence["accepted_position"]
                 if proposal is None or accepted is None:
                     raise RuntimeError("guarded optimizer attempt lacks coordinates")
+                if (
+                    evidence.get("proposal_validation_provenance") is not None
+                    and evidence.get("accepted_validation_provenance") is None
+                ):
+                    raise RuntimeError(
+                        "proposal validation provenance requires accepted "
+                        "provenance"
+                    )
                 proposal_validation_started = time.perf_counter()
-                proposal_report = self.validator(proposal)
+                proposal_report, proposal_validation_source = (
+                    _provenance_report(
+                        evidence,
+                        "proposal_validation_provenance",
+                        proposal,
+                    )
+                )
+                if proposal_report is None:
+                    proposal_report = self.validator(proposal)
                 proposal_validation_seconds = (
                     time.perf_counter() - proposal_validation_started
                 )
                 timing["proposal_validation_seconds"] += (
                     proposal_validation_seconds
                 )
-                if torch.equal(proposal, accepted):
+                accepted_validation_started = time.perf_counter()
+                accepted_report, accepted_validation_source = (
+                    _provenance_report(
+                        evidence,
+                        "accepted_validation_provenance",
+                        accepted,
+                    )
+                )
+                if accepted_report is not None:
+                    projected_validation_seconds = (
+                        time.perf_counter() - accepted_validation_started
+                    )
+                elif torch.equal(proposal, accepted):
                     accepted_report = copy.deepcopy(proposal_report)
-                    projected_validation_seconds = 0.0
+                    projected_validation_seconds = (
+                        time.perf_counter() - accepted_validation_started
+                    )
                 else:
-                    accepted_validation_started = time.perf_counter()
                     accepted_report = self.validator(accepted)
                     projected_validation_seconds = (
                         time.perf_counter() - accepted_validation_started
@@ -457,6 +528,26 @@ class ExactAcceptedStepGuard:
                 "elapsed_seconds": time.perf_counter() - attempt_started,
                 **metadata,
             }
+            if (
+                proposal_validation_source is not None
+                or accepted_validation_source is not None
+            ):
+                attempt.update(
+                    {
+                        "proposal_validation_cache_hit": (
+                            proposal_validation_source is not None
+                        ),
+                        "proposal_validation_source": (
+                            proposal_validation_source
+                        ),
+                        "accepted_validation_cache_hit": (
+                            accepted_validation_source is not None
+                        ),
+                        "accepted_validation_source": (
+                            accepted_validation_source
+                        ),
+                    }
+                )
             attempts.append(attempt)
             if legal:
                 self._accepted_cache = (

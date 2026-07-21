@@ -74,6 +74,38 @@ or lacks exact provenance, the historical guard path remains unchanged.
 7. Feature-off, no-contact, and historical contact modes retain their current
    validator-call behavior.
 
+## Implementation Evidence
+
+The strict-equivalence implementation is complete, but this issue remains open
+until an explicitly authorized D1 reruns the fixed runtime gate.
+
+- `ExactContactProjector` clears provenance on entry, captures detached
+  initial/final tensor-report pairs, publishes them only after convergence, and
+  exposes them through a single-use consumer.
+- `_CompositeProjector` verifies shape, dtype, device, and `torch.equal` before
+  forwarding provenance. Board/region changes suppress only proposal reuse;
+  accepted reuse remains independently checked.
+- `ExactAcceptedStepGuard` treats malformed or stale provenance as a
+  transactional attempt exception, restores coordinates and optimizer state,
+  and fails closed. Existing `proposal` and `projected` reports remain intact;
+  cache hits and sources are additive per-attempt diagnostics.
+- Production enables this internal cache only for the M336-181
+  `pairwise_factorized` authority strategy. Default, no-contact,
+  non-converged, and historical exhaustive modes retain fresh validation.
+
+An integrated validator-spy fixture reduces one successful guarded contact
+step from five global validator calls to three: guard start plus contact initial
+and final. A board-projection fixture proves that a changed raw proposal still
+receives fresh validation while the independently matched accepted report is
+reused. CPU/GPU float32/float64 tests also cover exact snapshots, single-use
+consumption, illegal cached reports, retries, malformed and stale evidence,
+and rollback of optimizer state.
+
+After `cmake --install build`, the applicable focused suites pass `257/257`:
+guard `11`, contact `61`, reproducibility `21`, anchor/keep-in `54`, irregular
+density `9`, and non-CP-SAT M336 baseline `101`. Five optional OR-Tools tests
+were explicitly excluded; no CP-SAT solve or M336 effect run was performed.
+
 ## Experiment Boundary
 
 This is a strict runtime implementation change, not a quality mechanism. Its
