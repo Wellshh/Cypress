@@ -709,6 +709,21 @@ unchanged combined D1 is allowed. Stored M336-188 artifacts contain final
 positions and per-step hashes but not proposal coordinates, so no report may
 mislabel deterministic final-position benchmarking as proposal replay.
 
+The M336-189 implementation passes both offline promotion gates. Grouped
+prepared-region predicates preserve the original `difference/area > epsilon`
+fallback and add covered/fallback timing and counts. The committed synthetic
+corpus plus a newly reconstructed 51-position real M336 corpus produce 204/204
+CPU/H100 float32/float64 scalar-oracle matches; the earlier real position
+vectors were not persisted and are not claimed as replayed. Across seven
+31-call E2 samples, total exact-audit time has median `0.029331116 s` and
+keep-in time `0.003576316 s`, with 3100 covered footprints and zero fallback or
+invalid cases per sample. Keep-in saves `0.162688235 s` against M336-188, so
+both the `>= 0.12 s` saving and `<= 0.075 s` total gates pass. All 265
+applicable installed/source tests pass, including 61 authority-selection tests;
+five optional OR-Tools tests remain excluded. One unchanged combined scale-1
+D1 is now authorized. D2, D3, E4, tuning, repair, fallback, Legalization, and
+CP-SAT remain prohibited.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

@@ -1019,6 +1019,80 @@ class AnchorKeepInTest(unittest.TestCase):
             (lower_left_x, lower_left_y)
         )
 
+    @staticmethod
+    def _keepin_epsilon_context(output_dir):
+        region = box(0.0, 0.0, 4.0, 4.0)
+        footprint_local = box(-0.5, -0.5, 0.5, 0.5)
+        domains = {
+            side: FeasibleDomain.build(
+                region,
+                width=1.0,
+                height=1.0,
+                grid=0.5,
+                footprint_local=footprint_local,
+            )
+            for side in ("TOP", "BOTTOM")
+        }
+        sides = ("TOP", "TOP", "BOTTOM", "BOTTOM")
+        constraints = tuple(
+            NodeConstraint(
+                node_id=node_id,
+                refdes="U%d" % (node_id + 1),
+                side=side,
+                group_id="G",
+                subgroup_id="G__%s" % side.lower(),
+                region_id="%s_0" % side.lower(),
+                domain=domains[side],
+                target_center=(0.5, node_id + 0.5),
+                node_width=1.0,
+                node_height=1.0,
+                anchor_refdes="A1",
+            )
+            for node_id, side in enumerate(sides)
+        )
+        context = AnchorKeepInContext(
+            config={"reporting": {"area_epsilon_mm2": 0.25}},
+            geometry=SimpleNamespace(symbols={}),
+            alignment=SimpleNamespace(scale=1.0),
+            regions={"top_0": region, "bottom_0": region},
+            constraints=constraints,
+            frozen_lower_left={},
+            frozen_anchor_ids=set(),
+            frozen_fixed_ids=set(),
+            anchor_centers={"A1": (0.5, 0.5)},
+            resolved_members=tuple(
+                constraint.refdes for constraint in constraints
+            ),
+            input_paths={},
+            endpoint_policy={"default": "runtime"},
+            endpoint_records=(),
+            domain_cache_stats={},
+            preprocessing_seconds=0.0,
+            num_nodes=4,
+            output_dir=output_dir,
+            projection_enabled=True,
+            anchor_loss_enabled=False,
+            soft_loss_enabled=False,
+            exact_repair_enabled=False,
+            initialization_mode="preserve_legal",
+            grid=0.5,
+            keepin_margin=0.0,
+            keepin_margin_tau=0.1,
+        )
+        placedb = SimpleNamespace(
+            num_nodes=4,
+            num_physical_nodes=4,
+            node_names=np.asarray([b"U1", b"U2", b"U3", b"U4"]),
+            node_side_flag=np.asarray([1, 1, 0, 0]),
+            node_size_x=np.ones(4),
+            node_size_y=np.ones(4),
+        )
+        lower_left_x = np.asarray([0.0, -0.125, -0.25, -0.5])
+        lower_left_y = np.asarray([0.0, 1.0, 2.0, 3.0])
+        return context, placedb, np.concatenate(
+            (lower_left_x, lower_left_y)
+        )
+
     def test_preserve_legal_initialization_is_coordinate_stable(self):
         with tempfile.TemporaryDirectory() as directory:
             context, placedb, position = self._initialization_context(
@@ -1193,6 +1267,11 @@ class AnchorKeepInTest(unittest.TestCase):
             diagnostics["batched_footprint_translation_seconds"], 0.0
         )
         self.assertGreater(diagnostics["batched_keepin_seconds"], 0.0)
+        self.assertGreater(diagnostics["keepin_predicate_seconds"], 0.0)
+        self.assertGreater(diagnostics["keepin_fallback_seconds"], 0.0)
+        self.assertEqual(diagnostics["keepin_covered_count"], 15)
+        self.assertEqual(diagnostics["keepin_fallback_count"], 0)
+        self.assertEqual(diagnostics["keepin_invalid_count"], 0)
         self.assertGreater(
             diagnostics["batched_fixed_overlap_seconds"], 0.0
         )
@@ -1272,9 +1351,174 @@ class AnchorKeepInTest(unittest.TestCase):
                                 json.dumps(scalar_report, sort_keys=True),
                             )
 
+    def test_keepin_covered_fast_path_preserves_epsilon_area_semantics(self):
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+        expected_json = None
+        for dtype in (torch.float32, torch.float64):
+            for device in devices:
+                with self.subTest(dtype=dtype, device=device):
+                    with tempfile.TemporaryDirectory() as directory:
+                        context, placedb, position = (
+                            self._keepin_epsilon_context(directory)
+                        )
+                        tensor = torch.as_tensor(
+                            position, dtype=dtype, device=device
+                        )
+
+                        report, repair_ids = context._position_audit(
+                            tensor, placedb
+                        )
+                        scalar_report, scalar_ids = self._scalar_position_audit(
+                            context, tensor, placedb
+                        )
+                        diagnostics = context.position_audit_diagnostics()
+
+                    self.assertEqual(report, scalar_report)
+                    self.assertEqual(repair_ids, scalar_ids)
+                    self.assertEqual(report["keepin_invalid_refdes"], ["U4"])
+                    self.assertEqual(repair_ids, {3})
+                    self.assertEqual(diagnostics["audit_call_count"], 1)
+                    self.assertEqual(diagnostics["keepin_covered_count"], 1)
+                    self.assertEqual(diagnostics["keepin_fallback_count"], 3)
+                    self.assertEqual(diagnostics["keepin_invalid_count"], 1)
+                    self.assertGreater(
+                        diagnostics["keepin_predicate_seconds"], 0.0
+                    )
+                    self.assertGreater(
+                        diagnostics["keepin_fallback_seconds"], 0.0
+                    )
+                    serialized = json.dumps(report, sort_keys=True)
+                    if expected_json is None:
+                        expected_json = serialized
+                    else:
+                        self.assertEqual(serialized, expected_json)
+
+        context, _, position = self._keepin_epsilon_context(".")
+        footprints = np.asarray(
+            [
+                constraint.domain.footprint(
+                    (
+                        position[constraint.node_id]
+                        + constraint.node_width / 2,
+                        position[context.num_nodes + constraint.node_id]
+                        + constraint.node_height / 2,
+                    )
+                )
+                for constraint in context.constraints
+            ],
+            dtype=object,
+        )
+        outside_areas = shapely.area(
+            shapely.difference(
+                footprints,
+                np.asarray(
+                    [
+                        context.regions[constraint.region_id]
+                        for constraint in context.constraints
+                    ],
+                    dtype=object,
+                ),
+            )
+        )
+        np.testing.assert_array_equal(outside_areas, [0.0, 0.125, 0.25, 0.5])
+
+    def test_keepin_prepared_region_groups_preserve_complex_topology(self):
+        top_region = Polygon(
+            (
+                (0.0, 0.0),
+                (8.0, 0.0),
+                (8.0, 4.0),
+                (6.0, 4.0),
+                (6.0, 2.0),
+                (5.0, 2.0),
+                (5.0, 4.0),
+                (0.0, 4.0),
+            ),
+            holes=(
+                (
+                    (1.0, 0.75),
+                    (1.5, 0.75),
+                    (1.5, 1.25),
+                    (1.0, 1.25),
+                ),
+            ),
+        )
+        bottom_region = Polygon(
+            (
+                (0.0, 0.0),
+                (8.0, 0.0),
+                (8.0, 4.0),
+                (6.0, 4.0),
+                (6.0, 2.0),
+                (5.0, 2.0),
+                (5.0, 4.0),
+                (0.0, 4.0),
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, base = self._vector_audit_context(directory)
+            context.regions = {
+                "top_0": top_region,
+                "bottom_0": bottom_region,
+            }
+            context._position_audit_constrained_templates_cache = None
+            templates = context._position_audit_constrained_templates()
+
+            self.assertEqual(
+                set(templates["region_groups"]), {"top_0", "bottom_0"}
+            )
+            for region_id, prepared_region in templates[
+                "prepared_regions"
+            ].items():
+                original_region = context.regions[region_id]
+                self.assertFalse(shapely.is_prepared(original_region))
+                self.assertTrue(shapely.is_prepared(prepared_region))
+                self.assertEqual(prepared_region.wkb, original_region.wkb)
+                samples = np.asarray(
+                    [box(0.0, 0.0, 0.5, 0.5), box(5.0, 2.0, 6.0, 3.0)],
+                    dtype=object,
+                )
+                np.testing.assert_array_equal(
+                    shapely.covers(prepared_region, samples),
+                    shapely.covers(original_region, samples),
+                )
+
+            scenarios = {"hole": base.copy()}
+            notch = base.copy()
+            notch[3] = 5.0
+            scenarios["hole_and_concave_notch"] = notch
+            for name, position in scenarios.items():
+                with self.subTest(scenario=name):
+                    tensor = torch.as_tensor(position, dtype=torch.float64)
+                    report, repair_ids = context._position_audit(
+                        tensor, placedb
+                    )
+                    scalar_report, scalar_ids = self._scalar_position_audit(
+                        context, tensor, placedb
+                    )
+                    self.assertEqual(report, scalar_report)
+                    self.assertEqual(repair_ids, scalar_ids)
+                    self.assertEqual(
+                        json.dumps(report, sort_keys=True),
+                        json.dumps(scalar_report, sort_keys=True),
+                    )
+
+            diagnostics = context.position_audit_diagnostics()
+
+        self.assertEqual(diagnostics["audit_call_count"], 2)
+        self.assertEqual(diagnostics["keepin_covered_count"], 5)
+        self.assertEqual(diagnostics["keepin_fallback_count"], 3)
+        self.assertEqual(diagnostics["keepin_invalid_count"], 3)
+
     def test_vectorized_position_audit_templates_remain_immutable(self):
         with tempfile.TemporaryDirectory() as directory:
             context, placedb, position = self._vector_audit_context(directory)
+            original_prepared = {
+                region_id: shapely.is_prepared(region)
+                for region_id, region in context.regions.items()
+            }
             templates = context._position_audit_constrained_templates()
             footprint_wkb = tuple(
                 footprint.wkb for footprint in templates["local_footprints"]
@@ -1313,7 +1557,21 @@ class AnchorKeepInTest(unittest.TestCase):
                     templates["half_widths"],
                     templates["half_heights"],
                     *templates["side_indices"].values(),
+                    *templates["region_groups"].values(),
                 )
+            )
+        )
+        self.assertTrue(
+            all(
+                shapely.is_prepared(region)
+                for region in templates["prepared_regions"].values()
+            )
+        )
+        self.assertTrue(
+            all(
+                shapely.is_prepared(context.regions[region_id])
+                == original_prepared[region_id]
+                for region_id in templates["region_groups"]
             )
         )
 
@@ -1335,6 +1593,8 @@ class AnchorKeepInTest(unittest.TestCase):
         self.assertEqual(templates["local_footprints"].shape, (0,))
         self.assertEqual(templates["local_coordinates"].shape, (0, 2))
         self.assertEqual(templates["node_ids"].shape, (0,))
+        self.assertEqual(templates["region_groups"], {})
+        self.assertEqual(templates["prepared_regions"], {})
 
     def test_exact_contact_component_report_checks_only_requested_edges(self):
         with tempfile.TemporaryDirectory() as directory:

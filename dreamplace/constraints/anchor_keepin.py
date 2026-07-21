@@ -1848,6 +1848,11 @@ class AnchorKeepInContext:
             "batched_coordinate_snapshot_seconds": 0.0,
             "batched_footprint_translation_seconds": 0.0,
             "batched_keepin_seconds": 0.0,
+            "keepin_predicate_seconds": 0.0,
+            "keepin_fallback_seconds": 0.0,
+            "keepin_covered_count": 0,
+            "keepin_fallback_count": 0,
+            "keepin_invalid_count": 0,
             "batched_fixed_overlap_seconds": 0.0,
             "batched_constrained_overlap_seconds": 0.0,
             "fixed_cache_hit_count": 0,
@@ -2686,6 +2691,20 @@ class AnchorKeepInContext:
             ],
             dtype=object,
         )
+        region_group_lists = {}
+        for index, constraint in enumerate(self.constraints):
+            region_group_lists.setdefault(constraint.region_id, []).append(
+                index
+            )
+        region_groups = {
+            region_id: np.asarray(indices, dtype=np.intp)
+            for region_id, indices in region_group_lists.items()
+        }
+        prepared_regions = {}
+        for region_id in region_groups:
+            prepared_region = shapely.from_wkb(self.regions[region_id].wkb)
+            shapely.prepare(prepared_region)
+            prepared_regions[region_id] = prepared_region
         node_ids = np.fromiter(
             (constraint.node_id for constraint in self.constraints),
             dtype=np.intp,
@@ -2721,6 +2740,7 @@ class AnchorKeepInContext:
             half_widths,
             half_heights,
             *side_indices.values(),
+            *region_groups.values(),
         ):
             values.setflags(write=False)
         cache = {
@@ -2728,6 +2748,8 @@ class AnchorKeepInContext:
             "local_coordinates": local_coordinates,
             "local_geometry_indices": local_geometry_indices,
             "regions": regions,
+            "region_groups": region_groups,
+            "prepared_regions": prepared_regions,
             "node_ids": node_ids,
             "half_widths": half_widths,
             "half_heights": half_heights,
@@ -2794,17 +2816,53 @@ class AnchorKeepInContext:
             ] += time.perf_counter() - translation_started
 
             keepin_started = time.perf_counter()
-            keepin_areas = shapely.area(
-                shapely.difference(
-                    constrained_footprints, templates["regions"]
+            covered = np.zeros(len(self.constraints), dtype=bool)
+            predicate_started = time.perf_counter()
+            for region_id, constraint_indices in templates[
+                "region_groups"
+            ].items():
+                covered[constraint_indices] = shapely.covers(
+                    templates["prepared_regions"][region_id],
+                    constrained_footprints[constraint_indices],
                 )
+            predicate_elapsed = time.perf_counter() - predicate_started
+
+            fallback_started = time.perf_counter()
+            fallback_indices = np.flatnonzero(~covered)
+            if len(fallback_indices):
+                fallback_areas = shapely.area(
+                    shapely.difference(
+                        constrained_footprints[fallback_indices],
+                        templates["regions"][fallback_indices],
+                    )
+                )
+                invalid_indices = fallback_indices[
+                    np.flatnonzero(fallback_areas > epsilon)
+                ]
+            else:
+                invalid_indices = fallback_indices
+            keepin_invalid = set(
+                templates["node_ids"][invalid_indices].tolist()
             )
-            keepin_invalid = {
-                self.constraints[int(index)].node_id
-                for index in np.flatnonzero(keepin_areas > epsilon)
-            }
-            self._position_audit_stats["batched_keepin_seconds"] += (
-                time.perf_counter() - keepin_started
+            fallback_elapsed = time.perf_counter() - fallback_started
+            keepin_elapsed = time.perf_counter() - keepin_started
+            self._position_audit_stats[
+                "batched_keepin_seconds"
+            ] += keepin_elapsed
+            self._position_audit_stats[
+                "keepin_predicate_seconds"
+            ] += predicate_elapsed
+            self._position_audit_stats[
+                "keepin_fallback_seconds"
+            ] += fallback_elapsed
+            self._position_audit_stats["keepin_covered_count"] += int(
+                np.count_nonzero(covered)
+            )
+            self._position_audit_stats["keepin_fallback_count"] += int(
+                len(fallback_indices)
+            )
+            self._position_audit_stats["keepin_invalid_count"] += int(
+                len(invalid_indices)
             )
 
             fixed_node_ids = tuple(
