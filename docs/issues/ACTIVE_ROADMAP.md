@@ -670,6 +670,18 @@ material strict-equivalence candidate, not effect evidence. Commit/push/pull
 the issue and implementation separately; a combined scale-1 D1 remains
 unauthorized until the user explicitly resets or approves it.
 
+The M336-187 production implementation now batches those exact GEOS operations
+without caching any translated constrained geometry. Read-only local templates
+remain byte-stable, fixed shape arrays stay under the M336-186 exact cache key,
+and native diagnostics expose every batch phase. A 27-scenario synthetic
+differential corpus and 204 real M336 CPU/H100 float32/64 comparisons match the
+scalar report and repair closure exactly. The production fixed-placement
+benchmark improves `6.095795 ms` to `2.156656 ms` per audit (`2.83x`), an
+additional projected `0.106357 s` over 27 calls. Applicable tests pass
+`263/263`, excluding five optional OR-Tools tests. This closes implementation
+and offline performance evidence only; D1 and all larger effects remain
+unauthorized until explicit user approval.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

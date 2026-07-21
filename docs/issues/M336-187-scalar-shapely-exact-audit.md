@@ -122,3 +122,55 @@ E4, seed ladders, and a resumed M336-183 output remain prohibited.
 - The fixed validator-only fixture materially reduces median audit time.
 - A later explicitly authorized combined scale-1 D1 passes unchanged legality,
   quality, determinism, GPU runtime, and end-to-end gates.
+
+## Implementation Evidence
+
+The strict-equivalent implementation is complete; the issue remains open until
+an explicitly authorized combined D1 measures the fixed gate.
+
+- A lazy read-only template stores only local footprints, flattened local
+  coordinates and geometry indices, assigned regions, node IDs, dimensions,
+  side indices, and names. Every NumPy array is marked non-writeable.
+- Each audit computes fresh centers from the current host snapshot, copies the
+  local geometry array, and uses one `set_coordinates()` batch. No translated
+  footprint or constrained STRtree is retained after the call.
+- Keep-in differences, fixed-tree queries, constrained-tree queries,
+  intersections, and areas use Shapely array operations. The historical side,
+  input-node, tree-result, positive-area, epsilon, and report order are
+  unchanged.
+- Fixed shape arrays live only inside M336-186's PlaceDB-identity and exact-byte
+  cache. A fixed-coordinate or PlaceDB change still rebuilds rows, shapes, and
+  side trees.
+- Native diagnostics now separate coordinate snapshot, footprint translation,
+  keep-in, fixed overlap, constrained overlap, and total audit time without
+  changing the M336-185 accounting boundary.
+
+The committed synthetic differential corpus contains concave and unequal
+footprints, both sides, legal, touching-only, epsilon-boundary, keep-in,
+fixed-overlap, constrained-overlap, multi-contact, and 20 seeded randomized
+positions. Its complete reports and repair-ID sets match the scalar oracle on
+CPU/H100 float32/float64. It also proves local WKB and coordinate templates are
+unchanged and covers zero constrained components.
+
+An additional real M336 corpus compares 51 positions on both devices and both
+dtypes, for `204/204` exact matches. It includes 188 cases with keep-in
+violations, 192 with fixed overlaps, and 200 with constrained overlaps; counts,
+areas, list order, closure, and repair IDs all match.
+
+The final production fixture measures:
+
+| Path | Median per audit |
+| --- | ---: |
+| M336-186 scalar Shapely oracle | `6.095795 ms` |
+| M336-187 vectorized production | `2.156656 ms` |
+
+This is a `2.83x` speedup and `3.939139 ms` saving per audit. Projected across
+the preserved 27 calls, the additional opportunity is `0.106357 s`. This
+validator-only projection is not a native runtime claim.
+
+After `cmake --install build`, all `263/263` applicable tests pass: anchor and
+keep-in `59`, exact guard `11`, exact contact projection `61`, reproducibility
+`22`, irregular density `9`, and non-CP-SAT M336 baseline `101`. Five optional
+OR-Tools tests were explicitly excluded. Source/install hashes match. No M336
+placement, objective, backward pass, optimizer, score, repair, fallback,
+CP-SAT solve, parameter change, or M336-141 work was run.

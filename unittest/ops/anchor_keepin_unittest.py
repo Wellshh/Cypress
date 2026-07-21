@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
+import shapely
 import torch
 from shapely import affinity
 from shapely.geometry import Polygon, box
@@ -812,6 +813,212 @@ class AnchorKeepInTest(unittest.TestCase):
         position = np.asarray(x_positions + [0.0] * 4, dtype=np.float64)
         return context, placedb, position
 
+    @staticmethod
+    def _scalar_position_audit(context, position, placedb):
+        position = context._position_host_snapshot(position)
+        epsilon = float(
+            context.config.get("reporting", {}).get(
+                "area_epsilon_mm2", 1e-5
+            )
+        ) * abs(context.alignment.scale) ** 2
+        constraints_by_id = {
+            constraint.node_id: constraint
+            for constraint in context.constraints
+        }
+        constrained_rows = {"TOP": [], "BOTTOM": []}
+        keepin_invalid = set()
+        for constraint in context.constraints:
+            center = (
+                float(position[constraint.node_id])
+                + constraint.node_width / 2,
+                float(position[context.num_nodes + constraint.node_id])
+                + constraint.node_height / 2,
+            )
+            footprint = constraint.domain.footprint(center)
+            constrained_rows[constraint.side].append((constraint, footprint))
+            if (
+                footprint.difference(
+                    context.regions[constraint.region_id]
+                ).area
+                > epsilon
+            ):
+                keepin_invalid.add(constraint.node_id)
+
+        fixed_node_ids = tuple(
+            node_id
+            for node_id in range(placedb.num_physical_nodes)
+            if node_id not in constraints_by_id
+        )
+        fixed_rows, fixed_trees, _ = context._fixed_audit_geometry(
+            position, placedb, fixed_node_ids
+        )
+        fixed_conflicts = []
+        pair_conflicts = []
+        repair_ids = set(keepin_invalid)
+        for side in ("TOP", "BOTTOM"):
+            fixed_tree = fixed_trees[side]
+            for constraint, footprint in constrained_rows[side]:
+                if fixed_tree is None:
+                    continue
+                for fixed_index in fixed_tree.query(footprint):
+                    fixed_row = fixed_rows[side][int(fixed_index)]
+                    area = footprint.intersection(fixed_row[2]).area
+                    if area <= epsilon:
+                        continue
+                    repair_ids.add(constraint.node_id)
+                    fixed_conflicts.append(
+                        {
+                            "refdes": constraint.refdes,
+                            "fixed_refdes": fixed_row[1],
+                            "overlap_area": float(area),
+                        }
+                    )
+
+            rows = constrained_rows[side]
+            shapes = [row[1] for row in rows]
+            tree = shapely.STRtree(shapes) if shapes else None
+            if tree is None:
+                continue
+            for first_index, (first, footprint) in enumerate(rows):
+                for second_index in tree.query(footprint):
+                    second_index = int(second_index)
+                    if second_index <= first_index:
+                        continue
+                    second, second_footprint = rows[second_index]
+                    area = footprint.intersection(second_footprint).area
+                    if area <= epsilon:
+                        continue
+                    repair_ids.update((first.node_id, second.node_id))
+                    pair_conflicts.append(
+                        {
+                            "first_refdes": first.refdes,
+                            "second_refdes": second.refdes,
+                            "overlap_area": float(area),
+                        }
+                    )
+
+        id_to_refdes = {
+            constraint.node_id: constraint.refdes
+            for constraint in context.constraints
+        }
+        return {
+            "keepin_invalid_count": len(keepin_invalid),
+            "keepin_invalid_refdes": [
+                id_to_refdes[node_id] for node_id in sorted(keepin_invalid)
+            ],
+            "fixed_overlap_count": len(fixed_conflicts),
+            "fixed_overlaps": fixed_conflicts,
+            "constrained_overlap_count": len(pair_conflicts),
+            "constrained_overlaps": pair_conflicts,
+            "conflict_closure_count": len(repair_ids),
+            "conflict_closure_refdes": [
+                id_to_refdes[node_id] for node_id in sorted(repair_ids)
+            ],
+        }, repair_ids
+
+    @staticmethod
+    def _vector_audit_context(output_dir):
+        region = box(0.0, 0.0, 8.0, 4.0)
+        local_footprints = (
+            Polygon(
+                (
+                    (-0.75, -0.5),
+                    (0.75, -0.5),
+                    (0.75, 0.0),
+                    (0.25, 0.0),
+                    (0.25, 0.5),
+                    (-0.75, 0.5),
+                )
+            ),
+            box(-0.5, -0.5, 0.5, 0.5),
+            box(-0.75, -0.25, 0.75, 0.25),
+            box(-0.5, -0.75, 0.5, 0.75),
+        )
+        sizes = tuple(
+            (
+                footprint.bounds[2] - footprint.bounds[0],
+                footprint.bounds[3] - footprint.bounds[1],
+            )
+            for footprint in local_footprints
+        )
+        sides = ("TOP", "TOP", "BOTTOM", "BOTTOM")
+        constraints = []
+        for node_id, (footprint, size, side) in enumerate(
+            zip(local_footprints, sizes, sides)
+        ):
+            domain = FeasibleDomain.build(
+                region,
+                width=size[0],
+                height=size[1],
+                grid=0.5,
+                footprint_local=footprint,
+            )
+            constraints.append(
+                NodeConstraint(
+                    node_id=node_id,
+                    refdes="U%d" % (node_id + 1),
+                    side=side,
+                    group_id="G",
+                    subgroup_id="G__%s" % side.lower(),
+                    region_id="%s_0" % side.lower(),
+                    domain=domain,
+                    target_center=(1.0, 1.0),
+                    node_width=size[0],
+                    node_height=size[1],
+                    anchor_refdes="A1",
+                )
+            )
+        context = AnchorKeepInContext(
+            config={"reporting": {"area_epsilon_mm2": 1e-9}},
+            geometry=SimpleNamespace(symbols={}),
+            alignment=SimpleNamespace(scale=1.0),
+            regions={"top_0": region, "bottom_0": region},
+            constraints=constraints,
+            frozen_lower_left={},
+            frozen_anchor_ids=set(),
+            frozen_fixed_ids=set(),
+            anchor_centers={"A1": (1.0, 1.0)},
+            resolved_members=tuple(
+                constraint.refdes for constraint in constraints
+            ),
+            input_paths={},
+            endpoint_policy={"default": "runtime"},
+            endpoint_records=(),
+            domain_cache_stats={},
+            preprocessing_seconds=0.0,
+            num_nodes=6,
+            output_dir=output_dir,
+            projection_enabled=True,
+            anchor_loss_enabled=False,
+            soft_loss_enabled=False,
+            exact_repair_enabled=False,
+            initialization_mode="preserve_legal",
+            grid=0.5,
+            keepin_margin=0.0,
+            keepin_margin_tau=0.1,
+        )
+        node_size_x = np.asarray(
+            [size[0] for size in sizes] + [1.0, 1.0]
+        )
+        node_size_y = np.asarray(
+            [size[1] for size in sizes] + [1.0, 1.0]
+        )
+        placedb = SimpleNamespace(
+            num_nodes=6,
+            num_physical_nodes=6,
+            node_names=np.asarray(
+                [b"U1", b"U2", b"U3", b"U4", b"FIXT", b"FIXB"]
+            ),
+            node_side_flag=np.asarray([1, 1, 0, 0, 1, 0]),
+            node_size_x=node_size_x,
+            node_size_y=node_size_y,
+        )
+        lower_left_x = np.asarray([0.5, 3.0, 0.5, 3.0, 6.0, 6.0])
+        lower_left_y = np.asarray([0.5, 0.5, 2.0, 2.0, 0.5, 2.0])
+        return context, placedb, np.concatenate(
+            (lower_left_x, lower_left_y)
+        )
+
     def test_preserve_legal_initialization_is_coordinate_stable(self):
         with tempfile.TemporaryDirectory() as directory:
             context, placedb, position = self._initialization_context(
@@ -982,7 +1189,152 @@ class AnchorKeepInTest(unittest.TestCase):
         self.assertGreater(
             diagnostics["batched_coordinate_snapshot_seconds"], 0.0
         )
+        self.assertGreater(
+            diagnostics["batched_footprint_translation_seconds"], 0.0
+        )
+        self.assertGreater(diagnostics["batched_keepin_seconds"], 0.0)
+        self.assertGreater(
+            diagnostics["batched_fixed_overlap_seconds"], 0.0
+        )
+        self.assertGreater(
+            diagnostics["batched_constrained_overlap_seconds"], 0.0
+        )
         self.assertGreater(diagnostics["elapsed_seconds"], 0.0)
+
+    def test_vectorized_position_audit_matches_scalar_geometry_order(self):
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, base = self._vector_audit_context(directory)
+            scenarios = {"legal": base.copy()}
+
+            constrained = base.copy()
+            constrained[1] = constrained[0]
+            constrained[context.num_nodes + 1] = constrained[
+                context.num_nodes
+            ]
+            scenarios["constrained"] = constrained
+
+            fixed = base.copy()
+            fixed[1] = fixed[4]
+            fixed[context.num_nodes + 1] = fixed[context.num_nodes + 4]
+            scenarios["fixed"] = fixed
+
+            keepin = base.copy()
+            keepin[0] = -1.0
+            scenarios["keepin"] = keepin
+
+            touching = base.copy()
+            touching[1] = touching[0] + placedb.node_size_x[0]
+            touching[context.num_nodes + 1] = touching[context.num_nodes]
+            scenarios["touching"] = touching
+
+            epsilon = touching.copy()
+            epsilon[1] -= 5e-10
+            scenarios["epsilon"] = epsilon
+
+            multi = constrained.copy()
+            multi[4] = multi[0]
+            multi[context.num_nodes + 4] = multi[context.num_nodes]
+            scenarios["multi"] = multi
+
+            generator = np.random.default_rng(187)
+            for index in range(20):
+                random_position = base.copy()
+                random_position[:4] += generator.uniform(-1.5, 1.5, 4)
+                random_position[context.num_nodes : context.num_nodes + 4] += (
+                    generator.uniform(-1.5, 1.5, 4)
+                )
+                scenarios["random_%02d" % index] = random_position
+
+            for name, position in scenarios.items():
+                for dtype in (torch.float32, torch.float64):
+                    for device in devices:
+                        with self.subTest(
+                            scenario=name, dtype=dtype, device=device
+                        ):
+                            tensor = torch.as_tensor(
+                                position, dtype=dtype, device=device
+                            )
+                            vector_report, vector_ids = (
+                                context._position_audit(tensor, placedb)
+                            )
+                            scalar_report, scalar_ids = (
+                                self._scalar_position_audit(
+                                    context, tensor, placedb
+                                )
+                            )
+                            self.assertEqual(vector_report, scalar_report)
+                            self.assertEqual(vector_ids, scalar_ids)
+                            self.assertEqual(
+                                json.dumps(vector_report, sort_keys=True),
+                                json.dumps(scalar_report, sort_keys=True),
+                            )
+
+    def test_vectorized_position_audit_templates_remain_immutable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, position = self._vector_audit_context(directory)
+            templates = context._position_audit_constrained_templates()
+            footprint_wkb = tuple(
+                footprint.wkb for footprint in templates["local_footprints"]
+            )
+            coordinates = templates["local_coordinates"].copy()
+            moved = torch.as_tensor(position.copy())
+            moved[0] += 0.375
+            moved[context.num_nodes] += 0.125
+
+            context._position_audit(torch.as_tensor(position), placedb)
+            moved_report, _ = context._position_audit(moved, placedb)
+            scalar_report, _ = self._scalar_position_audit(
+                context, moved, placedb
+            )
+
+        self.assertEqual(moved_report, scalar_report)
+        self.assertEqual(
+            footprint_wkb,
+            tuple(
+                footprint.wkb
+                for footprint in templates["local_footprints"]
+            ),
+        )
+        np.testing.assert_array_equal(
+            coordinates, templates["local_coordinates"]
+        )
+        self.assertTrue(
+            all(
+                not values.flags.writeable
+                for values in (
+                    templates["local_footprints"],
+                    templates["local_coordinates"],
+                    templates["local_geometry_indices"],
+                    templates["regions"],
+                    templates["node_ids"],
+                    templates["half_widths"],
+                    templates["half_heights"],
+                    *templates["side_indices"].values(),
+                )
+            )
+        )
+
+    def test_vectorized_position_audit_handles_no_constraints(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, position = self._initialization_context(directory)
+            context.constraints = ()
+            context._position_audit_constrained_templates_cache = None
+            context._position_audit_fixed_cache = None
+
+            report = context.exact_overlap_report(
+                torch.as_tensor(position), placedb
+            )
+            templates = context._position_audit_constrained_templates()
+
+        self.assertEqual(report["keepin_violation_count"], 0)
+        self.assertEqual(report["overlap_pair_count"], 0)
+        self.assertEqual(report["conflict_closure_count"], 0)
+        self.assertEqual(templates["local_footprints"].shape, (0,))
+        self.assertEqual(templates["local_coordinates"].shape, (0, 2))
+        self.assertEqual(templates["node_ids"].shape, (0,))
 
     def test_exact_contact_component_report_checks_only_requested_edges(self):
         with tempfile.TemporaryDirectory() as directory:

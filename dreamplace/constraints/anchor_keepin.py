@@ -1840,11 +1840,16 @@ class AnchorKeepInContext:
         )
         self._density_capacity_cache = {}
         self._physical_footprint_local_cache = {}
+        self._position_audit_constrained_templates_cache = None
         self._position_audit_fixed_cache = None
         self._position_audit_stats = {
             "audit_call_count": 0,
             "batched_coordinate_snapshot_count": 0,
             "batched_coordinate_snapshot_seconds": 0.0,
+            "batched_footprint_translation_seconds": 0.0,
+            "batched_keepin_seconds": 0.0,
+            "batched_fixed_overlap_seconds": 0.0,
+            "batched_constrained_overlap_seconds": 0.0,
             "fixed_cache_hit_count": 0,
             "fixed_cache_miss_count": 0,
             "elapsed_seconds": 0.0,
@@ -2606,7 +2611,7 @@ class AnchorKeepInContext:
             and cache["key"] == cache_key
         ):
             self._position_audit_stats["fixed_cache_hit_count"] += 1
-            return cache["rows"], cache["trees"]
+            return cache["rows"], cache["trees"], cache["shapes"]
 
         fixed_rows = {"TOP": [], "BOTTOM": []}
         for node_id in fixed_node_ids:
@@ -2632,9 +2637,17 @@ class AnchorKeepInContext:
         fixed_rows = {
             side: tuple(rows) for side, rows in fixed_rows.items()
         }
+        fixed_shapes = {
+            side: np.asarray(
+                [row[2] for row in fixed_rows[side]], dtype=object
+            )
+            for side in ("TOP", "BOTTOM")
+        }
+        for shapes in fixed_shapes.values():
+            shapes.setflags(write=False)
         fixed_trees = {
-            side: shapely.STRtree([row[2] for row in fixed_rows[side]])
-            if fixed_rows[side]
+            side: shapely.STRtree(fixed_shapes[side])
+            if len(fixed_shapes[side])
             else None
             for side in ("TOP", "BOTTOM")
         }
@@ -2643,10 +2656,89 @@ class AnchorKeepInContext:
             "key": cache_key,
             "rows": fixed_rows,
             "trees": fixed_trees,
+            "shapes": fixed_shapes,
             "node_count": len(fixed_node_ids),
         }
         self._position_audit_stats["fixed_cache_miss_count"] += 1
-        return fixed_rows, fixed_trees
+        return fixed_rows, fixed_trees, fixed_shapes
+
+    def _position_audit_constrained_templates(self):
+        """Cache immutable geometry topology for fresh audit batches."""
+        cache = self._position_audit_constrained_templates_cache
+        if cache is not None:
+            return cache
+
+        constraint_count = len(self.constraints)
+        local_footprints = np.asarray(
+            [
+                constraint.domain.footprint_local
+                for constraint in self.constraints
+            ],
+            dtype=object,
+        )
+        local_coordinates, local_geometry_indices = shapely.get_coordinates(
+            local_footprints, return_index=True
+        )
+        regions = np.asarray(
+            [
+                self.regions[constraint.region_id]
+                for constraint in self.constraints
+            ],
+            dtype=object,
+        )
+        node_ids = np.fromiter(
+            (constraint.node_id for constraint in self.constraints),
+            dtype=np.intp,
+            count=constraint_count,
+        )
+        half_widths = np.fromiter(
+            (constraint.node_width / 2 for constraint in self.constraints),
+            dtype=np.float64,
+            count=constraint_count,
+        )
+        half_heights = np.fromiter(
+            (constraint.node_height / 2 for constraint in self.constraints),
+            dtype=np.float64,
+            count=constraint_count,
+        )
+        side_indices = {
+            side: np.asarray(
+                [
+                    index
+                    for index, constraint in enumerate(self.constraints)
+                    if constraint.side == side
+                ],
+                dtype=np.intp,
+            )
+            for side in ("TOP", "BOTTOM")
+        }
+        for values in (
+            local_footprints,
+            local_coordinates,
+            local_geometry_indices,
+            regions,
+            node_ids,
+            half_widths,
+            half_heights,
+            *side_indices.values(),
+        ):
+            values.setflags(write=False)
+        cache = {
+            "local_footprints": local_footprints,
+            "local_coordinates": local_coordinates,
+            "local_geometry_indices": local_geometry_indices,
+            "regions": regions,
+            "node_ids": node_ids,
+            "half_widths": half_widths,
+            "half_heights": half_heights,
+            "side_indices": side_indices,
+            "refdes_by_node_id": {
+                constraint.node_id: constraint.refdes
+                for constraint in self.constraints
+            },
+        }
+        self._position_audit_constrained_templates_cache = cache
+        return cache
 
     def position_audit_diagnostics(self):
         diagnostics = dict(self._position_audit_stats)
@@ -2670,93 +2762,138 @@ class AnchorKeepInContext:
             self._position_audit_stats[
                 "batched_coordinate_snapshot_seconds"
             ] += snapshot_elapsed
+            templates = self._position_audit_constrained_templates()
             epsilon = float(
                 self.config.get("reporting", {}).get(
                     "area_epsilon_mm2", 1e-5
                 )
             ) * abs(self.alignment.scale) ** 2
-            constraints_by_id = {
-                constraint.node_id: constraint
-                for constraint in self.constraints
+
+            translation_started = time.perf_counter()
+            centers = np.empty((len(self.constraints), 2), dtype=np.float64)
+            np.add(
+                position[templates["node_ids"]],
+                templates["half_widths"],
+                out=centers[:, 0],
+            )
+            np.add(
+                position[self.num_nodes + templates["node_ids"]],
+                templates["half_heights"],
+                out=centers[:, 1],
+            )
+            translated_coordinates = templates["local_coordinates"] + centers[
+                templates["local_geometry_indices"]
+            ]
+            # set_coordinates replaces array entries, so translate a fresh copy.
+            constrained_footprints = shapely.set_coordinates(
+                templates["local_footprints"].copy(),
+                translated_coordinates,
+            )
+            self._position_audit_stats[
+                "batched_footprint_translation_seconds"
+            ] += time.perf_counter() - translation_started
+
+            keepin_started = time.perf_counter()
+            keepin_areas = shapely.area(
+                shapely.difference(
+                    constrained_footprints, templates["regions"]
+                )
+            )
+            keepin_invalid = {
+                self.constraints[int(index)].node_id
+                for index in np.flatnonzero(keepin_areas > epsilon)
             }
-            constrained_rows = {"TOP": [], "BOTTOM": []}
-            keepin_invalid = set()
-            for constraint in self.constraints:
-                center = (
-                    float(position[constraint.node_id])
-                    + constraint.node_width / 2,
-                    float(position[self.num_nodes + constraint.node_id])
-                    + constraint.node_height / 2,
-                )
-                footprint = constraint.domain.footprint(center)
-                constrained_rows[constraint.side].append(
-                    (constraint, footprint)
-                )
-                if (
-                    footprint.difference(
-                        self.regions[constraint.region_id]
-                    ).area
-                    > epsilon
-                ):
-                    keepin_invalid.add(constraint.node_id)
+            self._position_audit_stats["batched_keepin_seconds"] += (
+                time.perf_counter() - keepin_started
+            )
 
             fixed_node_ids = tuple(
                 node_id
                 for node_id in range(placedb.num_physical_nodes)
-                if node_id not in constraints_by_id
+                if node_id not in templates["refdes_by_node_id"]
             )
-            fixed_rows, fixed_trees = self._fixed_audit_geometry(
+            fixed_rows, fixed_trees, fixed_shapes = self._fixed_audit_geometry(
                 position, placedb, fixed_node_ids
             )
 
             fixed_conflicts = []
             pair_conflicts = []
             repair_ids = set(keepin_invalid)
+
+            fixed_overlap_started = time.perf_counter()
             for side in ("TOP", "BOTTOM"):
+                constraint_indices = templates["side_indices"][side]
+                side_footprints = constrained_footprints[constraint_indices]
                 fixed_tree = fixed_trees[side]
-                for constraint, footprint in constrained_rows[side]:
-                    if fixed_tree is not None:
-                        for fixed_index in fixed_tree.query(footprint):
-                            fixed_row = fixed_rows[side][int(fixed_index)]
-                            area = footprint.intersection(fixed_row[2]).area
-                            if area <= epsilon:
-                                continue
-                            repair_ids.add(constraint.node_id)
-                            fixed_conflicts.append(
-                                {
-                                    "refdes": constraint.refdes,
-                                    "fixed_refdes": fixed_row[1],
-                                    "overlap_area": float(area),
-                                }
-                            )
-
-                rows = constrained_rows[side]
-                shapes = [row[1] for row in rows]
-                tree = shapely.STRtree(shapes) if shapes else None
-                if tree is None:
+                if fixed_tree is None or not len(side_footprints):
                     continue
-                for first_index, (first, footprint) in enumerate(rows):
-                    for second_index in tree.query(footprint):
-                        second_index = int(second_index)
-                        if second_index <= first_index:
-                            continue
-                        second, second_footprint = rows[second_index]
-                        area = footprint.intersection(second_footprint).area
-                        if area <= epsilon:
-                            continue
-                        repair_ids.update((first.node_id, second.node_id))
-                        pair_conflicts.append(
-                            {
-                                "first_refdes": first.refdes,
-                                "second_refdes": second.refdes,
-                                "overlap_area": float(area),
-                            }
-                        )
+                candidate_pairs = fixed_tree.query(side_footprints)
+                if not candidate_pairs.shape[1]:
+                    continue
+                overlap_areas = shapely.area(
+                    shapely.intersection(
+                        side_footprints[candidate_pairs[0]],
+                        fixed_shapes[side][candidate_pairs[1]],
+                    )
+                )
+                for pair_index in np.flatnonzero(overlap_areas > epsilon):
+                    constraint = self.constraints[
+                        int(constraint_indices[candidate_pairs[0, pair_index]])
+                    ]
+                    fixed_row = fixed_rows[side][
+                        int(candidate_pairs[1, pair_index])
+                    ]
+                    repair_ids.add(constraint.node_id)
+                    fixed_conflicts.append(
+                        {
+                            "refdes": constraint.refdes,
+                            "fixed_refdes": fixed_row[1],
+                            "overlap_area": float(overlap_areas[pair_index]),
+                        }
+                    )
+            self._position_audit_stats[
+                "batched_fixed_overlap_seconds"
+            ] += time.perf_counter() - fixed_overlap_started
 
-            id_to_refdes = {
-                constraint.node_id: constraint.refdes
-                for constraint in self.constraints
-            }
+            constrained_overlap_started = time.perf_counter()
+            for side in ("TOP", "BOTTOM"):
+                constraint_indices = templates["side_indices"][side]
+                side_footprints = constrained_footprints[constraint_indices]
+                if not len(side_footprints):
+                    continue
+                tree = shapely.STRtree(side_footprints)
+                candidate_pairs = tree.query(side_footprints)
+                candidate_pairs = candidate_pairs[
+                    :, candidate_pairs[1] > candidate_pairs[0]
+                ]
+                if not candidate_pairs.shape[1]:
+                    continue
+                overlap_areas = shapely.area(
+                    shapely.intersection(
+                        side_footprints[candidate_pairs[0]],
+                        side_footprints[candidate_pairs[1]],
+                    )
+                )
+                for pair_index in np.flatnonzero(overlap_areas > epsilon):
+                    first = self.constraints[
+                        int(constraint_indices[candidate_pairs[0, pair_index]])
+                    ]
+                    second = self.constraints[
+                        int(constraint_indices[candidate_pairs[1, pair_index]])
+                    ]
+                    repair_ids.update((first.node_id, second.node_id))
+                    pair_conflicts.append(
+                        {
+                            "first_refdes": first.refdes,
+                            "second_refdes": second.refdes,
+                            "overlap_area": float(overlap_areas[pair_index]),
+                        }
+                    )
+            self._position_audit_stats[
+                "batched_constrained_overlap_seconds"
+            ] += time.perf_counter() - constrained_overlap_started
+
+            id_to_refdes = templates["refdes_by_node_id"]
             report = {
                 "keepin_invalid_count": len(keepin_invalid),
                 "keepin_invalid_refdes": [
