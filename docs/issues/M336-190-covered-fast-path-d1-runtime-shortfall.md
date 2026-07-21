@@ -118,6 +118,12 @@ human approval is required before reducing authority/FLUTE topology-selection
 frequency into a bounded micro-legalization boundary or changing the runtime
 gate. Collision policy, anchor, LR, and Legalization remain frozen.
 
+M336-191 subsequently measures the required changed-node scope. Every proposal
+changes all 100 constrained nodes relative to its legal origin, so that narrow
+contract cannot accelerate the validator. Only post-correction deltas relative
+to an immediately preceding exact but overlap-illegal report are sparse; any
+implementation must retain and merge those unchanged conflict rows exactly.
+
 ## Artifact Identity
 
 ```text

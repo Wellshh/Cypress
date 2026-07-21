@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-190`
+**Evidence through:** `M336-191`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (blocked by M336-190 E2 runtime) | Prevent native optimizer steps from crossing same-side footprint contacts | Preserve exact bytes while closing the remaining `0.058411 s` E2 gap; delta-audit/full-counted-path evidence or a human architecture decision is required before another D1 |
+| N6 (blocked by M336-190/M336-191 E2 runtime) | Prevent native optimizer steps from crossing same-side footprint contacts | Preserve exact bytes while closing the remaining `0.058411 s` E2 gap; legal-origin deltas are not sparse, so only offline generalized-delta/full-counted-path evidence or a human architecture decision can authorize another D1 |
 
 ## Paused Exact-Site Priorities
 
