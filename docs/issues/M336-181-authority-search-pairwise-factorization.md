@@ -116,3 +116,7 @@ installed applicable suite is `247/247`; five unrelated CP-SAT tests remain
 excluded because the production environment does not install optional
 OR-Tools. This is implementation evidence only. M336-179 remains open until
 the single combined D1 passes its runtime gates.
+
+The first combined D1 attempt is quarantined by M336-183: E2 GPU time fell to
+`2.346527902 s` but still missed the `2.161724 s` gate, and a scoring-config
+dependency stopped the runner before E3. This does not satisfy acceptance.

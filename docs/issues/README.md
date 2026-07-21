@@ -193,6 +193,7 @@ append-only audit ledger.
 | [M336-180](M336-180-hpwl-improvement-masks-e2-flute-regression.md) | Critical | Open | Lower E2 HPWL masks a GND-dominated native FLUTE RSMT regression |
 | [M336-181](M336-181-authority-search-pairwise-factorization.md) | Critical | Open | Exact pairwise factorization is implemented and parity-tested; the combined D1 runtime gate remains pending |
 | [M336-182](M336-182-global-flute-neutral-contact-tiebreak.md) | Critical | Open | A bounded native FLUTE tie-break now covers runtime GND; the combined D1 quality gate remains pending |
+| [M336-183](M336-183-serialized-scorer-retains-topology-tiebreak.md) | Critical | Resolved | Scoring-only config now clears topology dependencies; the quarantined E2 replay passes quality sub-gates but its runtime remains above the fixed gate |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |

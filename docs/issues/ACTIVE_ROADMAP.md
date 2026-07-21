@@ -573,6 +573,23 @@ tests pass `247/247`; five optional OR-Tools tests remain unavailable and are
 not reported green. The single combined scale-1 checkpoint-warm E2/E3 D1 is
 the next and only authorized effect run after signed commit, push, and pull.
 
+M336-183 records the first combined-D1 stop. E2 completed ten native CUDA
+steps and exact validation, but its scoring-only config disabled contact
+projection while retaining the dependent topology tie-break. `NonLinearPlace`
+correctly failed closed during float64 replay, so E3 did not run and the
+attempt is not promotable. The isolation fix resets all contact dependants for
+scoring. Partial timing remains actionable but is not a D1 pass: factorization
+reduced E2 GPU time from `2.609474063 s` to `2.346527902 s` (`10.08%`), still
+`8.55%` above the fixed `2.161724 s` gate. Do not resume the aborted output; a
+fresh effect run requires explicit authorization after the fix is pushed and
+pulled.
+
+The isolated fixed scorer replays identical float64 placement bytes with zero
+coordinate error and reports HPWL `15632.948904753`, RSMT `17327.972`. Those
+pass the M336-174 E2 quality sub-gates, so M336-180's direction is supported,
+but the result remains diagnostic: it cannot supply missing E3 evidence or
+override the failed E2 runtime gate.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

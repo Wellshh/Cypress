@@ -870,6 +870,10 @@ def _serialized_native_score_config(config, replay_aux, native_dir):
             "exact_step_guard_flag": False,
             "collision_pair_diagnostics_flag": False,
             "exact_contact_projection_flag": False,
+            "exact_contact_projection_authority_search_strategy": (
+                EXHAUSTIVE_AUTHORITY_SEARCH
+            ),
+            "exact_contact_topology_tiebreak_flag": False,
             "irregular_density_flag": False,
             "keepin_projection_flag": False,
             "exact_repair_flag": False,

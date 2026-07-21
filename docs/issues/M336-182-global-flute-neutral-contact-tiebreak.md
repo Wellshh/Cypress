@@ -146,3 +146,15 @@ HPWL/FLUTE execution. No M336 effect result has been produced by this code.
 M336-180 remains open until the one combined D1 satisfies E2
 `RSMT <= 17328.300` together with legality, HPWL, anchor, determinism, and
 runtime gates.
+
+The first combined D1 attempt is quarantined by M336-183. The tie-break ran on
+GND and selected consensus in 7 of 17 protected passes, but the scoring-only
+config retained the tie-break after disabling contact projection. The runner
+stopped during E2 float64 replay and did not run E3, so no quality acceptance
+claim is available.
+
+After the M336-183 isolation fix, a scorer-only replay of the quarantined E2
+bytes gives HPWL `15632.948904753` and FLUTE RSMT `17327.972` with zero
+coordinate drift. Both M336-174 E2 quality sub-gates pass, but this diagnostic
+is not a complete combined D1 and does not resolve the runtime or missing-E3
+requirements.

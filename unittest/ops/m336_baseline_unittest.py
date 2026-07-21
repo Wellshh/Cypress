@@ -922,6 +922,10 @@ class M336BaselineTest(unittest.TestCase):
         optimization_config = {
             "anchor_keepin_flag": True,
             "exact_overlap_diagnostic_interval": 1,
+            "exact_contact_projection_authority_search_strategy": (
+                PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
+            ),
+            "exact_contact_topology_tiebreak_flag": True,
         }
 
         score_config = _serialized_native_score_config(
@@ -939,6 +943,15 @@ class M336BaselineTest(unittest.TestCase):
         self.assertFalse(score_config["exact_step_guard_flag"])
         self.assertFalse(score_config["collision_pair_diagnostics_flag"])
         self.assertFalse(score_config["exact_contact_projection_flag"])
+        self.assertEqual(
+            score_config[
+                "exact_contact_projection_authority_search_strategy"
+            ],
+            EXHAUSTIVE_AUTHORITY_SEARCH,
+        )
+        self.assertFalse(
+            score_config["exact_contact_topology_tiebreak_flag"]
+        )
         self.assertFalse(score_config["keepin_projection_flag"])
         self.assertFalse(score_config["exact_repair_flag"])
         self.assertEqual(score_config["exact_overlap_diagnostic_interval"], 0)
