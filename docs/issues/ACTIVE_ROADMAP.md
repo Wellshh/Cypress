@@ -645,6 +645,18 @@ and STRtrees under an exact coordinate/PlaceDB key while rebuilding all moving
 constrained geometry. No approximation, timing reclassification, or effect run
 is authorized.
 
+That candidate is now implemented without effect evidence. One dtype-preserving
+host snapshot replaces per-coordinate device synchronization; fixed footprints
+and side-local STRtrees are reused only under a byte-exact key that retains and
+identity-checks the PlaceDB, while all constrained geometry remains fresh.
+Native diagnostics expose calls, snapshot time, cache hits/misses, and total
+audit time without moving the M336-185 timing boundary. CPU/H100 float32/64
+fixtures preserve sorted report bytes across legal, keep-in, constrained-pair,
+and fixed-obstacle cases; fixed-coordinate invalidation matches a fresh
+context. Applicable installed/source tests pass `260/260`, excluding five
+optional OR-Tools tests. A combined scale-1 D1 remains unauthorized until the
+user explicitly resets or approves it.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

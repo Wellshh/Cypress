@@ -880,6 +880,110 @@ class AnchorKeepInTest(unittest.TestCase):
         self.assertAlmostEqual(report["overlap_area_mm2"], 1.5)
         self.assertEqual(report["conflict_closure_count"], 3)
 
+    def test_position_audit_batch_snapshot_matches_scalar_reference(self):
+        devices = ["cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+        scenarios = {
+            "legal": [0.0, 1.0, 2.0, 10.0],
+            "keepin": [3.5, 1.0, 2.0, 10.0],
+            "constrained": [0.0, 0.0, 2.0, 10.0],
+            "fixed": [0.0, 1.0, 2.0, 2.5],
+        }
+        expected = {}
+        for scenario, x_positions in scenarios.items():
+            for dtype in (torch.float32, torch.float64):
+                for device in devices:
+                    with self.subTest(
+                        scenario=scenario, dtype=dtype, device=device
+                    ):
+                        with tempfile.TemporaryDirectory() as directory:
+                            context, placedb, position = (
+                                self._initialization_context(directory)
+                            )
+                            position[:4] = x_positions
+                            tensor = torch.as_tensor(
+                                position, dtype=dtype, device=device
+                            )
+
+                            optimized = context.exact_overlap_report(
+                                tensor, placedb
+                            )
+                            reference_context, _, _ = (
+                                self._initialization_context(directory)
+                            )
+
+                            def scalar_snapshot(values):
+                                return np.asarray(
+                                    [
+                                        reference_context._position_value(value)
+                                        for value in values.reshape(-1)
+                                    ],
+                                    dtype=(
+                                        np.float32
+                                        if dtype == torch.float32
+                                        else np.float64
+                                    ),
+                                )
+
+                            reference_context._position_host_snapshot = (
+                                scalar_snapshot
+                            )
+                            reference = reference_context.exact_overlap_report(
+                                tensor, placedb
+                            )
+
+                        serialized = json.dumps(optimized, sort_keys=True)
+                        self.assertEqual(optimized, reference)
+                        self.assertEqual(
+                            serialized, json.dumps(reference, sort_keys=True)
+                        )
+                        if scenario in expected:
+                            self.assertEqual(serialized, expected[scenario])
+                        else:
+                            expected[scenario] = serialized
+
+    def test_position_audit_fixed_cache_is_exact_and_constrained_fresh(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context, placedb, position = self._initialization_context(
+                directory, positions_overlap=True
+            )
+            position[3] = 2.5
+            tensor = torch.as_tensor(position)
+
+            first = context.exact_overlap_report(tensor, placedb)
+            second = context.exact_overlap_report(tensor, placedb)
+            tensor[1] = 1.0
+            constrained_moved = context.exact_overlap_report(tensor, placedb)
+            tensor[3] = 10.0
+            fixed_moved = context.exact_overlap_report(tensor, placedb)
+            other_placedb = SimpleNamespace(**vars(placedb))
+            identity_moved = context.exact_overlap_report(
+                tensor, other_placedb
+            )
+            fresh_context, _, _ = self._initialization_context(directory)
+            fresh = fresh_context.exact_overlap_report(tensor, placedb)
+            diagnostics = context.position_audit_diagnostics()
+
+        self.assertEqual(first, second)
+        self.assertEqual(first["constrained_overlap_count"], 1)
+        self.assertEqual(constrained_moved["constrained_overlap_count"], 0)
+        self.assertEqual(constrained_moved["fixed_overlap_count"], 1)
+        self.assertEqual(fixed_moved, fresh)
+        self.assertEqual(identity_moved, fresh)
+        self.assertEqual(fixed_moved["fixed_overlap_count"], 0)
+        self.assertEqual(diagnostics["audit_call_count"], 5)
+        self.assertEqual(
+            diagnostics["batched_coordinate_snapshot_count"], 5
+        )
+        self.assertEqual(diagnostics["fixed_cache_hit_count"], 2)
+        self.assertEqual(diagnostics["fixed_cache_miss_count"], 3)
+        self.assertEqual(diagnostics["fixed_cached_node_count"], 1)
+        self.assertGreater(
+            diagnostics["batched_coordinate_snapshot_seconds"], 0.0
+        )
+        self.assertGreater(diagnostics["elapsed_seconds"], 0.0)
+
     def test_exact_contact_component_report_checks_only_requested_edges(self):
         with tempfile.TemporaryDirectory() as directory:
             context, placedb, _ = self._initialization_context(directory)

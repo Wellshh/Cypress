@@ -2440,6 +2440,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 else None
             )
         )
+        if self.anchor_keepin_context is not None:
+            native_execution["exact_position_audit"] = (
+                self.anchor_keepin_context.position_audit_diagnostics()
+            )
         if exact_step_guard_enabled:
             exact_contact_projection_seconds = sum(
                 float(attempt["contact_projection"]["elapsed_seconds"])

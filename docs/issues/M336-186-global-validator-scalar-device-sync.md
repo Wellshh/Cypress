@@ -88,3 +88,34 @@ effect run. D2, D3, E4, and ladders remain prohibited.
   reference path.
 - A later authorized combined D1 reports lower counted contact and GPU time and
   still passes all legality, quality, determinism, and end-to-end gates.
+
+## Implementation Evidence
+
+The strict-equivalent implementation is complete; the issue remains open until
+an explicitly authorized combined D1 measures the unchanged fixed gate.
+
+- Every audit copies the flat tensor to a dtype-preserving host snapshot once.
+  All subsequent scalar reads use that host array.
+- The fixed cache key includes the live PlaceDB object identity, fixed-node
+  order, names, side flags, dimensions, source dtype, and exact coordinate
+  bytes. The cache retains the PlaceDB object and also checks it with `is`, so
+  Python object-ID reuse cannot create a false hit.
+- Fixed footprints and TOP/BOTTOM STRtrees are reused only on an exact key hit.
+  Constrained footprints and their side-local STRtrees are rebuilt on every
+  audit from the current snapshot.
+- Native execution evidence now records audit calls, batched snapshot count and
+  time, fixed-cache hits/misses, cached fixed-node count, and total audit time.
+  These diagnostics do not change the M336-185 timing-domain formula.
+
+Reference fixtures compare sorted JSON report bytes for legal, keep-in-invalid,
+constrained-constrained, and constrained-fixed placements. CPU/H100 float32 and
+float64 results are identical. A second fixture proves unchanged constrained
+coordinates hit the fixed cache, moving a constrained node never reuses its
+footprint, and moving a fixed node misses the cache and matches a fresh context.
+
+After `cmake --install build`, all `260/260` applicable tests pass: anchor and
+keep-in `56`, exact guard `11`, exact contact projection `61`, reproducibility
+`22`, irregular density `9`, and non-CP-SAT M336 baseline `101`. Five optional
+OR-Tools tests were explicitly excluded. Source/install hashes match for both
+changed production modules. No M336 placement, optimizer, score, repair,
+fallback, CP-SAT solve, parameter change, or M336-141 work was run.

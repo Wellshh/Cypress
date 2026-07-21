@@ -1840,6 +1840,15 @@ class AnchorKeepInContext:
         )
         self._density_capacity_cache = {}
         self._physical_footprint_local_cache = {}
+        self._position_audit_fixed_cache = None
+        self._position_audit_stats = {
+            "audit_call_count": 0,
+            "batched_coordinate_snapshot_count": 0,
+            "batched_coordinate_snapshot_seconds": 0.0,
+            "fixed_cache_hit_count": 0,
+            "fixed_cache_miss_count": 0,
+            "elapsed_seconds": 0.0,
+        }
         self._anchor_necessary_domain_cache = {}
         self.collision_barrier_diagnostics = None
         self.initial_legal_centers = {}
@@ -2538,101 +2547,236 @@ class AnchorKeepInContext:
             yoff=center[1],
         )
 
-    def _position_audit(self, position, placedb):
-        """Return exact invalid/conflicting nodes using side-local STRtrees."""
-        epsilon = float(
-            self.config.get("reporting", {}).get("area_epsilon_mm2", 1e-5)
-        ) * abs(self.alignment.scale) ** 2
-        constraints_by_id = {
-            constraint.node_id: constraint for constraint in self.constraints
-        }
-        constrained_rows = {"TOP": [], "BOTTOM": []}
-        keepin_invalid = set()
-        for constraint in self.constraints:
-            footprint = constraint.domain.footprint(
-                self._constraint_center(position, constraint)
+    def _position_host_snapshot(self, position):
+        """Copy the flat placement to host once without changing its dtype."""
+        if torch.is_tensor(position):
+            snapshot = position.detach().reshape(-1).cpu().numpy().copy()
+        else:
+            snapshot = np.asarray(position).reshape(-1).copy()
+        required_size = 2 * self.num_nodes
+        if snapshot.size < required_size:
+            raise ValueError(
+                "position audit requires at least %d coordinates, received %d"
+                % (required_size, snapshot.size)
             )
-            constrained_rows[constraint.side].append((constraint, footprint))
-            if footprint.difference(self.regions[constraint.region_id]).area > epsilon:
-                keepin_invalid.add(constraint.node_id)
+        return snapshot
+
+    @staticmethod
+    def _exact_array_cache_key(values):
+        values = np.ascontiguousarray(np.asarray(values))
+        return values.dtype.str, values.shape, values.tobytes()
+
+    def _fixed_audit_cache_key(
+        self, position, placedb, fixed_node_ids
+    ):
+        fixed_indices = np.asarray(fixed_node_ids, dtype=np.intp)
+        coordinates = np.empty((len(fixed_node_ids), 2), dtype=position.dtype)
+        if fixed_node_ids:
+            coordinates[:, 0] = position[fixed_indices]
+            coordinates[:, 1] = position[self.num_nodes + fixed_indices]
+        return (
+            id(placedb),
+            fixed_node_ids,
+            tuple(
+                _decode_name(placedb.node_names[node_id])
+                for node_id in fixed_node_ids
+            ),
+            self._exact_array_cache_key(
+                np.asarray(placedb.node_side_flag)[fixed_indices]
+            ),
+            self._exact_array_cache_key(
+                np.asarray(placedb.node_size_x)[fixed_indices]
+            ),
+            self._exact_array_cache_key(
+                np.asarray(placedb.node_size_y)[fixed_indices]
+            ),
+            self._exact_array_cache_key(coordinates),
+        )
+
+    def _fixed_audit_geometry(
+        self, position, placedb, fixed_node_ids
+    ):
+        cache_key = self._fixed_audit_cache_key(
+            position, placedb, fixed_node_ids
+        )
+        cache = self._position_audit_fixed_cache
+        if (
+            cache is not None
+            and cache["placedb"] is placedb
+            and cache["key"] == cache_key
+        ):
+            self._position_audit_stats["fixed_cache_hit_count"] += 1
+            return cache["rows"], cache["trees"]
 
         fixed_rows = {"TOP": [], "BOTTOM": []}
-        for node_id in range(placedb.num_physical_nodes):
-            if node_id in constraints_by_id:
-                continue
+        for node_id in fixed_node_ids:
             side = "TOP" if placedb.node_side_flag[node_id] else "BOTTOM"
+            center = (
+                float(position[node_id])
+                + float(placedb.node_size_x[node_id]) / 2,
+                float(position[self.num_nodes + node_id])
+                + float(placedb.node_size_y[node_id]) / 2,
+            )
+            footprint = affinity.translate(
+                self._physical_footprint_local(placedb, node_id),
+                xoff=center[0],
+                yoff=center[1],
+            )
             fixed_rows[side].append(
                 (
                     node_id,
                     _decode_name(placedb.node_names[node_id]),
-                    self._physical_footprint(position, placedb, node_id),
+                    footprint,
                 )
             )
+        fixed_rows = {
+            side: tuple(rows) for side, rows in fixed_rows.items()
+        }
+        fixed_trees = {
+            side: shapely.STRtree([row[2] for row in fixed_rows[side]])
+            if fixed_rows[side]
+            else None
+            for side in ("TOP", "BOTTOM")
+        }
+        self._position_audit_fixed_cache = {
+            "placedb": placedb,
+            "key": cache_key,
+            "rows": fixed_rows,
+            "trees": fixed_trees,
+            "node_count": len(fixed_node_ids),
+        }
+        self._position_audit_stats["fixed_cache_miss_count"] += 1
+        return fixed_rows, fixed_trees
 
-        fixed_conflicts = []
-        pair_conflicts = []
-        repair_ids = set(keepin_invalid)
-        for side in ("TOP", "BOTTOM"):
-            fixed_shapes = [row[2] for row in fixed_rows[side]]
-            fixed_tree = shapely.STRtree(fixed_shapes) if fixed_shapes else None
-            for constraint, footprint in constrained_rows[side]:
-                if fixed_tree is not None:
-                    for fixed_index in fixed_tree.query(footprint):
-                        fixed_row = fixed_rows[side][int(fixed_index)]
-                        area = footprint.intersection(fixed_row[2]).area
+    def position_audit_diagnostics(self):
+        diagnostics = dict(self._position_audit_stats)
+        cache = self._position_audit_fixed_cache
+        diagnostics["fixed_cached_node_count"] = (
+            int(cache["node_count"]) if cache is not None else 0
+        )
+        return diagnostics
+
+    def _position_audit(self, position, placedb):
+        """Return exact invalid/conflicting nodes using side-local STRtrees."""
+        audit_started = time.perf_counter()
+        self._position_audit_stats["audit_call_count"] += 1
+        try:
+            snapshot_started = time.perf_counter()
+            position = self._position_host_snapshot(position)
+            snapshot_elapsed = time.perf_counter() - snapshot_started
+            self._position_audit_stats[
+                "batched_coordinate_snapshot_count"
+            ] += 1
+            self._position_audit_stats[
+                "batched_coordinate_snapshot_seconds"
+            ] += snapshot_elapsed
+            epsilon = float(
+                self.config.get("reporting", {}).get(
+                    "area_epsilon_mm2", 1e-5
+                )
+            ) * abs(self.alignment.scale) ** 2
+            constraints_by_id = {
+                constraint.node_id: constraint
+                for constraint in self.constraints
+            }
+            constrained_rows = {"TOP": [], "BOTTOM": []}
+            keepin_invalid = set()
+            for constraint in self.constraints:
+                center = (
+                    float(position[constraint.node_id])
+                    + constraint.node_width / 2,
+                    float(position[self.num_nodes + constraint.node_id])
+                    + constraint.node_height / 2,
+                )
+                footprint = constraint.domain.footprint(center)
+                constrained_rows[constraint.side].append(
+                    (constraint, footprint)
+                )
+                if (
+                    footprint.difference(
+                        self.regions[constraint.region_id]
+                    ).area
+                    > epsilon
+                ):
+                    keepin_invalid.add(constraint.node_id)
+
+            fixed_node_ids = tuple(
+                node_id
+                for node_id in range(placedb.num_physical_nodes)
+                if node_id not in constraints_by_id
+            )
+            fixed_rows, fixed_trees = self._fixed_audit_geometry(
+                position, placedb, fixed_node_ids
+            )
+
+            fixed_conflicts = []
+            pair_conflicts = []
+            repair_ids = set(keepin_invalid)
+            for side in ("TOP", "BOTTOM"):
+                fixed_tree = fixed_trees[side]
+                for constraint, footprint in constrained_rows[side]:
+                    if fixed_tree is not None:
+                        for fixed_index in fixed_tree.query(footprint):
+                            fixed_row = fixed_rows[side][int(fixed_index)]
+                            area = footprint.intersection(fixed_row[2]).area
+                            if area <= epsilon:
+                                continue
+                            repair_ids.add(constraint.node_id)
+                            fixed_conflicts.append(
+                                {
+                                    "refdes": constraint.refdes,
+                                    "fixed_refdes": fixed_row[1],
+                                    "overlap_area": float(area),
+                                }
+                            )
+
+                rows = constrained_rows[side]
+                shapes = [row[1] for row in rows]
+                tree = shapely.STRtree(shapes) if shapes else None
+                if tree is None:
+                    continue
+                for first_index, (first, footprint) in enumerate(rows):
+                    for second_index in tree.query(footprint):
+                        second_index = int(second_index)
+                        if second_index <= first_index:
+                            continue
+                        second, second_footprint = rows[second_index]
+                        area = footprint.intersection(second_footprint).area
                         if area <= epsilon:
                             continue
-                        repair_ids.add(constraint.node_id)
-                        fixed_conflicts.append(
+                        repair_ids.update((first.node_id, second.node_id))
+                        pair_conflicts.append(
                             {
-                                "refdes": constraint.refdes,
-                                "fixed_refdes": fixed_row[1],
+                                "first_refdes": first.refdes,
+                                "second_refdes": second.refdes,
                                 "overlap_area": float(area),
                             }
                         )
 
-            rows = constrained_rows[side]
-            shapes = [row[1] for row in rows]
-            tree = shapely.STRtree(shapes) if shapes else None
-            if tree is None:
-                continue
-            for first_index, (first, footprint) in enumerate(rows):
-                for second_index in tree.query(footprint):
-                    second_index = int(second_index)
-                    if second_index <= first_index:
-                        continue
-                    second, second_footprint = rows[second_index]
-                    area = footprint.intersection(second_footprint).area
-                    if area <= epsilon:
-                        continue
-                    repair_ids.update((first.node_id, second.node_id))
-                    pair_conflicts.append(
-                        {
-                            "first_refdes": first.refdes,
-                            "second_refdes": second.refdes,
-                            "overlap_area": float(area),
-                        }
-                    )
-
-        id_to_refdes = {
-            constraint.node_id: constraint.refdes
-            for constraint in self.constraints
-        }
-        report = {
-            "keepin_invalid_count": len(keepin_invalid),
-            "keepin_invalid_refdes": [
-                id_to_refdes[node_id] for node_id in sorted(keepin_invalid)
-            ],
-            "fixed_overlap_count": len(fixed_conflicts),
-            "fixed_overlaps": fixed_conflicts,
-            "constrained_overlap_count": len(pair_conflicts),
-            "constrained_overlaps": pair_conflicts,
-            "conflict_closure_count": len(repair_ids),
-            "conflict_closure_refdes": [
-                id_to_refdes[node_id] for node_id in sorted(repair_ids)
-            ],
-        }
-        return report, repair_ids
+            id_to_refdes = {
+                constraint.node_id: constraint.refdes
+                for constraint in self.constraints
+            }
+            report = {
+                "keepin_invalid_count": len(keepin_invalid),
+                "keepin_invalid_refdes": [
+                    id_to_refdes[node_id]
+                    for node_id in sorted(keepin_invalid)
+                ],
+                "fixed_overlap_count": len(fixed_conflicts),
+                "fixed_overlaps": fixed_conflicts,
+                "constrained_overlap_count": len(pair_conflicts),
+                "constrained_overlaps": pair_conflicts,
+                "conflict_closure_count": len(repair_ids),
+                "conflict_closure_refdes": [
+                    id_to_refdes[node_id] for node_id in sorted(repair_ids)
+                ],
+            }
+            return report, repair_ids
+        finally:
+            self._position_audit_stats["elapsed_seconds"] += (
+                time.perf_counter() - audit_started
+            )
 
     def exact_overlap_report(self, position, placedb):
         """Return lightweight exact collision metrics for optimizer diagnostics."""
