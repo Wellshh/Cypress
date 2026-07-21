@@ -590,6 +590,15 @@ pass the M336-174 E2 quality sub-gates, so M336-180's direction is supported,
 but the result remains diagnostic: it cannot supply missing E3 evidence or
 override the failed E2 runtime gate.
 
+M336-184 isolates the next runtime-only implementation candidate. The contact
+projector already validates initial and converged coordinates, but the exact
+step guard repeats proposal and accepted validation on identical bytes. In the
+M336-183 trace those two guard stages cost `0.244548114 s`, larger than the
+remaining `0.184803902 s` E2 gap. Any cache must carry exact tensor provenance,
+be single-use, fail closed on mismatch, and preserve normal validation whenever
+board/region projection changes the proposal. This is a design opportunity,
+not authorization for another effect run.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls
