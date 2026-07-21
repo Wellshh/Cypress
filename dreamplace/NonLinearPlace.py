@@ -59,6 +59,61 @@ from dreamplace.constraints.exact_contact_projection import (
 )
 
 
+def _optimization_timing_breakdown(
+    wall_seconds,
+    overlap_diagnostic_seconds,
+    guard_overhead_seconds,
+    guarded_optimizer_attempt_seconds,
+    contact_projection_seconds,
+):
+    """Separate fixed GPU-gate time from explicitly excluded diagnostics."""
+    values = {
+        "optimization_wall_seconds": float(wall_seconds),
+        "exact_overlap_diagnostic_seconds": float(
+            overlap_diagnostic_seconds
+        ),
+        "exact_step_guard_seconds": float(guard_overhead_seconds),
+        "exact_step_guard_optimizer_attempt_seconds": float(
+            guarded_optimizer_attempt_seconds
+        ),
+        "exact_contact_projection_seconds": float(
+            contact_projection_seconds
+        ),
+    }
+    for name, value in values.items():
+        if not math.isfinite(value) or value < 0:
+            raise ValueError("%s must be finite and non-negative" % name)
+
+    excluded_seconds = (
+        values["exact_overlap_diagnostic_seconds"]
+        + values["exact_step_guard_seconds"]
+    )
+    tolerance = max(1e-9, values["optimization_wall_seconds"] * 1e-9)
+    if excluded_seconds > values["optimization_wall_seconds"] + tolerance:
+        raise ValueError("excluded optimization time exceeds wall time")
+    gpu_optimization_seconds = max(
+        values["optimization_wall_seconds"] - excluded_seconds,
+        0.0,
+    )
+    if (
+        values["exact_step_guard_optimizer_attempt_seconds"]
+        > gpu_optimization_seconds + tolerance
+    ):
+        raise ValueError("guarded optimizer attempts exceed counted GPU time")
+    if (
+        values["exact_contact_projection_seconds"]
+        > values["exact_step_guard_optimizer_attempt_seconds"] + tolerance
+    ):
+        raise ValueError("contact projection exceeds guarded optimizer time")
+    values.update(
+        {
+            "optimization_excluded_seconds": excluded_seconds,
+            "gpu_optimization_seconds": gpu_optimization_seconds,
+        }
+    )
+    return values
+
+
 def _placement_displacement_stats(
     before, after, num_nodes, include_node_ids=True
 ):
@@ -2386,6 +2441,15 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             )
         )
         if exact_step_guard_enabled:
+            exact_contact_projection_seconds = sum(
+                float(attempt["contact_projection"]["elapsed_seconds"])
+                for attempt in native_execution["exact_step_guard_attempts"]
+                if isinstance(attempt.get("contact_projection"), dict)
+            )
+            if exact_contact_projection_enabled:
+                native_execution["exact_contact_projection_seconds"] = (
+                    exact_contact_projection_seconds
+                )
             guard_artifact = {
                 "status": "completed",
                 "backoff": exact_step_guard_backoff,
@@ -2404,6 +2468,10 @@ class NonLinearPlace(BasicPlace.BasicPlace):
                 ],
                 "attempts": native_execution["exact_step_guard_attempts"],
             }
+            if exact_contact_projection_enabled:
+                guard_artifact["contact_projection_seconds"] = (
+                    exact_contact_projection_seconds
+                )
             guard_path = (
                 self.anchor_keepin_context.output_dir / "exact_step_guard.json"
             )
@@ -2414,6 +2482,12 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             self.anchor_keepin_context.timing["exact_step_guard_seconds"] = (
                 native_execution["exact_step_guard_overhead_seconds"]
             )
+            self.anchor_keepin_context.timing[
+                "exact_step_guard_optimizer_attempt_seconds"
+            ] = native_execution["exact_step_guard_optimizer_attempt_seconds"]
+            self.anchor_keepin_context.timing[
+                "exact_contact_projection_seconds"
+            ] = exact_contact_projection_seconds
         processed_metrics["native_execution"] = native_execution
         logging.info(
             "native execution summary: %s",
@@ -2422,10 +2496,19 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         if self.anchor_keepin_context is not None:
             if params.gpu:
                 torch.cuda.synchronize()
-            self.anchor_keepin_context.timing["gpu_optimization_seconds"] = (
-                time.perf_counter() - optimization_started
-                - native_execution.get("exact_overlap_diagnostic_seconds", 0.0)
-                - native_execution.get("exact_step_guard_overhead_seconds", 0.0)
+            timing_breakdown = _optimization_timing_breakdown(
+                time.perf_counter() - optimization_started,
+                native_execution.get("exact_overlap_diagnostic_seconds", 0.0),
+                native_execution.get("exact_step_guard_overhead_seconds", 0.0),
+                native_execution.get(
+                    "exact_step_guard_optimizer_attempt_seconds", 0.0
+                ),
+                native_execution.get("exact_contact_projection_seconds", 0.0),
+            )
+            self.anchor_keepin_context.timing.update(timing_breakdown)
+            logging.info(
+                "optimization timing breakdown: %s",
+                json.dumps(timing_breakdown, sort_keys=True),
             )
         if net_crossing_enabled:
             processed_metrics["net_crossing"] = net_crossing

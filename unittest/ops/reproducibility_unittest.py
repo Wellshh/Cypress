@@ -20,6 +20,7 @@ from dreamplace.NesterovAcceleratedGradientOptimizer import (
 from dreamplace.NonLinearPlace import (
     _CompositeProjector,
     _NativeDisplacementTracker,
+    _optimization_timing_breakdown,
 )
 from dreamplace.PlaceObj import PlaceObj
 from dreamplace.Placer import seed_all
@@ -32,6 +33,50 @@ from tuner.tuner_worker import AutoDMPWorker
 
 
 class ReproducibilityTest(unittest.TestCase):
+    def test_optimization_timing_breakdown_preserves_gpu_gate_domain(self):
+        report = _optimization_timing_breakdown(
+            wall_seconds=2.635054651647806,
+            overlap_diagnostic_seconds=0.012923700734972954,
+            guard_overhead_seconds=0.2756030485033989,
+            guarded_optimizer_attempt_seconds=1.0470411535352468,
+            contact_projection_seconds=0.9439233932644129,
+        )
+
+        self.assertAlmostEqual(
+            report["optimization_excluded_seconds"],
+            0.28852674923837185,
+            places=15,
+        )
+        self.assertAlmostEqual(
+            report["gpu_optimization_seconds"],
+            2.3465279024094343,
+            places=15,
+        )
+
+        invalid = (
+            {"wall_seconds": -1.0},
+            {"guard_overhead_seconds": float("inf")},
+            {
+                "wall_seconds": 0.1,
+                "guard_overhead_seconds": 0.2,
+            },
+            {"guarded_optimizer_attempt_seconds": 3.0},
+            {"contact_projection_seconds": 2.0},
+        )
+        defaults = {
+            "wall_seconds": 2.0,
+            "overlap_diagnostic_seconds": 0.1,
+            "guard_overhead_seconds": 0.2,
+            "guarded_optimizer_attempt_seconds": 1.0,
+            "contact_projection_seconds": 0.8,
+        }
+        for override in invalid:
+            with self.subTest(override=override):
+                arguments = dict(defaults)
+                arguments.update(override)
+                with self.assertRaises(ValueError):
+                    _optimization_timing_breakdown(**arguments)
+
     def test_contact_provenance_removes_guard_revalidation(self):
         num_nodes = 2
         validator_calls = []

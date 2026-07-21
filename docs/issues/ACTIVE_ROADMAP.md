@@ -623,6 +623,16 @@ reclassify timing or launch D1 based only on M336-184; first define and
 parity-test a strict-equivalent optimization inside the counted path, or obtain
 explicit authorization for a measurement-only replay.
 
+The accounting implementation now emits raw wall, total exclusions, overlap
+diagnostics, guard overhead, guarded optimizer attempts, contact projection,
+and the fixed GPU metric from one fail-closed identity. A fixture using the
+M336-183 constants reproduces `2.3465279024094343 s` exactly and rejects
+impossible nesting. Applicable tests pass `258/258`; no timing work moved
+outside the measured window and no M336 effect ran. Offline serialization of
+the duplicated guard evidence costs only about `33 ms`, so compact logging is
+not a credible substitute for the `184.8 ms` counted-path gap. The preserved
+profile instead directs the next review to exact contact validation.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

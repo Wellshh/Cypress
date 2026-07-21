@@ -71,6 +71,37 @@ gate.
    opportunity exceeds the counted-path gap. A counted-path candidate or an
    explicit measurement-only authorization is required first.
 
+## Implementation Evidence
+
+The timing contract is now explicit without moving any boundary. Native M336
+runs serialize and log:
+
+```text
+optimization_wall_seconds
+optimization_excluded_seconds
+exact_overlap_diagnostic_seconds
+exact_step_guard_seconds
+exact_step_guard_optimizer_attempt_seconds
+exact_contact_projection_seconds
+gpu_optimization_seconds
+```
+
+One fail-closed helper computes the fixed GPU metric and rejects negative,
+non-finite, or impossible nested timings. Its regression fixture uses the
+preserved M336-183 constants and reproduces exactly:
+
+```text
+2.635054651647806 - 0.28852674923837185
+= 2.3465279024094343
+```
+
+The contact total is derived from every guard attempt, including retries, and
+is emitted both in the guard artifact and the aggregate timing report. No
+timing work was moved outside the measured window. Applicable installed/source
+tests pass `258/258`: guard `11`, contact `61`, reproducibility `22`,
+anchor/keep-in `54`, irregular density `9`, and non-CP-SAT M336 baseline `101`.
+Five optional OR-Tools tests were explicitly excluded.
+
 ## Experiment Boundary
 
 This finding comes entirely from committed code and the preserved M336-183

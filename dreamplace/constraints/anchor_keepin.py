@@ -1812,13 +1812,18 @@ class AnchorKeepInContext:
                 self.domain_cache_stats.get("write_seconds", 0.0)
             ),
             "initialization_seconds": 0.0,
+            "optimization_wall_seconds": 0.0,
+            "optimization_excluded_seconds": 0.0,
             "gpu_optimization_seconds": 0.0,
+            "exact_overlap_diagnostic_seconds": 0.0,
             "exact_validation_seconds": 0.0,
             "bounded_repair_seconds": 0.0,
             "serialization_seconds": 0.0,
             "native_scoring_seconds": 0.0,
             "collision_preprocessing_seconds": 0.0,
             "exact_step_guard_seconds": 0.0,
+            "exact_step_guard_optimizer_attempt_seconds": 0.0,
+            "exact_contact_projection_seconds": 0.0,
         }
         self.num_nodes = int(num_nodes)
         self.output_dir = Path(output_dir)
