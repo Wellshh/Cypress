@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-21
 
-**Evidence through:** `M336-182`
+**Evidence through:** `M336-185`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -76,7 +76,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (M336-178 closure proven; M336-181/182 designed) | Prevent native optimizer steps from crossing same-side footprint contacts | Implement exact pairwise factorization and a bounded global FLUTE-neutral tie-break, then pass one combined scale-1 D1 |
+| N6 (M336-184 implemented; M336-185 counted-path blocker) | Prevent native optimizer steps from crossing same-side footprint contacts | Reduce the fixed GPU metric through a strict-equivalent counted-path change, then pass one combined scale-1 D1 |
 
 ## Paused Exact-Site Priorities
 
@@ -610,6 +610,18 @@ board/region coordinate change. Applicable installed/source tests pass
 run. This closes the implementation proof, not the runtime issue: no new D1 or
 other M336 effect was run, and the fixed E2/E3 gates remain pending explicit
 authorization.
+
+M336-185 corrects the timing interpretation before another effect run. The
+M336-183 raw optimization window is `2.635054652 s`; the reported
+`2.346527902 s` GPU metric already subtracts `0.275603049 s` of guard overhead
+and `0.012923701 s` of overlap diagnostics. M336-184's duplicated
+`0.244548114 s` lies inside that excluded guard bucket, so it can improve
+end-to-end time but cannot algebraically close the counted `0.184803902 s` E2
+GPU gap. The counted profile is instead dominated by `1.047041154 s` of
+optimizer attempts, including `0.943923393 s` of contact projection. Do not
+reclassify timing or launch D1 based only on M336-184; first define and
+parity-test a strict-equivalent optimization inside the counted path, or obtain
+explicit authorization for a measurement-only replay.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

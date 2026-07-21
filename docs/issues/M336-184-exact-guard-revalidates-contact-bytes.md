@@ -106,6 +106,15 @@ guard `11`, contact `61`, reproducibility `21`, anchor/keep-in `54`, irregular
 density `9`, and non-CP-SAT M336 baseline `101`. Five optional OR-Tools tests
 were explicitly excluded; no CP-SAT solve or M336 effect run was performed.
 
+## Timing-Domain Correction
+
+M336-185 shows that the `0.244548114 s` duplicate opportunity is contained in
+`exact_step_guard_overhead_seconds`, which the fixed GPU metric already
+subtracts. This implementation remains valid exact-provenance and end-to-end
+runtime work, but it is not evidence that the M336-179 GPU-stage gate will
+improve. A new effect run must not be justified by comparing this excluded
+opportunity with the counted `0.184803902 s` gap.
+
 ## Experiment Boundary
 
 This is a strict runtime implementation change, not a quality mechanism. Its

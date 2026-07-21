@@ -195,6 +195,7 @@ append-only audit ledger.
 | [M336-182](M336-182-global-flute-neutral-contact-tiebreak.md) | Critical | Open | A bounded native FLUTE tie-break now covers runtime GND; the combined D1 quality gate remains pending |
 | [M336-183](M336-183-serialized-scorer-retains-topology-tiebreak.md) | Critical | Resolved | Scoring-only config now clears topology dependencies; the quarantined E2 replay passes quality sub-gates but its runtime remains above the fixed gate |
 | [M336-184](M336-184-exact-guard-revalidates-contact-bytes.md) | Critical | Open | Tensor-proven single-use validation reuse is implemented and tested; an authorized D1 runtime gate remains pending |
+| [M336-185](M336-185-guard-cache-outside-gpu-runtime-gate.md) | Critical | Open | Guard validation is excluded from the fixed GPU metric, so M336-184 cannot close the counted E2 runtime gap |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |
