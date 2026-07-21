@@ -171,6 +171,13 @@ M336-187 scalar/vector corpus, add covered/fallback counters, pass installed
 CPU/GPU float32/64 tests, and show actual fixed-fixture benefit. No timing
 reclassification or legality approximation is acceptable.
 
+M336-189 is the successor contract. It requires prepared
+`covers(region, footprint)` only as a zero-exterior-area short circuit and
+retains the original difference/area epsilon rule for every predicate miss.
+It also freezes the offline performance gate and the conditions for exactly one
+unchanged combined D1; this issue's measured placement and runtime remain the
+comparison authority.
+
 ## Artifact Identity
 
 The diagnostic artifacts remain under the ignored run root and are not a
