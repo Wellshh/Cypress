@@ -51,11 +51,13 @@ from dreamplace.constraints.exact_step_guard import (
 )
 from dreamplace.constraints.exact_contact_projection import (
     AUTHORITY_SEARCH_STRATEGIES,
+    CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY,
     EXHAUSTIVE_AUTHORITY_SEARCH,
     PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
     CONTACT_PROJECTION_MODES,
     PROPOSAL_AUTHORITY_MODES,
     ExactContactProjector,
+    contact_policy_settings,
 )
 
 
@@ -692,6 +694,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
         exact_contact_projection_enabled = bool(
             getattr(params, "exact_contact_projection_flag", False)
         )
+        exact_contact_policy = str(
+            getattr(params, "exact_contact_policy", "")
+        ).strip()
         exact_contact_projection_mode = str(
             getattr(
                 params,
@@ -768,6 +773,44 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             raise ValueError(
                 "collision pair diagnostics require the exact step guard"
             )
+        if exact_contact_policy:
+            if not exact_contact_projection_enabled:
+                raise ValueError(
+                    "named exact contact policy requires contact projection"
+                )
+            policy_settings = contact_policy_settings(exact_contact_policy)
+            if policy_settings["stage_micro_enabled"]:
+                raise ValueError(
+                    "%s is reserved until D3 authorizes stage micro"
+                    % CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY
+                )
+            policy_mismatches = []
+            if exact_contact_projection_mode != policy_settings["mode"]:
+                policy_mismatches.append("mode")
+            if (
+                exact_contact_projection_authority_search_strategy
+                != policy_settings["authority_search_strategy"]
+            ):
+                policy_mismatches.append("authority search")
+            if (
+                exact_contact_topology_tiebreak_enabled
+                != policy_settings["topology_tiebreak"]
+            ):
+                policy_mismatches.append("topology tie-break")
+            if (
+                policy_settings["topology_tiebreak"]
+                and exact_contact_topology_min_net_degree
+                != policy_settings["topology_min_net_degree"]
+            ):
+                policy_mismatches.append("topology minimum net degree")
+            if policy_mismatches:
+                raise ValueError(
+                    "exact contact policy %s conflicts with %s"
+                    % (
+                        exact_contact_policy,
+                        ", ".join(policy_mismatches),
+                    )
+                )
         if exact_contact_projection_enabled and not exact_step_guard_enabled:
             raise ValueError(
                 "exact contact projection requires the exact step guard"
@@ -834,6 +877,9 @@ class NonLinearPlace(BasicPlace.BasicPlace):
             native_execution.update(
                 {
                     "exact_contact_projection_enabled": True,
+                    "exact_contact_policy": (
+                        exact_contact_policy or "legacy_explicit"
+                    ),
                     "exact_contact_projection_mode": (
                         exact_contact_projection_mode
                     ),

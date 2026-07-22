@@ -8,8 +8,12 @@ from shapely import affinity
 from shapely.geometry import Polygon, box
 
 from dreamplace.constraints.exact_contact_projection import (
+    CONSENSUS_PER_STEP_CONTACT_POLICY,
+    CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY,
     PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+    STRICT_REFERENCE_CONTACT_POLICY,
     ExactContactProjector,
+    contact_policy_settings,
 )
 
 
@@ -150,6 +154,35 @@ def _projector(
 
 
 class ExactContactProjectionTest(unittest.TestCase):
+    def test_named_policies_select_existing_projector_mechanics(self):
+        consensus = contact_policy_settings(
+            CONSENSUS_PER_STEP_CONTACT_POLICY
+        )
+        strict = contact_policy_settings(STRICT_REFERENCE_CONTACT_POLICY)
+        stage_micro = contact_policy_settings(
+            CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY
+        )
+
+        self.assertEqual(consensus["mode"], "component_consensus")
+        self.assertEqual(
+            consensus["authority_search_strategy"], "exhaustive"
+        )
+        self.assertFalse(consensus["topology_tiebreak"])
+        self.assertFalse(consensus["stage_micro_enabled"])
+        self.assertEqual(
+            strict["mode"], "protected_proposal_authority_search"
+        )
+        self.assertEqual(
+            strict["authority_search_strategy"],
+            PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+        )
+        self.assertTrue(strict["topology_tiebreak"])
+        self.assertEqual(strict["topology_min_net_degree"], 32)
+        self.assertEqual(stage_micro["mode"], "component_consensus")
+        self.assertTrue(stage_micro["stage_micro_enabled"])
+        with self.assertRaisesRegex(ValueError, "unknown exact contact"):
+            contact_policy_settings("new_heuristic")
+
     def test_minimum_cover_configuration_fails_closed(self):
         class IncompleteIncrementalValidator:
             def __call__(self, position):

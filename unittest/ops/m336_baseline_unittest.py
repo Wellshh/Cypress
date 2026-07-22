@@ -117,6 +117,8 @@ from score_exact_site_result import (  # noqa: E402
     _require_objective_replay_audit,
 )
 from run_matrix import (  # noqa: E402
+    CONSENSUS_PER_STEP_CONTACT_POLICY,
+    CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY,
     EXHAUSTIVE_AUTHORITY_SEARCH,
     DEFAULT_M336_ASSIGNMENT,
     DEFAULT_M336_CHECKPOINT_PL,
@@ -125,6 +127,7 @@ from run_matrix import (  # noqa: E402
     DEFAULT_CUBLAS_WORKSPACE_CONFIG,
     EXPERIMENTS,
     PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+    STRICT_REFERENCE_CONTACT_POLICY,
     _contact_projection_run_tags,
     _configured_anchor_control,
     _native_subprocess_environment,
@@ -618,6 +621,88 @@ class M336BaselineTest(unittest.TestCase):
                 exact_contact_projection_mode="proposal_authority_search",
                 exact_contact_projection_max_authority_states=0,
             )
+
+    def test_named_contact_policies_freeze_reference_and_production_modes(self):
+        arguments = (
+            Path("/tmp/m336-run"),
+            Path("/tmp/m336-constraints.json"),
+            EXPERIMENTS["E3"],
+            1000,
+            10,
+            True,
+            0.1,
+            0.05,
+            0.0,
+            0.1,
+            0.05,
+            Path("/tmp/m336.aux"),
+        )
+        common = {
+            "source_placement": Path("/tmp/m336.pl"),
+            "footprint_collision": True,
+            "exact_step_guard": True,
+            "exact_contact_projection": True,
+        }
+
+        consensus = placement_config(
+            *arguments,
+            **common,
+            exact_contact_policy=CONSENSUS_PER_STEP_CONTACT_POLICY,
+        )
+        strict = placement_config(
+            *arguments,
+            **common,
+            exact_contact_policy=STRICT_REFERENCE_CONTACT_POLICY,
+        )
+
+        self.assertEqual(
+            consensus["exact_contact_policy"],
+            CONSENSUS_PER_STEP_CONTACT_POLICY,
+        )
+        self.assertEqual(
+            consensus["exact_contact_projection_mode"],
+            "component_consensus",
+        )
+        self.assertNotIn(
+            "exact_contact_projection_authority_search_strategy",
+            consensus,
+        )
+        self.assertNotIn(
+            "exact_contact_topology_tiebreak_flag", consensus
+        )
+        self.assertEqual(
+            strict["exact_contact_policy"],
+            STRICT_REFERENCE_CONTACT_POLICY,
+        )
+        self.assertEqual(
+            strict["exact_contact_projection_mode"],
+            "protected_proposal_authority_search",
+        )
+        self.assertEqual(
+            strict["exact_contact_projection_authority_search_strategy"],
+            PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+        )
+        self.assertTrue(strict["exact_contact_topology_tiebreak_flag"])
+        self.assertEqual(
+            strict["exact_contact_topology_min_net_degree"], 32
+        )
+        with self.assertRaisesRegex(ValueError, "conflicts with mode"):
+            placement_config(
+                *arguments,
+                **common,
+                exact_contact_policy=CONSENSUS_PER_STEP_CONTACT_POLICY,
+                exact_contact_projection_mode=(
+                    "protected_proposal_authority_search"
+                ),
+            )
+        with self.assertRaisesRegex(ValueError, "reserved until D3"):
+            placement_config(
+                *arguments,
+                **common,
+                exact_contact_policy=(
+                    CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY
+                ),
+            )
         with self.assertRaisesRegex(ValueError, "unknown exact contact"):
             placement_config(
                 *arguments,
@@ -846,6 +931,7 @@ class M336BaselineTest(unittest.TestCase):
     def test_contact_projection_run_identity_and_reproduction_are_explicit(self):
         config = {
             "exact_contact_projection_flag": True,
+            "exact_contact_policy": STRICT_REFERENCE_CONTACT_POLICY,
             "exact_contact_projection_authority_search_strategy": (
                 PAIRWISE_FACTORIZED_AUTHORITY_SEARCH
             ),
@@ -868,6 +954,7 @@ class M336BaselineTest(unittest.TestCase):
             exact_step_guard_max_retries=4,
             collision_pair_diagnostics=True,
             exact_contact_projection=True,
+            exact_contact_policy=STRICT_REFERENCE_CONTACT_POLICY,
             exact_contact_projection_max_iterations=8,
             exact_contact_projection_mode=(
                 "protected_proposal_authority_search"
@@ -901,6 +988,9 @@ class M336BaselineTest(unittest.TestCase):
         command = reproduction_command(args)
 
         self.assertEqual(
+            tags["policy"], "-policy-strict_reference"
+        )
+        self.assertEqual(
             tags["contact"],
             "-contact-protected_proposal_authority_search",
         )
@@ -908,6 +998,9 @@ class M336BaselineTest(unittest.TestCase):
             tags["authority_search"], "-authority-pairwise_factorized"
         )
         self.assertEqual(tags["topology"], "-topology-degree-32")
+        self.assertIn(
+            "--exact-contact-policy strict_reference", command
+        )
         self.assertIn(
             "--exact-contact-projection-authority-search-strategy "
             "pairwise_factorized",

@@ -95,3 +95,51 @@ within `2x`.
 - `strict_reference` tests and source/install parity remain green.
 - The single Phase A run is recorded with complete gate evidence.
 - D3 and stage micro remain blocked unless their preceding evidence gate passes.
+
+## Implementation Evidence
+
+The named policy layer now resolves directly to the existing projector modes;
+it does not add or modify collision geometry. The M336 runner defaults to
+`consensus_per_step` whenever exact contact projection is selected, serializes
+the policy in config, run ID, result, summary, reproduction command, and native
+execution evidence, and rejects contradictory low-level overrides.
+
+`strict_reference` selects protected proposal authority,
+`pairwise_factorized`, native topology tie-break, and minimum net degree `32`.
+`consensus_per_step` selects `component_consensus`, exhaustive authority setting
+only as an inert default, and no topology tie-break. Consequently the latter
+does not construct authority component validators or a FLUTE evaluator in the
+optimizer loop. `consensus_plus_stage_micro` is recognized but exits before any
+placement work with a D3-authorization error.
+
+Historical policy-free config files continue through their original low-level
+fields. New named-policy configs are also validated inside `NonLinearPlace`, so
+directly invoking `Placer.py` cannot bypass the runner contract. Scoring-only
+float64 replay explicitly clears the policy together with all contact features.
+
+After `cmake --install build`, all `271/271` applicable tests pass:
+
+```text
+anchor/keep-in                  64
+exact contact                   63
+exact accepted-step guard       11
+reproducibility                 22
+irregular density                9
+non-CP-SAT M336 baseline       102
+```
+
+Five optional OR-Tools tests remain excluded; no OR-Tools solve was run.
+Source/install SHA-256 pairs are identical:
+
+```text
+NonLinearPlace                 b7f01be5ae91d9f2913298b6cc70e118fdd346b0f543d641c9ab90127477f5a7
+exact_contact_projection       ef7f3130b706cbe0694dba51a93403d4bc84531feedb0e426336a4c2771d8ccc
+params.json                    19ca9b959653d4c27e58505fc4af7fe45d6231fa401b8cb159a656f16c16c509
+exact contact tests            83fe77f4e13b3d1bb8847d527d8aa74ab3f00d12245541f4ae13188a2e3d9799
+M336 baseline tests            7575423640a79a574f5f0122dca22e83d6ccdd18abb9c3d93df7a730189acbeb
+```
+
+This is implementation evidence only. No M336 optimizer effect, D1, D2, D3,
+E4, repair, fallback, legalization, CP-SAT, or parameter ladder ran while
+producing it. The one Phase A D1 remains the next authorized effect after this
+implementation commit is pushed and pulled.

@@ -34,6 +34,43 @@ AUTHORITY_SEARCH_STRATEGIES = (
 )
 AUTHORITY_TOPOLOGY_CANDIDATE = "proposal_authority"
 CONSENSUS_TOPOLOGY_CANDIDATE = "component_consensus"
+STRICT_REFERENCE_CONTACT_POLICY = "strict_reference"
+CONSENSUS_PER_STEP_CONTACT_POLICY = "consensus_per_step"
+CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY = "consensus_plus_stage_micro"
+CONTACT_POLICIES = (
+    STRICT_REFERENCE_CONTACT_POLICY,
+    CONSENSUS_PER_STEP_CONTACT_POLICY,
+    CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY,
+)
+STRICT_REFERENCE_TOPOLOGY_MIN_NET_DEGREE = 32
+
+
+def contact_policy_settings(policy):
+    """Resolve a named M336 policy without changing projector mechanics."""
+    policy = str(policy).strip()
+    if policy not in CONTACT_POLICIES:
+        raise ValueError("unknown exact contact policy: %s" % policy)
+    if policy == STRICT_REFERENCE_CONTACT_POLICY:
+        return {
+            "mode": PROTECTED_PROPOSAL_AUTHORITY_SEARCH,
+            "authority_search_strategy": PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+            "topology_tiebreak": True,
+            "topology_min_net_degree": (
+                STRICT_REFERENCE_TOPOLOGY_MIN_NET_DEGREE
+            ),
+            "stage_micro_enabled": False,
+        }
+    return {
+        "mode": COMPONENT_CONSENSUS,
+        "authority_search_strategy": EXHAUSTIVE_AUTHORITY_SEARCH,
+        "topology_tiebreak": False,
+        "topology_min_net_degree": (
+            STRICT_REFERENCE_TOPOLOGY_MIN_NET_DEGREE
+        ),
+        "stage_micro_enabled": (
+            policy == CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY
+        ),
+    }
 
 
 def _contact_components(edges):

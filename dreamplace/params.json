@@ -463,6 +463,10 @@
         "description": "record bounded pair-local collision gradients and proposal motion for guarded steps",
         "default": false
     },
+    "exact_contact_policy": {
+        "description": "named M336 contact policy: strict_reference, consensus_per_step, or reserved consensus_plus_stage_micro; empty preserves historical low-level configs",
+        "default": ""
+    },
     "exact_contact_projection_flag": {
         "description": "apply bounded candidate-side correction to exact-crossing contact components",
         "default": false

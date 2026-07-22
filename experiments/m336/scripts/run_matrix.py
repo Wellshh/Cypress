@@ -24,6 +24,19 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from dreamplace.constraints.exact_contact_projection import (
+    AUTHORITY_SEARCH_STRATEGIES,
+    CONTACT_POLICIES,
+    CONTACT_PROJECTION_MODES,
+    CONSENSUS_PER_STEP_CONTACT_POLICY,
+    CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY,
+    EXHAUSTIVE_AUTHORITY_SEARCH,
+    PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
+    PROPOSAL_AUTHORITY_MODES,
+    STRICT_REFERENCE_CONTACT_POLICY,
+    contact_policy_settings,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_M336_ASSIGNMENT = (
@@ -45,21 +58,6 @@ M336_ANCHOR_WEIGHT_RAMP_ITERATIONS = 10
 MIN_M336_LEARNING_RATE_SCALE = 1.0
 MAX_M336_LEARNING_RATE_SCALE = 32.0
 DEFAULT_CUBLAS_WORKSPACE_CONFIG = ":4096:8"
-PROPOSAL_AUTHORITY_MODES = (
-    "proposal_authority_search",
-    "protected_proposal_authority_search",
-)
-EXHAUSTIVE_AUTHORITY_SEARCH = "exhaustive"
-PAIRWISE_FACTORIZED_AUTHORITY_SEARCH = "pairwise_factorized"
-AUTHORITY_SEARCH_STRATEGIES = (
-    EXHAUSTIVE_AUTHORITY_SEARCH,
-    PAIRWISE_FACTORIZED_AUTHORITY_SEARCH,
-)
-CONTACT_PROJECTION_MODES = (
-    "component_consensus",
-    "minimum_cover_rollback",
-    *PROPOSAL_AUTHORITY_MODES,
-)
 DEFAULT_EXPERIMENTS = ("E0", "E1", "E2", "E3", "E4")
 IMPLEMENTATION_FILES = (
     "dreamplace/BasicPlace.py",
@@ -388,6 +386,69 @@ def constraint_config(
     }
 
 
+def _resolve_contact_policy_contract(
+    policy,
+    mode=None,
+    authority_search_strategy=None,
+    topology_tiebreak=None,
+    topology_min_net_degree=DEFAULT_M336_TOPOLOGY_MIN_NET_DEGREE,
+):
+    policy = str(policy or "").strip()
+    if not policy:
+        return {
+            "policy": "",
+            "mode": str(mode or "component_consensus"),
+            "authority_search_strategy": str(
+                authority_search_strategy or EXHAUSTIVE_AUTHORITY_SEARCH
+            ),
+            "topology_tiebreak": bool(topology_tiebreak or False),
+            "topology_min_net_degree": int(topology_min_net_degree),
+        }
+
+    settings = contact_policy_settings(policy)
+    if settings["stage_micro_enabled"]:
+        raise ValueError(
+            "%s is reserved until D3 authorizes stage micro"
+            % CONSENSUS_PLUS_STAGE_MICRO_CONTACT_POLICY
+        )
+    conflicts = []
+    if mode is not None and str(mode) != settings["mode"]:
+        conflicts.append("mode")
+    if (
+        authority_search_strategy is not None
+        and str(authority_search_strategy)
+        != settings["authority_search_strategy"]
+    ):
+        conflicts.append("authority search")
+    if (
+        topology_tiebreak is not None
+        and bool(topology_tiebreak) != settings["topology_tiebreak"]
+    ):
+        conflicts.append("topology tie-break")
+    if (
+        settings["topology_tiebreak"]
+        and int(topology_min_net_degree)
+        != settings["topology_min_net_degree"]
+    ):
+        conflicts.append("topology minimum net degree")
+    if conflicts:
+        raise ValueError(
+            "exact contact policy %s conflicts with %s"
+            % (policy, ", ".join(conflicts))
+        )
+    return {
+        "policy": policy,
+        "mode": settings["mode"],
+        "authority_search_strategy": settings[
+            "authority_search_strategy"
+        ],
+        "topology_tiebreak": settings["topology_tiebreak"],
+        "topology_min_net_degree": settings[
+            "topology_min_net_degree"
+        ],
+    }
+
+
 def placement_config(
     run_dir,
     constraint_path,
@@ -416,15 +477,14 @@ def placement_config(
     exact_step_guard_max_retries=4,
     collision_pair_diagnostics=False,
     exact_contact_projection=False,
-    exact_contact_projection_mode="component_consensus",
+    exact_contact_policy="",
+    exact_contact_projection_mode=None,
     exact_contact_projection_max_iterations=8,
     exact_contact_projection_max_nodes=32,
     exact_contact_projection_max_cover_component_nodes=16,
     exact_contact_projection_max_authority_states=4096,
-    exact_contact_projection_authority_search_strategy=(
-        EXHAUSTIVE_AUTHORITY_SEARCH
-    ),
-    exact_contact_topology_tiebreak=False,
+    exact_contact_projection_authority_search_strategy=None,
+    exact_contact_topology_tiebreak=None,
     exact_contact_topology_min_net_degree=(
         DEFAULT_M336_TOPOLOGY_MIN_NET_DEGREE
     ),
@@ -473,22 +533,32 @@ def placement_config(
     exact_contact_projection_max_nodes = int(
         exact_contact_projection_max_nodes
     )
-    exact_contact_projection_mode = str(exact_contact_projection_mode)
     exact_contact_projection_max_cover_component_nodes = int(
         exact_contact_projection_max_cover_component_nodes
     )
     exact_contact_projection_max_authority_states = int(
         exact_contact_projection_max_authority_states
     )
-    exact_contact_projection_authority_search_strategy = str(
-        exact_contact_projection_authority_search_strategy
+    contact_policy = _resolve_contact_policy_contract(
+        exact_contact_policy,
+        mode=exact_contact_projection_mode,
+        authority_search_strategy=(
+            exact_contact_projection_authority_search_strategy
+        ),
+        topology_tiebreak=exact_contact_topology_tiebreak,
+        topology_min_net_degree=exact_contact_topology_min_net_degree,
     )
-    exact_contact_topology_tiebreak = bool(
-        exact_contact_topology_tiebreak
-    )
-    exact_contact_topology_min_net_degree = int(
-        exact_contact_topology_min_net_degree
-    )
+    exact_contact_policy = contact_policy["policy"]
+    exact_contact_projection_mode = contact_policy["mode"]
+    exact_contact_projection_authority_search_strategy = contact_policy[
+        "authority_search_strategy"
+    ]
+    exact_contact_topology_tiebreak = contact_policy[
+        "topology_tiebreak"
+    ]
+    exact_contact_topology_min_net_degree = contact_policy[
+        "topology_min_net_degree"
+    ]
     if (
         not math.isfinite(exact_step_guard_backoff)
         or not 0 < exact_step_guard_backoff < 1
@@ -716,6 +786,11 @@ def placement_config(
                 ],
             }
         )
+        if (
+            config["exact_contact_projection_flag"]
+            and exact_contact_policy
+        ):
+            config["exact_contact_policy"] = exact_contact_policy
         if exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES:
             config["exact_contact_projection_max_authority_states"] = (
                 exact_contact_projection_max_authority_states
@@ -755,6 +830,12 @@ def _contact_projection_run_tags(config, args):
     contact_projection_enabled = bool(
         config.get("exact_contact_projection_flag", False)
     )
+    contact_policy = str(config.get("exact_contact_policy", ""))
+    policy_tag = (
+        "-policy-%s" % contact_policy
+        if contact_projection_enabled and contact_policy
+        else ""
+    )
     contact_tag = (
         "-contact-%s" % args.exact_contact_projection_mode
         if contact_projection_enabled
@@ -780,6 +861,7 @@ def _contact_projection_run_tags(config, args):
         else ""
     )
     return {
+        "policy": policy_tag,
         "contact": contact_tag,
         "authority_search": authority_search_tag,
         "topology": topology_tag,
@@ -870,6 +952,7 @@ def _serialized_native_score_config(config, replay_aux, native_dir):
             "exact_step_guard_flag": False,
             "collision_pair_diagnostics_flag": False,
             "exact_contact_projection_flag": False,
+            "exact_contact_policy": "",
             "exact_contact_projection_authority_search_strategy": (
                 EXHAUSTIVE_AUTHORITY_SEARCH
             ),
@@ -1410,6 +1493,10 @@ def _require_collision_contract(config, args, spec, result_path, action):
     actual_contact_projection = bool(
         config.get("exact_contact_projection_flag", False)
     )
+    actual_contact_policy = str(config.get("exact_contact_policy", ""))
+    expected_contact_policy = str(
+        getattr(args, "exact_contact_policy", "")
+    )
     actual_contact_projection_mode = str(
         config.get(
             "exact_contact_projection_mode",
@@ -1571,6 +1658,10 @@ def _require_collision_contract(config, args, spec, result_path, action):
         actual_contact_projection or expected_contact_projection
     ) and actual_contact_projection_mode != expected_contact_projection_mode:
         mismatches.append("contact projection mode")
+    if (
+        actual_contact_projection or expected_contact_projection
+    ) and actual_contact_policy != expected_contact_policy:
+        mismatches.append("contact policy")
     if (
         (actual_contact_projection or expected_contact_projection)
         and (
@@ -1752,6 +1843,9 @@ def run_one(
         )
         result["exact_contact_projection_enabled"] = bool(
             config.get("exact_contact_projection_flag", False)
+        )
+        result["exact_contact_policy"] = str(
+            config.get("exact_contact_policy", "")
         )
         result["exact_contact_projection_mode"] = str(
             config.get(
@@ -1985,6 +2079,7 @@ def run_one(
         exact_step_guard_max_retries=args.exact_step_guard_max_retries,
         collision_pair_diagnostics=args.collision_pair_diagnostics,
         exact_contact_projection=args.exact_contact_projection,
+        exact_contact_policy=args.exact_contact_policy,
         exact_contact_projection_mode=args.exact_contact_projection_mode,
         exact_contact_projection_max_iterations=(
             args.exact_contact_projection_max_iterations
@@ -2096,7 +2191,7 @@ def run_one(
     )
 
     result = {
-        "run_id": "%s-%s-ar-%s%s%s%s%s%s%s-margin-%s-seed-%d"
+        "run_id": "%s-%s-ar-%s%s%s%s%s%s%s%s-margin-%s-seed-%d"
         % (
             initialization_track,
             experiment_id.lower(),
@@ -2104,6 +2199,7 @@ def run_one(
             learning_rate_tag,
             collision_tag,
             guard_tag,
+            contact_tags["policy"],
             contact_tags["contact"],
             contact_tags["authority_search"],
             contact_tags["topology"],
@@ -2135,6 +2231,9 @@ def run_one(
         ),
         "exact_contact_projection_enabled": bool(
             config.get("exact_contact_projection_flag", False)
+        ),
+        "exact_contact_policy": str(
+            config.get("exact_contact_policy", "")
         ),
         "exact_contact_projection_mode": str(
             config.get(
@@ -2975,6 +3074,8 @@ def reproduction_command(args, weights=None):
             if args.exact_contact_projection
             else "--no-exact-contact-projection"
         ),
+        "--exact-contact-policy",
+        args.exact_contact_policy,
         "--exact-contact-projection-max-iterations",
         str(args.exact_contact_projection_max_iterations),
         "--exact-contact-projection-mode",
@@ -3118,9 +3219,19 @@ def main():
         "--exact-contact-projection-max-iterations", type=int, default=8
     )
     parser.add_argument(
+        "--exact-contact-policy",
+        choices=CONTACT_POLICIES,
+        default=CONSENSUS_PER_STEP_CONTACT_POLICY,
+        help=(
+            "named per-step contact architecture; stage micro remains "
+            "reserved until D3 evidence"
+        ),
+    )
+    parser.add_argument(
         "--exact-contact-projection-mode",
         choices=CONTACT_PROJECTION_MODES,
-        default="component_consensus",
+        default=None,
+        help="legacy low-level override; must agree with contact policy",
     )
     parser.add_argument(
         "--exact-contact-projection-max-nodes",
@@ -3146,14 +3257,14 @@ def main():
     parser.add_argument(
         "--exact-contact-projection-authority-search-strategy",
         choices=AUTHORITY_SEARCH_STRATEGIES,
-        default=EXHAUSTIVE_AUTHORITY_SEARCH,
-        help="proposal-authority implementation; exhaustive is unchanged",
+        default=None,
+        help="legacy low-level override; must agree with contact policy",
     )
     parser.add_argument(
         "--exact-contact-topology-tiebreak",
         action=argparse.BooleanOptionalAction,
-        default=False,
-        help="compare protected authority and consensus with native scoring",
+        default=None,
+        help="legacy low-level override; must agree with contact policy",
     )
     parser.add_argument(
         "--exact-contact-topology-min-net-degree",
@@ -3236,6 +3347,31 @@ def main():
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--reevaluate", action="store_true")
     args = parser.parse_args()
+    try:
+        contact_policy = _resolve_contact_policy_contract(
+            args.exact_contact_policy,
+            mode=args.exact_contact_projection_mode,
+            authority_search_strategy=(
+                args.exact_contact_projection_authority_search_strategy
+            ),
+            topology_tiebreak=args.exact_contact_topology_tiebreak,
+            topology_min_net_degree=(
+                args.exact_contact_topology_min_net_degree
+            ),
+        )
+    except ValueError as error:
+        parser.error(str(error))
+    args.exact_contact_policy = contact_policy["policy"]
+    args.exact_contact_projection_mode = contact_policy["mode"]
+    args.exact_contact_projection_authority_search_strategy = contact_policy[
+        "authority_search_strategy"
+    ]
+    args.exact_contact_topology_tiebreak = contact_policy[
+        "topology_tiebreak"
+    ]
+    args.exact_contact_topology_min_net_degree = contact_policy[
+        "topology_min_net_degree"
+    ]
     args.output_dir = args.output_dir.resolve()
     args.sweep_output_dir = args.sweep_output_dir.resolve()
     args.baseline_geometry = args.baseline_geometry.resolve()
@@ -3390,6 +3526,7 @@ def main():
             ),
             "collision_pair_diagnostics": args.collision_pair_diagnostics,
             "exact_contact_projection": args.exact_contact_projection,
+            "exact_contact_policy": args.exact_contact_policy,
             "exact_contact_projection_mode": (
                 args.exact_contact_projection_mode
             ),
@@ -3475,6 +3612,7 @@ def main():
             ),
             "collision_pair_diagnostics": args.collision_pair_diagnostics,
             "exact_contact_projection": args.exact_contact_projection,
+            "exact_contact_policy": args.exact_contact_policy,
             "exact_contact_projection_mode": (
                 args.exact_contact_projection_mode
             ),
