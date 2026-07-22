@@ -1,7 +1,8 @@
 # M336-194: Paired Production Runtime Evidence
 
 **Severity:** Critical
-**Status:** Open
+**Status:** Deferred
+**Decision state:** `deferred_environment_unavailable`
 **Found:** 2026-07-22
 **Authorization:** Human N7 measurement decision
 **Input milestone:** `87f1cc8` / M336-193 D3 complete
@@ -264,3 +265,47 @@ Selection therefore returned no candidate and stopped before creating a fresh
 campaign directory or launching any warm-up or measured arm. No runner,
 Cypress algorithm, policy, parameter, scoring path, or timing bucket changed.
 N7 remains open, with all four timing gates and determinism still unevaluated.
+
+## Human Waiver And Deferment Decision
+
+The human decision on 2026-07-22 stops runtime micro-optimization and removes
+N7 from the production-promotion critical path. This is an append-only policy
+decision; it does not reinterpret or remove either environment-incomplete
+attempt above.
+
+The resulting production state is:
+
+- promote `consensus_per_step` as the M336 production native non-overlap
+  policy;
+- retain `strict_reference` intact, default off, with all M336-192 tests,
+  diagnostics, exact legality, and source/install parity obligations;
+- keep `consensus_plus_stage_micro` reserved and fail closed;
+- mark N6 native non-overlap engineering complete;
+- mark N7 `deferred_environment_unavailable`, neither passed nor failed.
+
+The acceptance basis is the M336-193 production evidence, not N7. Phase A
+passed its original single-run GPU and end-to-end `2x` comparisons. Its
+checkpoint-warm D3 then completed 50 changing CUDA Adam steps in both E2 and
+E3, with every accepted step zero-overlap and Keep-in legal. Both final
+placements were `100/100` contained with zero overlaps. No E4, repair,
+fallback, Legalization, CP-SAT, authority enumeration, or FLUTE hot-loop
+selection contributed to those results.
+
+N7 did not statistically verify the repeated paired `2x` gate. All four paired
+median gates, paired distributions, and repeated-run determinism checks remain
+unevaluated. A future N7 campaign on one isolated compatible GPU remains a
+non-blocking infrastructure audit. Its process-isolation rule, timing buckets,
+and `2x` definitions remain frozen; no workload may be relabeled clean and no
+runtime boundary may be changed to manufacture a pass.
+
+The incomplete campaign remains byte-preserved with the hashes already listed
+above. Subsequent native runs must continue reporting unchanged runtime buckets
+as observed metrics, but this decision prohibits further Cypress changes whose
+purpose is merely recovering tens of milliseconds.
+
+The next active milestone is N8 native quality and robustness. It must use
+`consensus_per_step`, preserve exact legality and deterministic hashes as hard
+production gates, separate cold/source and checkpoint-warm evidence, and
+diagnose the negligible E3 anchor improvement and approximately `0.928`
+normalized native score. Stage micro, strict-reference hot-loop work, LR or
+collision tuning, CP-SAT, repair, and fallback remain out of scope.

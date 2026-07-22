@@ -828,6 +828,58 @@ no candidate, so no fresh directory, warm-up, placement arm, or timing sample is
 created. The original incomplete campaign remains byte-preserved and excluded;
 N7 remains the only active node pending a genuinely clean H100.
 
+The final human N6/N7 decision supersedes that promotion dependency without
+changing any evidence. `consensus_per_step` is promoted as the M336 production
+native non-overlap policy on the M336-193 Phase A and D3 correctness evidence;
+`strict_reference` remains intact and default off, and
+`consensus_plus_stage_micro` remains reserved and fail closed. N6 native
+non-overlap engineering is complete. N7 is now
+`deferred_environment_unavailable`, neither passed nor failed, and the repeated
+paired GPU/end-to-end `2x` gate remains explicitly unevaluated. A future clean-
+GPU N7 is a non-blocking infrastructure audit, not a prerequisite for native
+Cypress development. Do not resume runtime micro-optimization or redefine its
+environment or timing contract.
+
+N8 native quality and robustness is the next active milestone. Its committed
+effect plan has two ordered phases. N8-A runs two fresh deterministic repeats
+of E2 and E3 for seed `1000` on each of the cold/source and M336-118 checkpoint-
+warm tracks: eight 50-step runs total. Each production run uses
+`consensus_per_step`, scale `1`, the frozen M336-193 objective and contact
+parameters, deterministic CuBLAS, float64 serialization/replay, exact validation
+and duplicate native scoring. The two repeats for each experiment/track must
+match placement/replay hashes, HPWL, RSMT, score, accepted/rejected sequence and
+final LR before N8-B is allowed.
+
+N8-B is the final native matrix: E0, E1, E2 and E3; seeds `1000`, `1001` and
+`1002`; cold/source and checkpoint-warm tracks; 50 iterations; 24 fresh runs.
+E2/E3 use `consensus_per_step`; E0/E1 remain scored ablations and cannot supply
+a production placement when illegal. E4 is excluded because its current
+definition enables repair and therefore cannot support a native-quality claim
+under this decision. Every E2/E3 run must prove 53 backward calls, 50 changing
+CUDA Adam steps, exact zero-overlap and Keep-in legality at every accepted
+checkpoint, `100/100` final containment, zero replay drift, finite native
+HPWL/RSMT, and immutable endpoint/assignment/grid/input hashes.
+
+Runtime is observational in N8. Preserve every existing bucket and report cold
+preprocessing/cache/initialization separately from GPU optimization, validation,
+serialization, scoring and end-to-end time. M336-193's warm 50-step E2/E3
+values, `6.159659/6.602546 s` GPU and `18.492517/19.415604 s` end-to-end, are
+planning references only, not gates. Cold runtime is uncharacterized; use a
+30-minute infrastructure watchdog per fresh arm and stop rather than modify an
+algorithm or timing boundary. A shared GPU must be labeled `shared_environment`
+and its runtime is non-promotional; it must never be described as clean N7
+evidence.
+
+Stop N8 before the remaining runs on any production accepted-step overlap or
+Keep-in violation, replay drift, source/install/input hash drift, non-finite
+native score, missing native backward/optimizer evidence, deterministic-repeat
+divergence, GPU identity change, repair/fallback invocation, or unauthorized
+policy/parameter drift. Anchor diagnosis must compare E3 against E2 by side and
+subgroup using recorded gradient ratio, effective lambda, accepted displacement,
+projection, rollback and contact pressure. Score diagnosis must report per-net
+HPWL/RSMT deltas against M336-118 and the manual baseline. Diagnose and report;
+do not tune LR, anchor, collision, density or Keep-in parameters in this node.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

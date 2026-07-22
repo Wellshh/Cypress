@@ -4,6 +4,7 @@ Repository: `Wellshh/Cypress`
 Branch: `experiment`  
 Current Cypress effect reference head: `5d58a5e` (`M336-193` D3 input)
 Preserved incomplete N7 campaign head: `e242b35`
+Active milestone: N8 native quality and robustness
 Primary board: `M336`
 
 ## Objective
@@ -80,7 +81,8 @@ fails, and must not be presented as evidence that Cypress itself improved.
    closures; never repack the full constrained placement by default.
 8. Separate preprocessing, cache, initialization, GPU optimization, validation,
    repair, serialization, and native scoring in runtime reports.
-9. Run the final cold/warm E0-E4 matrix only after the native overlap gate passes.
+9. Run the committed N8 cold/warm native quality matrix only after its
+   deterministic-repeat and exact-legality preflight passes.
 
 ## Current architecture: option 1 production consensus
 
@@ -93,8 +95,8 @@ Every new M336 contact-protected run must select one named policy:
 | Policy | Contract | Availability |
 | --- | --- | --- |
 | `strict_reference` | M336-192 protected proposal authority, pairwise-factorized enumeration, and HPWL-neutral native-FLUTE tie-break | Preserved and default off |
-| `consensus_per_step` | M336-174 deterministic proposal-medoid/component-consensus at every optimizer step | Production Phase A |
-| `consensus_plus_stage_micro` | Per-step consensus plus at most one bounded stage-end micro closure | Reserved and fail closed pending D3 evidence |
+| `consensus_per_step` | M336-174 deterministic proposal-medoid/component-consensus at every optimizer step | Production |
+| `consensus_plus_stage_micro` | Per-step consensus plus at most one bounded stage-end micro closure | Reserved and fail closed |
 
 All policies retain board projection, footprint-aware irregular Keep-in
 projection, the exact accepted-step guard, full Adam/Nesterov state rollback,
@@ -206,8 +208,9 @@ exact legal and deterministic in placement, score, attempt sequence and final
 LR. One objectively environment-invalid attempt may be replaced; a second
 stops N7 incomplete. A correctness or determinism failure stops immediately.
 
-Only a complete four-gate pass promotes `consensus_per_step` and closes N6
-non-overlap engineering. N7 does not authorize the final matrix.
+The original N7 contract required a complete four-gate pass before promotion.
+The append-only human decision below supersedes that dependency without
+changing what an N7 pass would mean. N7 does not authorize the final matrix.
 
 The isolated paired runner and 15 focused tests are implemented, and the 271
 existing applicable non-CP-SAT tests pass after installation. The one campaign
@@ -219,6 +222,84 @@ the deterministic clean-H100 rule above. A complete physical-index 0-7 scan on
 2026-07-22 finds at least one foreign compute process on every H100, so no new
 campaign directory or arm is launched. N7 remains open; preserve the incomplete
 artifacts and do not reinterpret idle utilization as a clean process state.
+
+### Human N6 completion and N7 deferment
+
+The human production decision promotes `consensus_per_step` on the M336-193
+Phase A and D3 evidence and marks N6 native non-overlap engineering complete.
+`strict_reference` remains intact, tested, diagnostic-rich and default off.
+`consensus_plus_stage_micro` remains reserved and fail closed.
+
+N7 is `deferred_environment_unavailable`, not passed and not failed. The
+repeated paired E2/E3 GPU and end-to-end `2x` gates remain unevaluated. A future
+isolated-compatible-GPU N7 is a non-blocking infrastructure audit, not a native
+development prerequisite. Its isolation rule, timing buckets, denominators and
+thresholds remain unchanged. Subsequent runs report runtime as observed data;
+this task does not optimize or redefine it.
+
+The acceptance basis is M336-193: its original single-run Phase A GPU and end-
+to-end comparisons pass `2x`; checkpoint-warm D3 executes 50 changing CUDA Adam
+steps in E2 and E3; all accepted checkpoints remain zero-overlap and Keep-in
+legal; both finals are `100/100` contained and overlap-free; and no E4, repair,
+fallback, Legalization, CP-SAT, authority enumeration, or FLUTE hot-loop
+selection contributes to the result.
+
+### N8: native quality and robustness
+
+N8 replaces runtime recovery as the active milestone. It freezes the M336-193
+production algorithm and first runs a deterministic quality preflight:
+
+```text
+N8-A experiments: E2, E3
+Seeds:            1000
+Tracks:           cold/source, M336-118 checkpoint-warm
+Repeats:          2 fresh runs per experiment/track (8 total)
+Iterations:       50 CUDA Adam steps
+Policy:           consensus_per_step
+```
+
+Each repeat pair must have identical placement and replay hashes, HPWL, FLUTE
+RSMT, normalized score, exact legality, accepted/rejected attempt sequence and
+final LR. Every E2/E3 run must prove `NonLinearPlace`, `PlaceObj`, 53 backward
+calls, 50 changing optimizer steps, zero overlap and Keep-in violations at each
+accepted checkpoint, `100/100` final containment, zero float64 replay error,
+and fixed endpoint, assignment, grid and input hashes.
+
+Only after N8-A passes may the final native matrix run:
+
+```text
+N8-B experiments: E0, E1, E2, E3
+Seeds:            1000, 1001, 1002
+Tracks:           cold/source, M336-118 checkpoint-warm
+Runs:             24 fresh subprocesses and output directories
+Iterations:       50
+Production:       E2/E3 with consensus_per_step
+```
+
+E0/E1 are native ablations and must be exactly validated and scored, but an
+illegal control cannot become production output. E4 is excluded because its
+current definition enables repair; repair or fallback output cannot establish
+native quality. `strict_reference` stays default off and stage micro stays fail
+closed throughout N8.
+
+Runtime retains the existing buckets and is observational, not a promotion
+gate. The warm M336-193 planning references are `6.159659/6.602546 s` GPU and
+`18.492517/19.415604 s` end-to-end for E2/E3. Cold runtime remains
+uncharacterized and must be reported separately; use a 30-minute infrastructure
+watchdog per arm without subtracting work or moving timing boundaries. Shared-
+GPU runs must be labeled `shared_environment` and cannot count as clean N7
+evidence.
+
+N8 diagnoses, rather than tunes, the near-zero E3 anchor change and normalized
+score near `0.928`. Report E3-vs-E2 anchor mean/p90 by side and subgroup,
+gradient ratios, effective lambdas, accepted displacement, projection,
+rollback, and contact pressure. Report native per-net HPWL/RSMT deltas against
+M336-118 and the manual baseline. Stop before remaining effects on any accepted-
+step legality failure, deterministic-repeat mismatch, replay or provenance
+drift, non-finite score, missing native execution evidence, GPU identity change,
+repair/fallback call, or unauthorized policy/parameter change. Do not tune LR,
+anchor, collision, density or Keep-in parameters, run CP-SAT, restart strict-
+reference hot-loop work, or implement stage micro in N8.
 
 ## Historical N6 development contract
 
