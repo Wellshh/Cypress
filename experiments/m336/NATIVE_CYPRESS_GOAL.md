@@ -3,7 +3,7 @@
 Repository: `Wellshh/Cypress`  
 Branch: `experiment`  
 Current Cypress effect reference head: `5d58a5e` (`M336-193` D3 input)
-Latest N7 environment attempt head: `6dfc60e`
+Preserved incomplete N7 campaign head: `e242b35`
 Primary board: `M336`
 
 ## Objective
@@ -185,11 +185,13 @@ legalization, repair, fallback, and CP-SAT remain out of scope.
 
 ### N7: paired production timing
 
-M336-194 authorizes measurement only. Use physical GPU 2, seed `1000`, 50
-iterations, scale `1`, checkpoint-warm E2/E3 and the frozen M336-193 inputs.
-Run one excluded warm-up pair per experiment followed by five measured pairs,
-alternating feature-off-first and consensus-first order. Every arm must be a
-fresh runner/native subprocess with isolated output, summary and report paths.
+M336-194 authorizes measurement only. Use seed `1000`, 50 iterations, scale
+`1`, checkpoint-warm E2/E3 and the frozen M336-193 inputs. Select the first
+`NVIDIA H100` with no foreign compute process by ascending physical index, then
+pin every arm to that UUID for the complete fresh campaign. Run one excluded
+warm-up pair per experiment followed by five measured pairs, alternating
+feature-off-first and consensus-first order. Every arm must be a fresh
+runner/native subprocess with isolated output, summary and report paths.
 
 Feature-off retains the complete irregular-density/Keep-in path but disables
 the footprint barrier, exact guard, exact contact projection and named policy.
@@ -212,7 +214,10 @@ existing applicable non-CP-SAT tests pass after installation. The one campaign
 at pushed/pulled commit `6dfc60e` stops after two environment-invalid E2
 warm-up attempts: three foreign compute processes remain resident on physical
 GPU 2. No optimizer arm or measured pair starts, so timing and determinism are
-unevaluated. N7 remains open pending a human decision; preserve the incomplete
+unevaluated. The human then rejects whitelisting those workloads and authorizes
+the deterministic clean-H100 rule above. A complete physical-index 0-7 scan on
+2026-07-22 finds at least one foreign compute process on every H100, so no new
+campaign directory or arm is launched. N7 remains open; preserve the incomplete
 artifacts and do not reinterpret idle utilization as a clean process state.
 
 ## Historical N6 development contract

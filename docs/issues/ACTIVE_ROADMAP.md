@@ -819,6 +819,15 @@ timing gates and determinism remain unevaluated. N7 stays open pending a human
 decision on a clean physical GPU 2 or an explicit environmental-contract
 revision; do not reuse or delete the failed campaign artifacts.
 
+The subsequent human decision keeps the no-foreign-process rule intact and
+permits a fresh campaign on the first clean H100 selected by ascending physical
+index, with one UUID fixed throughout. A complete 0-7 inventory scan on
+2026-07-22 finds foreign compute processes on every H100, including the
+explicitly non-whitelisted muge-api, VLLM, and YOLO workloads. Selection returns
+no candidate, so no fresh directory, warm-up, placement arm, or timing sample is
+created. The original incomplete campaign remains byte-preserved and excluded;
+N7 remains the only active node pending a genuinely clean H100.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

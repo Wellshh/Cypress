@@ -196,3 +196,71 @@ rerun, E4, stage micro, repair, fallback, CP-SAT, one-opt, pair scan or tuning
 ran. N7 remains open. A human must either provide a clean physical GPU 2 and
 authorize a fresh isolated campaign or explicitly revise the environmental
 contract; the current artifacts must not be reused or deleted.
+
+## Human Clean-GPU Decision And Inventory Block
+
+The human decision on 2026-07-22 explicitly rejects treating `muge-api`,
+`VLLM::EngineCore`, YOLO, or any other resident CUDA process as an approved
+idle context. It supersedes only the physical-GPU-2 pin: a fresh N7 campaign
+may use the first compatible GPU selected by ascending physical index when the
+model is `NVIDIA H100` and its compute-process list is empty. The selected UUID
+must then remain fixed for the complete fresh campaign. The original
+`n7-paired-timing/` campaign remains immutable and excluded from all future
+timing statistics.
+
+The deterministic prelaunch scan at `2026-07-22 14:47:10` Asia/Hong_Kong found
+driver `550.54.14`, CUDA `12.4`, and no clean GPU. Every physical device was the
+correct H100 model but had at least one foreign compute process:
+
+| Index | UUID | Memory MiB | Util. | Temp | P-state | SM/mem MHz | Power W | Processes | Decision |
+| ---: | --- | ---: | ---: | ---: | --- | --- | ---: | ---: | --- |
+| 0 | `GPU-4bfe08ef-cfa9-efd2-52c8-9696d5e9c7a7` | 93334/97871 | 100% | 67 C | P0 | 1665/1593 | 481.10 | 9 | reject |
+| 1 | `GPU-0cc1ecd3-1adb-ac2b-a041-b5052d935a69` | 91300/97871 | 100% | 60 C | P0 | 1695/1593 | 480.33 | 4 | reject |
+| 2 | `GPU-ab571afa-cbb6-542c-f2d2-1ccf5045d040` | 40310/97871 | 0% | 36 C | P0 | 1980/1593 | 139.87 | 3 | reject |
+| 3 | `GPU-e5c246b7-afc2-cccd-e66d-fa1ca4eb089e` | 70474/97871 | 0% | 52 C | P0 | 1980/1593 | 144.35 | 10 | reject |
+| 4 | `GPU-03b2a421-fa18-3a6f-07ad-fc80d91a91ff` | 89201/97871 | 0% | 51 C | P0 | 1980/1593 | 125.42 | 2 | reject |
+| 5 | `GPU-500c112e-cdd9-4e0d-d709-63de81493d96` | 95008/97871 | 0% | 35 C | P0 | 1980/1593 | 137.73 | 1 | reject |
+| 6 | `GPU-82df78d9-35bf-e390-42af-8a26e043de9b` | 88063/97871 | 100% | 59 C | P0 | 1680/1593 | 483.47 | 2 | reject |
+| 7 | `GPU-43b64459-dc96-a693-482f-0b423f7f4b74` | 83810/97871 | 100% | 65 C | P0 | 1770/1593 | 486.17 | 1 | reject |
+
+The complete process inventory used for the decision was:
+
+| GPU | PID | Process | Memory MiB |
+| ---: | ---: | --- | ---: |
+| 0 | 6264 | `/home/lizf/.conda/envs/py311v2/bin/python` | 674 |
+| 0 | 29935 | `/home/wuwj/.conda/envs/lc/bin/python` | 840 |
+| 0 | 4714 | `/home/xuxuhui/package_comparator/venv/bin/python3.11` | 520 |
+| 0 | 2059631 | `/home/wuwj/.conda/envs/lc/bin/python` | 4358 |
+| 0 | 257089 | `/home/hanchuanyi/.conda/envs/paddle/bin/python` | 778 |
+| 0 | 115737 | `python` | 902 |
+| 0 | 1272798 | `/data/liuwenqi/yolov11/bin/python3.1` | 520 |
+| 0 | 1273737 | `/data/liuwenqi/yolov11/bin/python3.1` | 520 |
+| 0 | 127656 | `VLLM::Worker_TP0` | 84136 |
+| 1 | 257089 | `/home/hanchuanyi/.conda/envs/paddle/bin/python` | 1188 |
+| 1 | 1806419 | `tritonserver` | 580 |
+| 1 | 1806905 | `/opt/tritonserver/backends/python/triton_python_backend_stub` | 5338 |
+| 1 | 127957 | `VLLM::Worker_TP1` | 84136 |
+| 2 | 1996746 | `muge-api` | 28558 |
+| 2 | 1814710 | `VLLM::EngineCore` | 10430 |
+| 2 | 1272798 | `/data/liuwenqi/yolov11/bin/python3.1` | 1292 |
+| 3 | 1115322 | `/home/lizf/.conda/envs/py311v2/bin/python` | 1598 |
+| 3 | 3298512 | `/home/lizf/.conda/envs/py311v2/bin/python` | 1598 |
+| 3 | 121859 | `/data/liuwenqi/yolo_api/../yolo8.1/bin/python` | 748 |
+| 3 | 3629722 | `/home/mujingyin/.conda/envs/audio-beats/bin/python` | 1482 |
+| 3 | 825126 | `VLLM::EngineCore` | 48240 |
+| 3 | 1220022 | `/home/lizf/.conda/envs/py311v2/bin/python` | 1598 |
+| 3 | 3853107 | `python` | 10194 |
+| 3 | 1945357 | `/home/lizf/.conda/envs/py311v2/bin/python` | 1598 |
+| 3 | 1273184 | `/data/liuwenqi/yolov11/bin/python3.1` | 2024 |
+| 3 | 1273737 | `/data/liuwenqi/yolov11/bin/python3.1` | 1292 |
+| 4 | 103731 | `/home/lizf/.conda/envs/py311v2/bin/python` | 88348 |
+| 4 | 133520 | `/home/wuwj/.conda/envs/lc/bin/python` | 838 |
+| 5 | 3351777 | `VLLM::EngineCore` | 94994 |
+| 6 | 1859508 | `/data/yangyizhu/envs/comfyui/bin/python` | 4242 |
+| 6 | 128319 | `VLLM::Worker_TP2` | 83770 |
+| 7 | 128581 | `VLLM::Worker_TP3` | 83770 |
+
+Selection therefore returned no candidate and stopped before creating a fresh
+campaign directory or launching any warm-up or measured arm. No runner,
+Cypress algorithm, policy, parameter, scoring path, or timing bucket changed.
+N7 remains open, with all four timing gates and determinism still unevaluated.
