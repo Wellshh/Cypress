@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-22
 
-**Evidence through:** `M336-193`
+**Evidence through:** `M336-194` contract; no N7 effect yet
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -85,7 +85,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
 | N6 (D3 complete at M336-193) | Promote M336-174 consensus as the production per-step contact policy while retaining M336-192 as strict reference | D1 and D3 remain exact legal without broad repair; D3 does not authorize stage micro because its residual pressure is broad rather than local |
-| N7 (active) | Confirm production-policy timing with paired repeats on the same GPU | Identical predeclared runs retain the existing timing boundaries and keep both GPU and end-to-end ratios within the fixed `2x` gate |
+| N7 (active; M336-194) | Confirm production-policy timing with paired repeats on physical GPU 2 | Five valid pairs per E2/E3 retain timing identity, deterministic exact legality, and median GPU/end-to-end ratios within the fixed `2x` gate |
 
 ## Paused Exact-Site Priorities
 
@@ -798,6 +798,17 @@ remains fail-closed and unimplemented; widening it would violate its 32-node
 contract. N7 paired timing is the only active promotion evidence. The fixed
 `2x` gate and timing boundaries remain unchanged; D2, E4, tuning,
 legalization, repair, fallback, and CP-SAT remain prohibited.
+
+M336-194 freezes N7 as measurement-only evidence. After one excluded warm-up
+pair per experiment, five E2 and five E3 pairs alternate feature-off and
+`consensus_per_step` order on physical GPU 2. Every arm must use a fresh
+subprocess and isolated output/summary/report paths; only the declared feasible
+domain cache is reusable. GPU and end-to-end ratios retain their existing
+definitions and independently require a median no greater than `2x`.
+Candidate legality and hashes must repeat exactly. Foreign compute processes,
+identity/hash drift or missing artifacts invalidate at most one attempt per
+pair; unfavorable timing never does. No effect may run before focused tests and
+the signed measurement implementation are pushed and pulled.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

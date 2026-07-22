@@ -182,6 +182,30 @@ under one predeclared identical contract. Timing boundaries and the fixed `2x`
 threshold must not change. D2, E4, stage micro, collision/anchor/LR tuning,
 legalization, repair, fallback, and CP-SAT remain out of scope.
 
+### N7: paired production timing
+
+M336-194 authorizes measurement only. Use physical GPU 2, seed `1000`, 50
+iterations, scale `1`, checkpoint-warm E2/E3 and the frozen M336-193 inputs.
+Run one excluded warm-up pair per experiment followed by five measured pairs,
+alternating feature-off-first and consensus-first order. Every arm must be a
+fresh runner/native subprocess with isolated output, summary and report paths.
+
+Feature-off retains the complete irregular-density/Keep-in path but disables
+the footprint barrier, exact guard, exact contact projection and named policy.
+The candidate uses unchanged `consensus_per_step`. Removing run-local and
+authorized contact fields must leave byte-identical configs. Reuse only the
+declared feasible-domain cache; prohibit resume and all repair/search/tuning.
+
+For both E2 and E3, the median candidate/control GPU ratio and median complete
+end-to-end ratio must each be at most `2.0`. Record all raw values, deltas,
+distribution statistics and GPU process evidence. Every candidate must remain
+exact legal and deterministic in placement, score, attempt sequence and final
+LR. One objectively environment-invalid attempt may be replaced; a second
+stops N7 incomplete. A correctness or determinism failure stops immediately.
+
+Only a complete four-gate pass promotes `consensus_per_step` and closes N6
+non-overlap engineering. N7 does not authorize the final matrix.
+
 ## Historical N6 development contract
 
 The following N6 design and D1-D5 sequence records the path through M336-192.
