@@ -84,7 +84,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (Phase A authorized by M336-193) | Promote M336-174 consensus as the production per-step contact policy while retaining M336-192 as strict reference | One fresh checkpoint-warm scale-1 E2/E3 D1 passes exact legality, quality, anchor direction, and fixed GPU/end-to-end `2x` gates |
+| N6 (D3 authorized by M336-193) | Promote M336-174 consensus as the production per-step contact policy while retaining M336-192 as strict reference | One checkpoint-warm 50-step scale-1 E2/E3 D3 remains zero-overlap without broad E4 repair and isolates whether a local topology/RSMT defect remains |
 
 ## Paused Exact-Site Priorities
 
@@ -770,6 +770,18 @@ the policy implementation is committed, pushed, pulled, installed, and tested.
 If and only if every D1 gate passes, run one 50-step scale-1 E2/E3 D3 directly;
 do not run D2 first. Stage-end micro legalization remains unimplemented and
 blocked unless D3 isolates a local topology/RSMT defect.
+
+The single M336-193 Phase A D1 now passes at `42b2470`. E2/E3 execute ten
+changing CUDA Adam steps, accept all first proposals, and remain exact legal at
+every checkpoint. Production consensus records no authority enumeration or
+topology tie-break calls. GPU ratios against the frozen controls are
+`1.553746x/1.286047x`, end-to-end ratios are `1.192412x/1.196838x`, HPWL/RSMT
+regressions remain below `0.5%`, and E3 anchor mean/p90 move in the intended
+direction. Its placement hashes and native scores exactly reproduce M336-174.
+This authorizes one checkpoint-warm 50-step scale-1 E2/E3 D3 after the evidence
+commit is pushed and pulled. D2, E4 repair, CP-SAT, fallback, legalization, and
+parameter ladders remain prohibited. The normalized score remains about
+`0.928`, so the manual score-1 stretch gate is not met.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

@@ -143,3 +143,60 @@ This is implementation evidence only. No M336 optimizer effect, D1, D2, D3,
 E4, repair, fallback, legalization, CP-SAT, or parameter ladder ran while
 producing it. The one Phase A D1 remains the next authorized effect after this
 implementation commit is pushed and pulled.
+
+## Phase A Effect Evidence
+
+The single authorized D1 ran at signed, pushed, and pulled commit `42b2470` on
+physical GPU 2. It used one fresh checkpoint-warm output, seed `1000`, ten
+iterations, learning-rate scale `1`, E2/E3 only, and policy
+`consensus_per_step`. D2, E4, repair, fallback, legalization, CP-SAT, resume,
+and parameter ladders did not run.
+
+```text
+results/m336/native-cypress/
+  m336-193-option1-consensus-phase-a-d1-warm-10-scale1/
+summary SHA-256
+2607171fe66ed6bc4c2013be998931357dbcbe2b60b2bdbac10f2fa51d2e3af2
+E2 exact-guard SHA-256
+5c93d823e9a1db3311f5fa3f06c70f37ed28965875221a59ad3604d9b95b1ebe
+E3 exact-guard SHA-256
+e11372ce6e0b8996d9d3c1825cd1fdb6656e09ab329ad5c9316c243cf116d7f2
+```
+
+Both arms execute `NonLinearPlace`, `PlaceObj`, 13 backward calls, and ten
+changing CUDA Adam steps. All 20 first proposals are accepted. Every accepted-
+step checkpoint and both float64 post-serialization reports have `100/100`
+containment, zero Keep-in violations, and zero overlap. Serialization replay
+has zero coordinate error and identical input/replay hashes.
+
+| Metric | E2 | E3 |
+| --- | ---: | ---: |
+| Accepted / rejected attempts | `10 / 0` | `10 / 0` |
+| Authority states / topology records | `0 / 0` | `0 / 0` |
+| Native HPWL | `15633.109789610` | `15633.019091368` |
+| FLUTE RSMT | `17328.300` | `17328.207` |
+| Placement SHA-256 | `dbaffb7e4c6bda1e70079ddb2d89d8c3a4f6fdda8214371932d5590a310e5914` | `9156add8cb98964d9930c95871fedfe8704ad72f794bbad8d84ae3da9d9326c8` |
+| GPU optimization | `1.679384 s` | `1.733401 s` |
+| Ratio to fixed feature-off control | `1.553746x` | `1.286047x` |
+| End-to-end | `14.015480 s` | `14.193262 s` |
+| Ratio to fixed feature-off control | `1.192412x` | `1.196838x` |
+
+The fixed controls remain `1.080861809/1.347852359 s` GPU and
+`11.753892059/11.858962068 s` end-to-end. No timing boundary or denominator was
+changed. HPWL regression is `0.000810%/0.002126%`; RSMT regression is
+`0.007053%/0.014608%`, all below `0.5%`.
+
+E3 improves anchor mean by `0.000119614 mm` (`0.001833%`) and p90 by
+`0.000057227 mm` (`0.000475%`) versus E2, so the required direction is
+non-negative. The placements, scores, and hashes exactly reproduce M336-174,
+confirming that the policy reuses the historical mechanism rather than a new
+heuristic.
+
+Phase A therefore passes every predeclared gate and authorizes exactly one
+checkpoint-warm 50-step scale-1 E2/E3 D3 after this evidence is committed,
+pushed, and pulled. The normalized native scores remain only
+`0.928017476/0.928022657`, below the manual score-1 baseline; Phase A is a
+safety/runtime promotion, not final placement-quality acceptance. Paired
+repeated timing remains required after the diagnostic candidate and must retain
+the same `2x` threshold. Stage micro remains unimplemented and unauthorized
+unless D3 isolates a local discrete topology/RSMT defect.

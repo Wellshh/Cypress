@@ -124,6 +124,21 @@ seed, LR, anchor, or collision ladder. Do not alter timing boundaries or the
 baseline to pass the first comparison. Paired repeated timing on the same GPU
 is required only after a passing candidate exists, with the same `2x` gate.
 
+### Phase A result: passed at M336-193
+
+Commit `42b2470` passes the single authorized checkpoint-warm scale-1 E2/E3
+D1. Both arms execute ten changing CUDA Adam steps, accept every first
+proposal, and remain `100/100` contained with zero Keep-in violations and zero
+overlap after every accepted step. `consensus_per_step` records zero authority
+states and zero topology tie-break records.
+
+E2/E3 GPU ratios against the fixed M336-171 feature-off controls are
+`1.553746x/1.286047x`; end-to-end ratios are `1.192412x/1.196838x`. HPWL and
+RSMT regressions remain below `0.5%`, and E3 anchor mean/p90 both improve
+slightly versus E2. The placement hashes and native scores exactly reproduce
+M336-174. One 50-step scale-1 E2/E3 D3 is now authorized after this evidence
+commit is pushed and pulled. D2 remains prohibited.
+
 ### Conditional D3
 
 Only a complete Phase A pass authorizes one checkpoint-warm 50-step scale-1
