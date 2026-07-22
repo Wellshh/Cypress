@@ -1,8 +1,8 @@
 # M336 Active Roadmap
 
-**Updated:** 2026-07-21
+**Updated:** 2026-07-22
 
-**Evidence through:** `M336-192`
+**Evidence through:** `M336-193`
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -30,6 +30,14 @@ NonLinearPlace -> PlaceObj -> differentiable objectives -> backward
 Fixed-placement scoring and exact-site optimization do not count as Cypress
 improvements. Exact assets are limited to immutable references, optional warm
 starts, exact validation, and strictly bounded local E4 repair.
+
+M336-193 selects architecture option 1. New contact-protected native runs use
+an explicit policy: `consensus_per_step` is the production path,
+`strict_reference` preserves the complete M336-192 authority/FLUTE path as a
+default-off reference, and `consensus_plus_stage_micro` remains reserved and
+fail-closed until a passing D1 and a subsequent D3 justify it. The exact guard,
+full optimizer-state rollback, LR backoff, board/Keep-in projection, accepted-
+step zero-overlap invariant, and fixed `2x` runtime gate are unchanged.
 
 The frozen exact-reference contract remains:
 
@@ -76,7 +84,7 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (blocked by M336-192 E2 runtime) | Prevent native optimizer steps from crossing same-side footprint contacts | Strict covered-region and incremental audits are exhausted; no further D1 is authorized without a human decision on authority/FLUTE frequency or the fixed runtime gate |
+| N6 (Phase A authorized by M336-193) | Promote M336-174 consensus as the production per-step contact policy while retaining M336-192 as strict reference | One fresh checkpoint-warm scale-1 E2/E3 D1 passes exact legality, quality, anchor direction, and fixed GPU/end-to-end `2x` gates |
 
 ## Paused Exact-Site Priorities
 
@@ -750,6 +758,18 @@ of only `0.009932717 s`. E2 would still be about `0.048478 s` above its fixed
 limit, and even deleting all position-audit time cannot pass the measured run.
 N6 now requires a human architecture/runtime-contract decision. No additional
 D1, tuning, repair, Legalization, CP-SAT, D2, D3, or E4 is authorized.
+
+M336-193 records that human decision as architecture option 1. The fixed `2x`
+gate is not relaxed and native Cypress remains active. The complete M336-192
+protected-authority, pairwise-factorized, native-FLUTE implementation becomes
+default-off `strict_reference`; production returns to the proven M336-174
+proposal-medoid/component-consensus mechanism as `consensus_per_step`, with the
+existing exact accepted-step guard and transactional rollback unchanged. One
+fresh current-head checkpoint-warm scale-1 E2/E3 D1 is authorized only after
+the policy implementation is committed, pushed, pulled, installed, and tested.
+If and only if every D1 gate passes, run one 50-step scale-1 E2/E3 D3 directly;
+do not run D2 first. Stage-end micro legalization remains unimplemented and
+blocked unless D3 isolates a local topology/RSMT defect.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

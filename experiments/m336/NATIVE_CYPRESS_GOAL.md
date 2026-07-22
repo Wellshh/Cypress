@@ -2,7 +2,7 @@
 
 Repository: `Wellshh/Cypress`  
 Branch: `experiment`  
-Current implementation reference head: `bf67663` (`M336-171`)
+Current implementation reference head: `3442dc6` (`M336-192`)
 Primary board: `M336`
 
 ## Objective
@@ -58,6 +58,11 @@ fails, and must not be presented as evidence that Cypress itself improved.
   hit the global 32-node contact budget three times, finish at LR
   `0.00567269`, and E3 worsens anchor mean/p90 versus E2. D3 is blocked until
   broad crossing support is reduced without increasing the safety budget.
+- M336-192 preserves a strict protected-authority, pairwise-factorized,
+  HPWL-neutral native-FLUTE reference path with exact covered-region and
+  provenance-bound incremental validation. Its quality and legality pass, but
+  E2 remains above the unchanged `2x` runtime gate. The strict implementation
+  is retained as evidence, not promoted by relaxing that gate.
 
 ## Required native-algorithm outcomes
 
@@ -76,7 +81,69 @@ fails, and must not be presented as evidence that Cypress itself improved.
    repair, serialization, and native scoring in runtime reports.
 9. Run the final cold/warm E0-E4 matrix only after the native overlap gate passes.
 
-## Current critical milestone: N6 native same-side collision control
+## Current architecture: option 1 production consensus
+
+The human architecture decision in M336-193 replaces the experiment sequence
+in the historical N6 section below. It does not weaken exact legality or the
+fixed `2x` runtime threshold.
+
+Every new M336 contact-protected run must select one named policy:
+
+| Policy | Contract | Availability |
+| --- | --- | --- |
+| `strict_reference` | M336-192 protected proposal authority, pairwise-factorized enumeration, and HPWL-neutral native-FLUTE tie-break | Preserved and default off |
+| `consensus_per_step` | M336-174 deterministic proposal-medoid/component-consensus at every optimizer step | Production Phase A |
+| `consensus_plus_stage_micro` | Per-step consensus plus at most one bounded stage-end micro closure | Reserved and fail closed pending D3 evidence |
+
+All policies retain board projection, footprint-aware irregular Keep-in
+projection, the exact accepted-step guard, full Adam/Nesterov state rollback,
+and bounded LR backoff. Every accepted optimizer position must have zero
+positive-area same-side overlap. `strict_reference` tests, diagnostics, exact
+audits, timing accounting, and source/install parity remain mandatory.
+
+### Phase A: one production-policy D1
+
+After the M336-193 specification and implementation are separately committed,
+pushed, pulled, installed, and tested, run exactly one fresh checkpoint-warm
+scale-1 E2/E3 comparison on physical GPU 2, seed `1000`, for ten iterations.
+Use `consensus_per_step`; authority enumeration and FLUTE must be absent from
+the optimizer hot loop.
+
+Promotion requires both E2 and E3 to satisfy all of the following:
+
+- ten changing CUDA Adam steps with objective, backward, and optimizer proof;
+- zero overlap after every accepted step, `100/100` containment, and zero
+  Keep-in violations;
+- native HPWL and FLUTE RSMT regression no greater than `0.5%`;
+- GPU optimization and end-to-end ratios no greater than `2x` under the fixed
+  current comparison;
+- non-negative E3 anchor direction versus E2.
+
+Do not run D2, E4 repair, CP-SAT, fallback, broad legalization, a resume, or any
+seed, LR, anchor, or collision ladder. Do not alter timing boundaries or the
+baseline to pass the first comparison. Paired repeated timing on the same GPU
+is required only after a passing candidate exists, with the same `2x` gate.
+
+### Conditional D3
+
+Only a complete Phase A pass authorizes one checkpoint-warm 50-step scale-1
+E2/E3 D3. Skip scale-2 D2. D3 must preserve zero overlap for every accepted
+step and must not depend on broad E4 repair.
+
+Only if that D3 isolates a local discrete contact-topology or RSMT defect may
+`consensus_plus_stage_micro` be implemented. The future call is limited to once
+per GP stage, contact-touched closures, at most 16 active nodes per component,
+and at most 32 active nodes total. It may not use broad packing, checkpoint
+fallback, or full-domain CP-SAT. Selection is lexicographic: exact legality,
+selected-net HPWL, HPWL-neutral FLUTE RSMT, native displacement, then anchor
+distance. An illegal or regressing candidate is a no-op. Its runtime is
+reported separately while end-to-end remains within `2x`.
+
+## Historical N6 development contract
+
+The following N6 design and D1-D5 sequence records the path through M336-192.
+It is retained for audit context only. Where it calls for scale-2 D2, E4, or a
+different promotion order, the M336-193 option-1 contract above supersedes it.
 
 The next critical step is to solve M336-163 upstream. Increasing learning rate,
 anchor weight, E4 repair scope, density bins, or CP-SAT effort before this gate
