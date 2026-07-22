@@ -881,6 +881,22 @@ projection, rollback and contact pressure. Score diagnosis must report per-net
 HPWL/RSMT deltas against M336-118 and the manual baseline. Diagnose and report;
 do not tune LR, anchor, collision, density or Keep-in parameters in this node.
 
+M336-195 completes N8-A at commit `60ea9d6`. All eight seed-1000 repeats execute
+53 backward calls and 50 changing CUDA Adam steps, remain exact legal at every
+accepted checkpoint, replay without coordinate drift, and match deterministically
+within each experiment/track. Warm E2/E3 scores are `0.928015545` and
+`0.928022603`; cold E2/E3 scores are `0.743691330` and `0.743689945`. E3 anchor
+mean improves by only about `0.000274 mm` on either track and does not improve
+the combined p90. The dominant warm HPWL deficit remains concentrated in six
+long nets, while E3 changes any individual net by at most `0.192` HPWL units.
+
+N8-B is therefore the next active node and is now unblocked, but no N8-B arm has
+run. Execute exactly the committed 24-run E0-E3, three-seed, cold/warm matrix.
+Treat runtime as observational, retain exact legality and deterministic hashes
+as hard gates, and stop on the existing fail-closed conditions. This is a
+robustness matrix, not authorization to tune anchor, LR, collision, density,
+Keep-in, contact policy, or initialization.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

@@ -4,7 +4,7 @@ Repository: `Wellshh/Cypress`
 Branch: `experiment`  
 Current Cypress effect reference head: `5d58a5e` (`M336-193` D3 input)
 Preserved incomplete N7 campaign head: `e242b35`
-Active milestone: N8 native quality and robustness
+Active milestone: N8-B final native robustness matrix
 Primary board: `M336`
 
 ## Objective
@@ -300,6 +300,20 @@ drift, non-finite score, missing native execution evidence, GPU identity change,
 repair/fallback call, or unauthorized policy/parameter change. Do not tune LR,
 anchor, collision, density or Keep-in parameters, run CP-SAT, restart strict-
 reference hot-loop work, or implement stage micro in N8.
+
+N8-A completed at commit `60ea9d6`. Eight seed-1000 E2/E3 runs across the
+checkpoint-warm and cold/source tracks pass native execution, accepted-step
+exact legality, replay, provenance, and repeat determinism. Warm scores remain
+`0.928015545/0.928022603`; cold scores are `0.743691330/0.743689945`. The E3
+controller reaches its configured `0.1` gradient ratio, but anchor mean improves
+by only about `0.000274 mm` and combined p90 slightly worsens. Warm quality is a
+stable M336-118 local-topology basin dominated by six long-net HPWL gaps; cold
+initialization is a separate, substantially poorer deterministic basin.
+
+N8-B is now authorized as the next milestone, but no final-matrix run has yet
+started. It must use the frozen 24-arm scope above and may diagnose cross-seed
+robustness only; it may not tune parameters or introduce repair, fallback,
+stage micro, strict-reference hot-loop work, or CP-SAT.
 
 ## Historical N6 development contract
 

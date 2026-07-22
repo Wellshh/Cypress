@@ -205,7 +205,7 @@ append-only audit ledger.
 | [M336-192](M336-192-incremental-audit-runtime-gate-shortfall.md) | Critical | Open | Exact incremental audit saves about 9.93 ms offline, leaving E2 about 48.48 ms above its fixed runtime gate |
 | [M336-193](M336-193-option1-production-contact-policy.md) | Critical | Resolved | Human promotion accepts exact-legal production consensus and completes N6; strict reference remains default off and stage micro remains fail closed |
 | [M336-194](M336-194-paired-production-runtime-evidence.md) | Critical | Deferred | N7 is `deferred_environment_unavailable`; its incomplete artifacts are preserved and the repeated paired 2x gate remains unevaluated |
-| [M336-195](M336-195-native-quality-determinism-preflight.md) | Critical | Open | N8-A freezes eight E2/E3 cold/warm deterministic repeats before the final native matrix |
+| [M336-195](M336-195-native-quality-determinism-preflight.md) | Critical | Resolved | Eight cold/warm E2/E3 runs pass exact determinism and legality; N8-B is authorized with topology and cold-basin quality limits documented |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |
