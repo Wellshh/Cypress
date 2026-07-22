@@ -2,7 +2,8 @@
 
 Repository: `Wellshh/Cypress`  
 Branch: `experiment`  
-Current effect reference head: `5d58a5e` (`M336-193` D3 input)
+Current Cypress effect reference head: `5d58a5e` (`M336-193` D3 input)
+Latest N7 environment attempt head: `6dfc60e`
 Primary board: `M336`
 
 ## Objective
@@ -207,10 +208,12 @@ Only a complete four-gate pass promotes `consensus_per_step` and closes N6
 non-overlap engineering. N7 does not authorize the final matrix.
 
 The isolated paired runner and 15 focused tests are implemented, and the 271
-existing applicable non-CP-SAT tests pass after installation. A live read-only
-sample finds three foreign compute processes on physical GPU 2; therefore no
-N7 warm-up or measured pair has started. The implementation must be signed,
-pushed and pulled before waiting for a clean GPU and launching the one campaign.
+existing applicable non-CP-SAT tests pass after installation. The one campaign
+at pushed/pulled commit `6dfc60e` stops after two environment-invalid E2
+warm-up attempts: three foreign compute processes remain resident on physical
+GPU 2. No optimizer arm or measured pair starts, so timing and determinism are
+unevaluated. N7 remains open pending a human decision; preserve the incomplete
+artifacts and do not reinterpret idle utilization as a clean process state.
 
 ## Historical N6 development contract
 

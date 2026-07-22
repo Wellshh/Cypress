@@ -147,3 +147,52 @@ The live monitor resolves physical GPU 2 as
 Three foreign compute processes currently occupy that GPU, so the N7 effect
 remains frozen until a clean pre-pair sample exists. No warm-up or measured arm
 has run during implementation.
+
+## N7 Environment-Incomplete Attempt
+
+The single authorized campaign started from signed, pushed and pulled commit
+`6dfc60e` on physical GPU 2. The E2 warm-up preflight detected the same three
+foreign CUDA contexts before either arm launched. Attempt 1 was preserved and
+used the only permitted replacement; attempt 2 found the same condition and
+stopped N7 incomplete as specified.
+
+| Process | PID | GPU memory |
+| --- | ---: | ---: |
+| `muge-api` | `1996746` | `28558 MiB` |
+| `VLLM::EngineCore` | `1814710` | `10430 MiB` |
+| `/data/liuwenqi/yolov11/bin/python3.1` | `1272798` | `1292 MiB` |
+
+Both attempts observed UUID `GPU-ab571afa-cbb6-542c-f2d2-1ccf5045d040`,
+driver `550.54.14`, temperature `37 C`, P-state `P0`, SM/memory clocks
+`1980/1593 MHz`, about `140 W`, `40310 MiB` resident memory, and zero sampled
+SM/memory utilization. Idle utilization does not override the frozen foreign-
+process rule.
+
+```text
+campaign status       environment_incomplete
+decision              incomplete_human_decision_required
+warm-up attempts      2 invalid / 0 valid
+optimizer arms        0
+measured pairs        0
+timing gates          not evaluated
+candidate determinism not evaluated
+```
+
+Artifacts remain under
+`results/m336/native-cypress/n7-paired-timing/`:
+
+```text
+contract.json         7b781a34a8b7f572dd4268b57c8253d464a5c41cc477ac6ace79405004da2cb0
+environment.json      a176d5492f795d53a1004564eeef71d34cb470ff4a922c5d04c4cbd6eca5710e
+paired-summary.json   2025885b296f779eec9644ac0a399bc3c9e38899e54990a52b164a8401c2b5c5
+REPORT.md              ec30e699a829e9024f5eafa00473b217a247af4375c189be92d7d5525d9bfcc0
+attempt 1              de61311e3bd605c883a7c8553911c06b8d707a0ab62cda5beeb00edc8c763f4b
+attempt 2              e3342402c4b3e7978eef18992fa45c640b737c137667ccfe016b91b5b7fc1140
+```
+
+Source/install parity, the read-only cache manifest, branch/HEAD, and all
+preserved user-owned hashes remained unchanged. No NonLinearPlace arm, D2, D3
+rerun, E4, stage micro, repair, fallback, CP-SAT, one-opt, pair scan or tuning
+ran. N7 remains open. A human must either provide a clean physical GPU 2 and
+authorize a fresh isolated campaign or explicitly revise the environmental
+contract; the current artifacts must not be reused or deleted.

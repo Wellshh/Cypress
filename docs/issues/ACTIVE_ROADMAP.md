@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-22
 
-**Evidence through:** `M336-194` contract; no N7 effect yet
+**Evidence through:** `M336-194` environment-incomplete N7 preflight
 
 **Active specification:**
 [`experiments/m336/NATIVE_CYPRESS_GOAL.md`](../../experiments/m336/NATIVE_CYPRESS_GOAL.md)
@@ -812,9 +812,12 @@ the signed measurement implementation are pushed and pulled.
 
 The N7 measurement runner and 15 focused contract tests are now implemented;
 all 271 existing non-CP-SAT applicable tests also pass after installation.
-Physical GPU 2 currently has three foreign compute processes, so no N7 warm-up
-or measured arm has started. Publish and pull the implementation commit, then
-wait for an objectively clean GPU sample before the single campaign.
+At pushed/pulled commit `6dfc60e`, the one authorized campaign preserves two
+environment-invalid E2 warm-up attempts caused by three foreign compute
+processes and then stops. No optimizer arm or measured pair starts, so all four
+timing gates and determinism remain unevaluated. N7 stays open pending a human
+decision on a clean physical GPU 2 or an explicit environmental-contract
+revision; do not reuse or delete the failed campaign artifacts.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
