@@ -2,7 +2,7 @@
 
 Repository: `Wellshh/Cypress`  
 Branch: `experiment`  
-Current implementation reference head: `3442dc6` (`M336-192`)
+Current effect reference head: `5d58a5e` (`M336-193` D3 input)
 Primary board: `M336`
 
 ## Objective
@@ -153,6 +153,34 @@ fallback, or full-domain CP-SAT. Selection is lexicographic: exact legality,
 selected-net HPWL, HPWL-neutral FLUTE RSMT, native displacement, then anchor
 distance. An illegal or regressing candidate is a no-op. Its runtime is
 reported separately while end-to-end remains within `2x`.
+
+### D3 result: exact legal, no local micro authorization
+
+The single authorized D3 ran at commit `5d58a5e`, checkpoint-warm, seed
+`1000`, 50 iterations, scale `1`, E2/E3 only. Both arms execute 53 backward
+calls and 50 changing CUDA Adam steps. All 100 accepted steps and both
+accepted origins remain zero-overlap and Keep-in legal; final float64 replay is
+`100/100` contained with zero coordinate drift. No E4, repair, fallback,
+legalization, CP-SAT, authority enumeration, or FLUTE hot-loop tie-break ran.
+
+E2/E3 native HPWL are `15634.399744749/15633.964617491`, FLUTE RSMT are
+`17326.965/17327.178`, and normalized scores are
+`0.928015545/0.928022603`. E3 improves HPWL and total score, but its RSMT is
+`0.213` worse than E2; anchor mean improves only `0.00420%` while p90 worsens
+`0.00184%`.
+
+This does not authorize `consensus_plus_stage_micro`. The eight/six rejected
+proposals require 33-35 corrected nodes across 19-23 contact components,
+stage-wide contact unions cover 68/63 components, and the RSMT delta is
+dominated by the global GND net. GND spans 84 unique components, 67 of which
+move between E2 and E3. The evidence is broad trust-region pressure, not a
+bounded HPWL-neutral local topology defect. The stage-micro policy remains
+implemented only as a fail-closed reserved name.
+
+The next promotion evidence is paired repeated timing on the same physical GPU
+under one predeclared identical contract. Timing boundaries and the fixed `2x`
+threshold must not change. D2, E4, stage micro, collision/anchor/LR tuning,
+legalization, repair, fallback, and CP-SAT remain out of scope.
 
 ## Historical N6 development contract
 

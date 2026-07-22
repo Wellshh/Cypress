@@ -84,7 +84,8 @@ In particular, they cannot prove the current EMI601-only contract infeasible.
 | N3 (complete) | Make TOP/BOTTOM density respect conservative irregular usable capacity | M336-147 reduces 50-step projection events from 34 to 0; quality regresses and remains explicitly unaccepted |
 | N4 (complete) | Preserve legal initial positions and bound E4 repair to illegal conflict closures | Warm preflight preserves 100/100; cold/warm 10-step matrices report every stage; bounded same-run E4 restore is exact legal |
 | N5 (blocked by N6) | Resolve the 50-step overlap, repair, determinism, and anchor-signal findings before the final matrix | M336-163 through M336-168 isolate accepted-step overlap growth as the upstream blocker; resume the remaining quality gates only after N6 passes |
-| N6 (D3 authorized by M336-193) | Promote M336-174 consensus as the production per-step contact policy while retaining M336-192 as strict reference | One checkpoint-warm 50-step scale-1 E2/E3 D3 remains zero-overlap without broad E4 repair and isolates whether a local topology/RSMT defect remains |
+| N6 (D3 complete at M336-193) | Promote M336-174 consensus as the production per-step contact policy while retaining M336-192 as strict reference | D1 and D3 remain exact legal without broad repair; D3 does not authorize stage micro because its residual pressure is broad rather than local |
+| N7 (active) | Confirm production-policy timing with paired repeats on the same GPU | Identical predeclared runs retain the existing timing boundaries and keep both GPU and end-to-end ratios within the fixed `2x` gate |
 
 ## Paused Exact-Site Priorities
 
@@ -782,6 +783,21 @@ This authorizes one checkpoint-warm 50-step scale-1 E2/E3 D3 after the evidence
 commit is pushed and pulled. D2, E4 repair, CP-SAT, fallback, legalization, and
 parameter ladders remain prohibited. The normalized score remains about
 `0.928`, so the manual score-1 stretch gate is not met.
+
+The one authorized M336-193 D3 now completes at `5d58a5e`. E2/E3 each execute
+50 changing CUDA Adam steps and finish `100/100` contained with zero Keep-in
+violations, zero overlap at every accepted checkpoint, and no E4 or repair.
+Native HPWL/RSMT are `15634.399745/17326.965` and
+`15633.964617/17327.178`; normalized scores are `0.928015545/0.928022603`.
+The guard recovers eight/six rejected proposals, but their required corrected
+scope is 33-35 nodes across 19-23 distributed contact components. Stage-wide
+contact unions cover 68/63 components, and 67 of GND's 84 unique component
+endpoints move between E2 and E3. The `+0.213` E3 RSMT delta is therefore not
+an isolated HPWL-neutral local topology defect. `consensus_plus_stage_micro`
+remains fail-closed and unimplemented; widening it would violate its 32-node
+contract. N7 paired timing is the only active promotion evidence. The fixed
+`2x` gate and timing boundaries remain unchanged; D2, E4, tuning,
+legalization, repair, fallback, and CP-SAT remain prohibited.
 
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve

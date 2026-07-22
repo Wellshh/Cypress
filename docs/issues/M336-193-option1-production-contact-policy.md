@@ -200,3 +200,75 @@ safety/runtime promotion, not final placement-quality acceptance. Paired
 repeated timing remains required after the diagnostic candidate and must retain
 the same `2x` threshold. Stage micro remains unimplemented and unauthorized
 unless D3 isolates a local discrete topology/RSMT defect.
+
+## D3 Effect Evidence
+
+The single authorized D3 ran at pushed and pulled commit `5d58a5e` on physical
+GPU 2. It used a fresh checkpoint-warm output, seed `1000`, 50 iterations,
+learning-rate scale `1`, E2/E3 only, and `consensus_per_step`. D2, E4, repair,
+fallback, legalization, CP-SAT, resume, and parameter ladders did not run.
+
+```text
+results/m336/native-cypress/
+  m336-193-option1-consensus-d3-warm-50-scale1/
+summary SHA-256
+31cefc895e32a74612f68c0abecea7a93b7c7cbf87ce8a21f5cfea4d6acc2586
+E2 exact-guard SHA-256
+58d19e607a60e95f855ebeabc491ec0807331b9a388f99718283387d479afd7b
+E3 exact-guard SHA-256
+adf5c84b9f81c983340e434ae6d0aa4f61200d9b8b23d8741d3e16eb943bc2c8
+```
+
+Both arms prove `NonLinearPlace`, `PlaceObj`, 53 backward calls, and 50
+changing CUDA Adam steps. E2 accepts 50 attempts and rejects eight; E3 accepts
+50 and rejects six. Complete rollback and `0.5` LR backoff recover every
+rejected proposal. All 100 accepted steps and both accepted origins have zero
+positive-area overlap and zero Keep-in violations. Both serialized placements
+are `100/100` contained with zero overlap, zero coordinate replay error, and no
+repair.
+Authority enumeration and topology tie-break records remain zero.
+
+| Metric | E2 | E3 |
+| --- | ---: | ---: |
+| Native HPWL | `15634.399744749` | `15633.964617491` |
+| FLUTE RSMT | `17326.965` | `17327.178` |
+| Normalized score | `0.928015545` | `0.928022603` |
+| Placement SHA-256 | `d6242e54cc034f4cecb6bc315140398c81bc899b64bf6349ebd093291fe9e4eb` | `9f601023292b957242c31bdcc941eaa94472d98e27862eca06d4ba496c2ce61d` |
+| GPU optimization | `6.159659 s` | `6.602546 s` |
+| End-to-end | `18.492517 s` | `19.415604 s` |
+| Final effective LR | `0.000090178` | `0.000360712` |
+| Anchor mean / p90 | `6.522158 / 12.044242 mm` | `6.521884 / 12.044463 mm` |
+
+E3 improves HPWL by `0.435127` and normalized score by about `0.00000706`
+versus E2, while FLUTE RSMT regresses by `0.213`. Anchor mean improves only
+`0.00420%`, and p90 regresses by `0.00184%`. This passes the authorized D3
+legality/no-broad-repair condition, but does not satisfy the final anchor or
+manual score-1 quality gates.
+
+## D3 Locality Finding
+
+The 14 rejected first proposals are all `contact_node_limit` outcomes. E2
+rejected states require 33-35 corrected nodes across 22-23 contact components;
+E3 requires 33 nodes across 19-21 components. Maximum active contact scope is
+`56/52`, and the LR consequently falls to `1/256` and `1/64` of its initial
+value. Across the stage, contact-touched unions contain `68/63` components;
+even the final ten attempts touch `57/50`.
+
+Independent per-net attribution finds 65 changed nets. The E3 RSMT increase is
+dominated by `GND`: HPWL changes by `+0.032166` and RSMT by `+0.769`. This net
+has 114 pins on 84 unique components; 67 of those components move between E2
+and E3, and 44/41 appear in the respective stage contact unions. The evidence
+therefore does not isolate an HPWL-neutral, contact-local topology defect. It
+shows broad trust-region pressure plus a global high-degree-net response.
+
+`consensus_plus_stage_micro` is not authorized or implemented. Selecting it
+continues to fail closed. A 32-node stage-end solve would either omit measured
+support or silently broaden the declared contract, and neither is allowed.
+`consensus_per_step` remains the production candidate; `strict_reference`
+remains preserved and default off.
+
+The next evidence is paired repeated timing on the same GPU under a
+predeclared identical run contract. It must retain the existing timing
+boundaries and `2x` threshold. No D2, E4, stage micro, collision/anchor/LR
+tuning, legalization, repair, fallback, or CP-SAT run is authorized by this
+finding.

@@ -203,7 +203,7 @@ append-only audit ledger.
 | [M336-190](M336-190-covered-fast-path-d1-runtime-shortfall.md) | Critical | Open | Covered fast path is effective, but its D1 runtime gain is offset and exact delta audit alone lacks a sufficient measured bound |
 | [M336-191](M336-191-legal-origin-delta-audit-sparsity-mismatch.md) | Critical | Mitigated | Saved D1 traces show legal-origin deltas touch 97-100 nodes; provenance-bound post-correction reuse is now exact |
 | [M336-192](M336-192-incremental-audit-runtime-gate-shortfall.md) | Critical | Open | Exact incremental audit saves about 9.93 ms offline, leaving E2 about 48.48 ms above its fixed runtime gate |
-| [M336-193](M336-193-option1-production-contact-policy.md) | Critical | Open | Option 1 preserves M336-192 as strict reference and restores M336-174 consensus as the production per-step policy |
+| [M336-193](M336-193-option1-production-contact-policy.md) | Critical | Open | D1/D3 production consensus is exact legal; broad D3 pressure does not authorize the reserved 32-node stage micro path |
 | [CUDA-001](CUDA-001-net-crossing-input-contract.md) | Critical | Mitigated | Invalid node/pin shape reached native net-crossing code |
 | [REPRO-001](REPRO-001-placer-import-log-side-effect.md) | High | Resolved | Importing Placer truncated a tracked log in the caller's CWD |
 | [TEST-001](TEST-001-aggregate-operator-suite-api-drift.md) | High | Open | Aggregate operator tests report ten compatibility errors but still exit with status zero |
