@@ -840,7 +840,8 @@ GPU N7 is a non-blocking infrastructure audit, not a prerequisite for native
 Cypress development. Do not resume runtime micro-optimization or redefine its
 environment or timing contract.
 
-N8 native quality and robustness is the next active milestone. Its committed
+M336-195 is the append-only evidence ledger for N8-A. N8 native quality and
+robustness is the next active milestone. Its committed
 effect plan has two ordered phases. N8-A runs two fresh deterministic repeats
 of E2 and E3 for seed `1000` on each of the cold/source and M336-118 checkpoint-
 warm tracks: eight 50-step runs total. Each production run uses
