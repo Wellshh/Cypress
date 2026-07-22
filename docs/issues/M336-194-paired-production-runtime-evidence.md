@@ -101,3 +101,49 @@ complete distribution and request a human decision without tuning or changing
 the `2x` contract.
 
 No N7 effect has run while creating this issue.
+
+## Measurement Implementation Evidence
+
+The runner now has a measurement-only N7 parent mode and isolated child-arm
+mode. It constructs the frozen feature-off and `consensus_per_step` commands,
+rejects resume, verifies config equivalence after an explicit field whitelist,
+checks source/install/static-input/cache provenance, samples GPU identity and
+processes synchronously, preserves invalid attempts, and permits exactly one
+environmental replacement. Statistics retain the existing timing identity:
+
+```text
+gpu_optimization_seconds = optimization_wall_seconds
+                         - exact_step_guard_seconds
+                         - exact_overlap_diagnostic_seconds
+```
+
+Generated manifests containing
+run-local absolute paths are excluded from the paired input digest; all native
+Bookshelf files, geometry, checkpoint and assignment hashes remain mandatory.
+
+After `cmake --install build`, all `271/271` existing applicable tests and all
+`15/15` focused N7 tests pass with the installation tree first. The existing
+breakdown is anchor/keep-in `64`, exact contact `63`, exact guard `11`,
+reproducibility `22`, irregular density `9`, and non-CP-SAT M336 baseline
+`102`. Five OR-Tools tests were explicitly filtered and no CP-SAT solve ran.
+The focused N7 suite also passes source-first. Direct source-first probes for
+the three suites importing compiled operators cannot load `place_io_cpp`,
+`move_boundary_cpp`, or `weighted_average_wirelength_cpp`; their installed
+counterparts pass. The known TEST-001 aggregate entrypoint was not claimed
+green.
+
+Core source/install hashes remain byte-identical:
+
+```text
+NonLinearPlace.py              b7f01be5ae91d9f2913298b6cc70e118fdd346b0f543d641c9ab90127477f5a7
+PlaceObj.py                    a3dbef9aa8f9956df8144d111b481252cda2990adfa0d4ae26c48c4b5cd83489
+exact_contact_projection.py   ef7f3130b706cbe0694dba51a93403d4bc84531feedb0e426336a4c2771d8ccc
+exact_step_guard.py            30bd8ed624bb5e8a691470e7f595d64bdcca87afbf238ad652fdd28429354d58
+params.json                    19ca9b959653d4c27e58505fc4af7fe45d6231fa401b8cb159a656f16c16c509
+```
+
+The live monitor resolves physical GPU 2 as
+`GPU-ab571afa-cbb6-542c-f2d2-1ccf5045d040`, driver `550.54.14`, CUDA `12.4`.
+Three foreign compute processes currently occupy that GPU, so the N7 effect
+remains frozen until a clean pre-pair sample exists. No warm-up or measured arm
+has run during implementation.

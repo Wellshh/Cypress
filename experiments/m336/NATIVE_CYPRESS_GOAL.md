@@ -206,6 +206,12 @@ stops N7 incomplete. A correctness or determinism failure stops immediately.
 Only a complete four-gate pass promotes `consensus_per_step` and closes N6
 non-overlap engineering. N7 does not authorize the final matrix.
 
+The isolated paired runner and 15 focused tests are implemented, and the 271
+existing applicable non-CP-SAT tests pass after installation. A live read-only
+sample finds three foreign compute processes on physical GPU 2; therefore no
+N7 warm-up or measured pair has started. The implementation must be signed,
+pushed and pulled before waiting for a clean GPU and launching the one campaign.
+
 ## Historical N6 development contract
 
 The following N6 design and D1-D5 sequence records the path through M336-192.

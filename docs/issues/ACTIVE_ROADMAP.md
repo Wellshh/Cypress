@@ -810,6 +810,12 @@ identity/hash drift or missing artifacts invalidate at most one attempt per
 pair; unfavorable timing never does. No effect may run before focused tests and
 the signed measurement implementation are pushed and pulled.
 
+The N7 measurement runner and 15 focused contract tests are now implemented;
+all 271 existing non-CP-SAT applicable tests also pass after installation.
+Physical GPU 2 currently has three foreign compute processes, so no N7 warm-up
+or measured arm has started. Publish and pull the implementation commit, then
+wait for an objectively clean GPU sample before the single campaign.
+
 M336-140 adds a fail-closed target-net-span objective while independently
 hard-bounding and replaying global HPWL. The first direct `PSIM2_DATA2` solve
 is `OPTIMAL` in its K512/K4096, 20-component, Delta20 domain: target span falls

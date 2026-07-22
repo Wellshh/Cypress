@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -156,6 +157,75 @@ EXPERIMENTS = {
         "freeze_anchors": True,
         "integrated_context": True,
     },
+}
+
+N7_SCHEMA = "m336_n7_paired_timing_v1"
+N7_CONTRACT_SCHEMA = "m336_n7_paired_timing_contract_v1"
+N7_FEATURE_OFF_ARM = "feature_off"
+N7_CONSENSUS_ARM = CONSENSUS_PER_STEP_CONTACT_POLICY
+N7_ARMS = (N7_FEATURE_OFF_ARM, N7_CONSENSUS_ARM)
+N7_EXPERIMENTS = ("E2", "E3")
+N7_SEED = 1000
+N7_ITERATIONS = 50
+N7_PAIR_COUNT = 5
+N7_PHYSICAL_GPU_INDEX = 2
+N7_SAMPLE_INTERVAL_SECONDS = 1.0
+N7_REPLACEMENT_DELAY_SECONDS = 5.0
+N7_RUN_LOCAL_CONFIG_FIELDS = {
+    "anchor_keepin_config",
+    "aux_input",
+    "result_dir",
+}
+N7_CONTACT_CONFIG_FIELDS = {
+    "collision_gradient_ratio",
+    "collision_margin_mm",
+    "collision_pair_diagnostics_flag",
+    "collision_tau_mm",
+    "exact_contact_policy",
+    "exact_contact_projection_authority_search_strategy",
+    "exact_contact_projection_flag",
+    "exact_contact_projection_max_authority_states",
+    "exact_contact_projection_max_cover_component_nodes",
+    "exact_contact_projection_max_iterations",
+    "exact_contact_projection_max_nodes",
+    "exact_contact_projection_mode",
+    "exact_contact_topology_min_net_degree",
+    "exact_contact_topology_tiebreak_flag",
+    "exact_step_guard_backoff",
+    "exact_step_guard_flag",
+    "exact_step_guard_max_retries",
+    "footprint_collision_loss_flag",
+}
+N7_TIMING_FIELDS = (
+    "gpu_optimization_seconds",
+    "end_to_end_seconds",
+)
+N7_REPORTED_TIMING_FIELDS = (
+    "optimization_wall_seconds",
+    "exact_step_guard_seconds",
+    "exact_overlap_diagnostic_seconds",
+    "gpu_optimization_seconds",
+    "preprocessing_seconds",
+    "cache_load_seconds",
+    "cache_write_seconds",
+    "domain_build_seconds",
+    "initialization_seconds",
+    "exact_validation_seconds",
+    "serialization_seconds",
+    "native_scoring_seconds",
+    "post_serialization_validation_seconds",
+    "post_serialization_scoring_seconds",
+    "bounded_repair_seconds",
+    "end_to_end_seconds",
+)
+N7_PRESERVED_PATHS = (
+    REPO_ROOT / "DREAMPlace.log",
+    REPO_ROOT / "experiments/m336/guides/M336-141",
+    REPO_ROOT / "m336_native_cypress_codex",
+)
+N7_RUN_LOCAL_INPUT_METADATA = {
+    "manifest.json",
+    "baseline_manifest.json",
 }
 
 
@@ -3074,8 +3144,6 @@ def reproduction_command(args, weights=None):
             if args.exact_contact_projection
             else "--no-exact-contact-projection"
         ),
-        "--exact-contact-policy",
-        args.exact_contact_policy,
         "--exact-contact-projection-max-iterations",
         str(args.exact_contact_projection_max_iterations),
         "--exact-contact-projection-mode",
@@ -3111,6 +3179,12 @@ def reproduction_command(args, weights=None):
         "--placer",
         repo_path(args.placer),
     ]
+    if args.exact_contact_policy:
+        command.extend(
+            ["--exact-contact-policy", args.exact_contact_policy]
+        )
+    if getattr(args, "n7_arm", None):
+        command.extend(["--n7-arm", args.n7_arm])
     if args.exact_contact_projection_mode in PROPOSAL_AUTHORITY_MODES:
         command.extend(
             [
@@ -3164,6 +3238,1965 @@ def reproduction_command(args, weights=None):
             shlex.join(command),
         )
     )
+
+
+def n7_pair_order(pair_index):
+    pair_index = int(pair_index)
+    if pair_index < 1 or pair_index > N7_PAIR_COUNT:
+        raise ValueError("N7 pair index must be within [1, %d]" % N7_PAIR_COUNT)
+    if pair_index % 2:
+        return [N7_FEATURE_OFF_ARM, N7_CONSENSUS_ARM]
+    return [N7_CONSENSUS_ARM, N7_FEATURE_OFF_ARM]
+
+
+def _n7_canonical_json(payload):
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+
+
+def _n7_payload_sha256(payload):
+    return hashlib.sha256(_n7_canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def n7_metric_statistics(control_values, candidate_values):
+    controls = [float(value) for value in control_values]
+    candidates = [float(value) for value in candidate_values]
+    if len(controls) != N7_PAIR_COUNT or len(candidates) != N7_PAIR_COUNT:
+        raise ValueError("N7 statistics require exactly five paired values")
+    if any(
+        not math.isfinite(value) or value <= 0
+        for value in (*controls, *candidates)
+    ):
+        raise ValueError("N7 timing values must be positive and finite")
+    ratios = [candidate / control for control, candidate in zip(controls, candidates)]
+    deltas = [candidate - control for control, candidate in zip(controls, candidates)]
+    median = statistics.median(ratios)
+    return {
+        "control_seconds": controls,
+        "candidate_seconds": candidates,
+        "candidate_minus_control_seconds": deltas,
+        "ratios": ratios,
+        "median": median,
+        "minimum": min(ratios),
+        "maximum": max(ratios),
+        "arithmetic_mean": statistics.mean(ratios),
+        "geometric_mean": statistics.geometric_mean(ratios),
+        "median_absolute_deviation": statistics.median(
+            abs(value - median) for value in ratios
+        ),
+        "passes_2x": median <= 2.0,
+    }
+
+
+def _n7_normalized_placement_config(config):
+    normalized = json.loads(json.dumps(config))
+    for field in N7_RUN_LOCAL_CONFIG_FIELDS | N7_CONTACT_CONFIG_FIELDS:
+        normalized.pop(field, None)
+    return normalized
+
+
+def _n7_normalized_constraint_config(config):
+    normalized = json.loads(json.dumps(config))
+    normalized.get("reporting", {}).pop("output_dir", None)
+    endpoint_policy = normalized.get("endpoint_policy", {})
+    endpoint_policy.pop("manual_placement_file", None)
+    endpoint_policy.pop("runtime_placement_file", None)
+    return normalized
+
+
+def _n7_first_difference(left, right, path="config"):
+    if type(left) is not type(right):
+        return "%s type %s != %s" % (
+            path,
+            type(left).__name__,
+            type(right).__name__,
+        )
+    if isinstance(left, dict):
+        if set(left) != set(right):
+            return "%s keys %s != %s" % (
+                path,
+                sorted(left),
+                sorted(right),
+            )
+        for key in sorted(left):
+            difference = _n7_first_difference(
+                left[key], right[key], "%s.%s" % (path, key)
+            )
+            if difference:
+                return difference
+        return None
+    if isinstance(left, list):
+        if len(left) != len(right):
+            return "%s length %d != %d" % (path, len(left), len(right))
+        for index, (left_value, right_value) in enumerate(zip(left, right)):
+            difference = _n7_first_difference(
+                left_value,
+                right_value,
+                "%s[%d]" % (path, index),
+            )
+            if difference:
+                return difference
+        return None
+    if left != right:
+        return "%s %r != %r" % (path, left, right)
+    return None
+
+
+def validate_n7_config_equivalence(
+    control_config,
+    candidate_config,
+    control_constraint=None,
+    candidate_constraint=None,
+):
+    normalized_control = _n7_normalized_placement_config(control_config)
+    normalized_candidate = _n7_normalized_placement_config(candidate_config)
+    difference = _n7_first_difference(
+        normalized_control, normalized_candidate
+    )
+    if difference:
+        raise RuntimeError(
+            "N7 control/candidate config drift outside contact fields: %s"
+            % difference
+        )
+    result = {
+        "placement_config_sha256": _n7_payload_sha256(normalized_control),
+        "removed_run_local_fields": sorted(N7_RUN_LOCAL_CONFIG_FIELDS),
+        "removed_contact_fields": sorted(N7_CONTACT_CONFIG_FIELDS),
+    }
+    if control_constraint is not None or candidate_constraint is not None:
+        if control_constraint is None or candidate_constraint is None:
+            raise RuntimeError("N7 constraint config pair is incomplete")
+        normalized_control_constraint = _n7_normalized_constraint_config(
+            control_constraint
+        )
+        normalized_candidate_constraint = _n7_normalized_constraint_config(
+            candidate_constraint
+        )
+        difference = _n7_first_difference(
+            normalized_control_constraint,
+            normalized_candidate_constraint,
+            path="constraint",
+        )
+        if difference:
+            raise RuntimeError("N7 constraint config drift: %s" % difference)
+        result["constraint_config_sha256"] = _n7_payload_sha256(
+            normalized_control_constraint
+        )
+    return result
+
+
+def n7_arm_directory(
+    root,
+    experiment_id,
+    arm,
+    pair_index=None,
+    attempt_index=1,
+    warmup=False,
+):
+    root = Path(root)
+    if experiment_id not in N7_EXPERIMENTS:
+        raise ValueError("N7 supports only E2 and E3")
+    if arm not in N7_ARMS:
+        raise ValueError("unknown N7 arm: %s" % arm)
+    if warmup:
+        if pair_index is not None:
+            raise ValueError("N7 warm-up paths do not have a pair index")
+        attempt_index = int(attempt_index)
+        if attempt_index not in (1, 2):
+            raise ValueError("N7 permits at most one replacement attempt")
+        return (
+            root
+            / "warmup"
+            / experiment_id
+            / ("attempt_%02d" % attempt_index)
+            / arm
+        )
+    pair_index = int(pair_index)
+    attempt_index = int(attempt_index)
+    if pair_index < 1 or pair_index > N7_PAIR_COUNT:
+        raise ValueError("invalid N7 pair index")
+    if attempt_index not in (1, 2):
+        raise ValueError("N7 permits at most one replacement attempt")
+    return (
+        root
+        / experiment_id
+        / ("pair_%02d" % pair_index)
+        / ("attempt_%02d" % attempt_index)
+        / arm
+    )
+
+
+def _n7_utc_now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _n7_pid_is_descendant(pid, ancestor_pid):
+    try:
+        pid = int(pid)
+        ancestor_pid = int(ancestor_pid)
+    except (TypeError, ValueError):
+        return False
+    visited = set()
+    while pid > 1 and pid not in visited:
+        if pid == ancestor_pid:
+            return True
+        visited.add(pid)
+        status_path = Path("/proc") / str(pid) / "status"
+        try:
+            status = status_path.read_text()
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            return False
+        match = re.search(r"^PPid:\s+(\d+)$", status, flags=re.MULTILINE)
+        if not match:
+            return False
+        pid = int(match.group(1))
+    return pid == ancestor_pid
+
+
+def _n7_nvidia_cuda_version():
+    output = subprocess.check_output(
+        ["nvidia-smi", "--query"], text=True, timeout=10
+    )
+    match = re.search(r"^CUDA Version\s*:\s*(.+)$", output, re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
+def n7_gpu_snapshot(physical_index, owner_pid=None):
+    physical_index = int(physical_index)
+    owner_pid = os.getpid() if owner_pid is None else int(owner_pid)
+    query_fields = (
+        "index",
+        "uuid",
+        "name",
+        "driver_version",
+        "temperature.gpu",
+        "pstate",
+        "clocks.current.sm",
+        "clocks.current.memory",
+        "power.draw",
+        "memory.used",
+        "memory.total",
+        "utilization.gpu",
+        "utilization.memory",
+    )
+    output = subprocess.check_output(
+        [
+            "nvidia-smi",
+            "--id=%d" % physical_index,
+            "--query-gpu=%s" % ",".join(query_fields),
+            "--format=csv,noheader,nounits",
+        ],
+        text=True,
+        timeout=10,
+    ).strip()
+    rows = list(csv.reader([output], skipinitialspace=True))
+    if len(rows) != 1 or len(rows[0]) != len(query_fields):
+        raise RuntimeError("unexpected nvidia-smi GPU query output: %r" % output)
+    values = dict(zip(query_fields, rows[0]))
+    process_output = subprocess.check_output(
+        [
+            "nvidia-smi",
+            "--id=%d" % physical_index,
+            "--query-compute-apps=pid,process_name,used_gpu_memory,gpu_uuid",
+            "--format=csv,noheader,nounits",
+        ],
+        text=True,
+        timeout=10,
+    ).strip()
+    processes = []
+    if process_output:
+        for row in csv.reader(process_output.splitlines(), skipinitialspace=True):
+            if len(row) != 4:
+                raise RuntimeError(
+                    "unexpected nvidia-smi process query output: %r" % row
+                )
+            pid = int(row[0])
+            processes.append(
+                {
+                    "pid": pid,
+                    "process_name": row[1],
+                    "used_gpu_memory_mib": float(row[2]),
+                    "gpu_uuid": row[3],
+                    "owned_by_campaign": _n7_pid_is_descendant(
+                        pid, owner_pid
+                    ),
+                }
+            )
+    return {
+        "timestamp_utc": _n7_utc_now(),
+        "physical_index": int(values["index"]),
+        "uuid": values["uuid"],
+        "name": values["name"],
+        "driver_version": values["driver_version"],
+        "temperature_c": float(values["temperature.gpu"]),
+        "pstate": values["pstate"],
+        "sm_clock_mhz": float(values["clocks.current.sm"]),
+        "memory_clock_mhz": float(values["clocks.current.memory"]),
+        "power_draw_w": float(values["power.draw"]),
+        "memory_used_mib": float(values["memory.used"]),
+        "memory_total_mib": float(values["memory.total"]),
+        "gpu_utilization_percent": float(values["utilization.gpu"]),
+        "memory_utilization_percent": float(values["utilization.memory"]),
+        "active_compute_processes": processes,
+        "foreign_compute_processes": [
+            process for process in processes if not process["owned_by_campaign"]
+        ],
+    }
+
+
+def n7_environment_invalid_reasons(
+    snapshots,
+    expected_physical_index,
+    expected_uuid,
+    expected_driver_version=None,
+):
+    reasons = []
+    foreign = {}
+    for snapshot in snapshots:
+        if snapshot["physical_index"] != int(expected_physical_index):
+            reasons.append(
+                "physical_gpu_index_changed:%s"
+                % snapshot["physical_index"]
+            )
+        if snapshot["uuid"] != expected_uuid:
+            reasons.append("gpu_uuid_changed:%s" % snapshot["uuid"])
+        if (
+            expected_driver_version is not None
+            and snapshot["driver_version"] != expected_driver_version
+        ):
+            reasons.append(
+                "driver_version_changed:%s" % snapshot["driver_version"]
+            )
+        for process in snapshot.get("foreign_compute_processes", []):
+            foreign[(process["pid"], process["process_name"])] = process
+    for pid, process_name in sorted(foreign):
+        reasons.append("foreign_compute_process:%d:%s" % (pid, process_name))
+    return sorted(set(reasons))
+
+
+def _n7_require_close(label, actual, expected, tolerance=1e-12):
+    if not math.isclose(
+        float(actual), float(expected), rel_tol=0.0, abs_tol=tolerance
+    ):
+        raise ValueError(
+            "N7 frozen %s drifted: %r != %r" % (label, actual, expected)
+        )
+
+
+def validate_n7_frozen_arguments(args, child_arm=None):
+    expected_experiments = (
+        list(N7_EXPERIMENTS) if child_arm is None else [args.experiments[0]]
+    )
+    if list(args.experiments) != expected_experiments:
+        raise ValueError(
+            "N7 experiments must be %s" % " ".join(expected_experiments)
+        )
+    if child_arm is not None and args.experiments[0] not in N7_EXPERIMENTS:
+        raise ValueError("N7 child supports only E2 or E3")
+    if list(args.seeds) != [N7_SEED]:
+        raise ValueError("N7 seed must remain 1000")
+    if int(args.n7_physical_gpu_index) != N7_PHYSICAL_GPU_INDEX:
+        raise ValueError("N7 must remain on physical GPU 2")
+    if int(args.iterations) != N7_ITERATIONS:
+        raise ValueError("N7 iteration count must remain 50")
+    _n7_require_close("learning-rate scale", args.learning_rate_scale, 1.0)
+    _n7_require_close("anchor gradient ratio", args.anchor_gradient_ratio, 0.1)
+    _n7_require_close(
+        "collision gradient ratio", args.collision_gradient_ratio, 0.1
+    )
+    _n7_require_close("collision margin", args.collision_margin_mm, 0.0)
+    _n7_require_close("collision tau", args.collision_tau_mm, 0.025)
+    _n7_require_close("guard backoff", args.exact_step_guard_backoff, 0.5)
+    if int(args.exact_step_guard_max_retries) != 4:
+        raise ValueError("N7 guard retries must remain four")
+    if int(args.exact_contact_projection_max_iterations) != 8:
+        raise ValueError("N7 contact iterations must remain eight")
+    if int(args.exact_contact_projection_max_nodes) != 32:
+        raise ValueError("N7 corrected-node limit must remain 32")
+    if int(args.exact_contact_projection_max_cover_component_nodes) != 16:
+        raise ValueError("N7 component-node limit must remain 16")
+    _n7_require_close("constraint grid", args.grid_mm, 0.05)
+    _n7_require_close("clearance", args.clearance_mm, 0.0)
+    _n7_require_close("Keep-in margin", args.keepin_margin_mm, 0.1)
+    _n7_require_close("Keep-in margin tau", args.keepin_margin_tau_mm, 0.05)
+    _n7_require_close("site size", args.site_mm, 0.05)
+    if not args.gpu or not args.irregular_density:
+        raise ValueError("N7 requires GPU and irregular density")
+    if args.initialization_track != "checkpoint_warm_start":
+        raise ValueError("N7 requires checkpoint_warm_start")
+    if Path(args.checkpoint_placement).resolve() != DEFAULT_M336_CHECKPOINT_PL.resolve():
+        raise ValueError("N7 checkpoint placement drifted")
+    if Path(args.assignment).resolve() != DEFAULT_M336_ASSIGNMENT.resolve():
+        raise ValueError("N7 assignment drifted")
+    if not Path(args.python).resolve().is_file():
+        raise ValueError("N7 requires an explicit existing Python executable")
+    if args.anchor_gradient_ratio_sweep:
+        raise ValueError("N7 prohibits anchor-ratio sweeps")
+    if args.resume or args.reevaluate:
+        raise ValueError("N7 prohibits resume and reevaluation")
+    if args.collision_pair_diagnostics:
+        raise ValueError("N7 pair diagnostics must remain disabled")
+    if child_arm is None or child_arm == N7_CONSENSUS_ARM:
+        if not (
+            args.footprint_collision
+            and args.exact_step_guard
+            and args.exact_contact_projection
+        ):
+            raise ValueError("N7 consensus contact stack is incomplete")
+        if args.exact_contact_policy != N7_CONSENSUS_ARM:
+            raise ValueError("N7 candidate policy must be consensus_per_step")
+        if args.exact_contact_projection_mode != "component_consensus":
+            raise ValueError("N7 candidate contact mode drifted")
+        if args.exact_contact_topology_tiebreak:
+            raise ValueError("N7 topology tie-break must remain disabled")
+    elif child_arm == N7_FEATURE_OFF_ARM:
+        if (
+            args.footprint_collision
+            or args.exact_step_guard
+            or args.exact_contact_projection
+        ):
+            raise ValueError("N7 feature-off contact stack must be disabled")
+        if args.exact_contact_policy:
+            raise ValueError("N7 feature-off control cannot name a policy")
+    else:
+        raise ValueError("unknown N7 child arm: %s" % child_arm)
+
+
+def validate_n7_arm_config(config, experiment_id, arm):
+    if experiment_id not in N7_EXPERIMENTS or arm not in N7_ARMS:
+        raise RuntimeError("invalid N7 experiment or arm")
+    stage = config["global_place_stages"]
+    if len(stage) != 1:
+        raise RuntimeError("N7 requires exactly one native GP stage")
+    stage = stage[0]
+    expected_common = {
+        "iteration": N7_ITERATIONS,
+        "learning_rate": DEFAULT_M336_LEARNING_RATE,
+        "optimizer": "adam",
+        "wirelength": "weighted_average",
+    }
+    for field, expected in expected_common.items():
+        actual = stage.get(field)
+        if actual != expected:
+            raise RuntimeError(
+                "N7 stage field %s drifted: %r != %r"
+                % (field, actual, expected)
+            )
+    common = {
+        "gpu": 1,
+        "gpu_id": 0,
+        "target_density": DEFAULT_M336_TARGET_DENSITY,
+        "random_seed": N7_SEED,
+        "dtype": "float32",
+        "deterministic_flag": 1,
+        "irregular_density_flag": True,
+        "keepin_projection_flag": True,
+        "constraint_grid_mm": 0.05,
+        "keepin_clearance_mm": 0.0,
+        "keepin_margin_mm": 0.1,
+        "keepin_margin_tau_mm": 0.05,
+        "initialization_track": "checkpoint_warm_start",
+        "initial_placement_role": "m336_118_checkpoint",
+        "exact_repair_flag": False,
+        "legalize_flag": 0,
+        "detailed_place_flag": 0,
+        "collision_pair_diagnostics_flag": False,
+    }
+    for field, expected in common.items():
+        if config.get(field) != expected:
+            raise RuntimeError(
+                "N7 config field %s drifted: %r != %r"
+                % (field, config.get(field), expected)
+            )
+    if Path(config["initial_placement_file"]).resolve() != DEFAULT_M336_CHECKPOINT_PL.resolve():
+        raise RuntimeError("N7 config checkpoint path drifted")
+    if bool(config.get("anchor_loss_flag")) != (experiment_id == "E3"):
+        raise RuntimeError("N7 E2/E3 anchor contract drifted")
+    if arm == N7_FEATURE_OFF_ARM:
+        for field in (
+            "footprint_collision_loss_flag",
+            "exact_step_guard_flag",
+            "exact_contact_projection_flag",
+        ):
+            if config.get(field):
+                raise RuntimeError("N7 feature-off field enabled: %s" % field)
+        if config.get("exact_contact_policy"):
+            raise RuntimeError("N7 feature-off config names a contact policy")
+    else:
+        candidate = {
+            "footprint_collision_loss_flag": True,
+            "collision_gradient_ratio": 0.1,
+            "collision_margin_mm": 0.0,
+            "collision_tau_mm": 0.025,
+            "exact_step_guard_flag": True,
+            "exact_step_guard_backoff": 0.5,
+            "exact_step_guard_max_retries": 4,
+            "exact_contact_projection_flag": True,
+            "exact_contact_policy": N7_CONSENSUS_ARM,
+            "exact_contact_projection_mode": "component_consensus",
+            "exact_contact_projection_max_iterations": 8,
+            "exact_contact_projection_max_nodes": 32,
+            "exact_contact_projection_max_cover_component_nodes": 16,
+        }
+        for field, expected in candidate.items():
+            if config.get(field) != expected:
+                raise RuntimeError(
+                    "N7 candidate field %s drifted: %r != %r"
+                    % (field, config.get(field), expected)
+                )
+        forbidden = (
+            "exact_contact_projection_authority_search_strategy",
+            "exact_contact_topology_tiebreak_flag",
+        )
+        if any(config.get(field) for field in forbidden):
+            raise RuntimeError("N7 candidate enabled authority/topology work")
+
+
+def validate_n7_constraint_config(config):
+    if Path(config["region_assignment_file"]).resolve() != (
+        DEFAULT_M336_ASSIGNMENT.resolve()
+    ):
+        raise RuntimeError("N7 constraint assignment drifted")
+    if Path(config["geometry_file"]).resolve() != (
+        REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json"
+    ).resolve():
+        raise RuntimeError("N7 constraint geometry drifted")
+    endpoint = config["endpoint_policy"]
+    if (
+        endpoint.get("default") != "runtime"
+        or endpoint.get("manual_endpoints") != ["EMI601"]
+        or endpoint.get("runtime_endpoints") != ["Q601"]
+    ):
+        raise RuntimeError("N7 constraint endpoint policy drifted")
+    geometry = config["geometry"]
+    expected_geometry = {
+        "constraint_grid_mm": 0.05,
+        "clearance_mm": 0.0,
+        "keepin_margin_mm": 0.1,
+        "keepin_margin_tau_mm": 0.05,
+        "no_board_bbox_fallback": True,
+    }
+    for field, expected in expected_geometry.items():
+        if geometry.get(field) != expected:
+            raise RuntimeError("N7 constraint geometry field drifted: %s" % field)
+    if config["feature_flags"].get("enable_exact_repair"):
+        raise RuntimeError("N7 constraint enabled repair")
+    if config["reporting"].get("area_epsilon_mm2") != 1e-5:
+        raise RuntimeError("N7 exact legality epsilon drifted")
+
+
+def n7_canonical_input_identity(input_sha256):
+    bookshelf_names = {
+        "m336.aux",
+        "m336.nodes",
+        "m336.nets",
+        "m336.pl",
+        "m336.baseline.aux",
+        "m336.baseline.pl",
+        "m336.scl",
+    }
+    canonical = {}
+    for path, digest in sorted(input_sha256.items()):
+        name = Path(path).name
+        if name in N7_RUN_LOCAL_INPUT_METADATA:
+            continue
+        key = "bookshelf/%s" % name if name in bookshelf_names else path
+        if key in canonical and canonical[key] != digest:
+            raise RuntimeError("N7 canonical input key collision: %s" % key)
+        canonical[key] = digest
+    return canonical
+
+
+def validate_n7_provenance(reference, result):
+    source = result["source_state"]
+    expected_source = reference["source_state"]
+    for field in (
+        "branch",
+        "git_sha",
+        "tracked_diff_sha256",
+        "dirty_paths",
+        "implementation_sha256",
+        "source_install_mismatches",
+    ):
+        if source.get(field) != expected_source.get(field):
+            raise RuntimeError("N7 source/install drift: %s" % field)
+    actual_raw_input = result["input_sha256"]
+    for path, digest in reference.get("static_input_sha256", {}).items():
+        if actual_raw_input.get(path) != digest:
+            raise RuntimeError("N7 static input hash drift: %s" % path)
+    actual_input = n7_canonical_input_identity(actual_raw_input)
+    expected_input = reference.get("input_sha256")
+    if expected_input is None:
+        reference["input_sha256"] = actual_input
+    elif actual_input != expected_input:
+        difference = _n7_first_difference(
+            expected_input, actual_input, path="input_sha256"
+        )
+        raise RuntimeError("N7 input hash drift: %s" % difference)
+
+
+def _n7_effective_step_size(attempt):
+    step_size = attempt.get("step_size")
+    if isinstance(step_size, dict):
+        step_size = step_size.get("effective_step_size")
+    return None if step_size is None else float(step_size)
+
+
+def n7_attempt_sequence(native_execution):
+    sequence = []
+    for attempt in native_execution.get("exact_step_guard_attempts", []):
+        contact = attempt.get("contact_projection") or {}
+        rollback = attempt.get("rollback") or {}
+        sequence.append(
+            {
+                "iteration": int(attempt["iteration"]),
+                "retry_index": int(attempt["retry_index"]),
+                "accepted": bool(attempt["accepted"]),
+                "reason": str(attempt.get("reason", "")),
+                "contact_reason": str(contact.get("reason", "")),
+                "effective_step_size": _n7_effective_step_size(attempt),
+                "position_restored": rollback.get("position_restored"),
+                "optimizer_restored": rollback.get("optimizer_restored"),
+            }
+        )
+    return sequence
+
+
+def _n7_final_learning_rate(result):
+    native = result["metrics"]["native_execution"]
+    accepted = [
+        attempt
+        for attempt in native.get("exact_step_guard_attempts", [])
+        if attempt.get("accepted")
+    ]
+    if accepted:
+        return _n7_effective_step_size(accepted[-1])
+    steps = native.get("optimizer_steps", [])
+    return float(steps[-1]["learning_rate"]) if steps else None
+
+
+def n7_result_identity(result, include_guard):
+    score = result["serialized_native_score"]
+    native = result["metrics"]["native_execution"]
+    identity = {
+        "input_placement_sha256": score["input_placement_sha256"],
+        "replayed_placement_sha256": score["replayed_placement_sha256"],
+        "hpwl": float(score["hpwl"]),
+        "rsmt": float(score["rsmt"]),
+        "normalized_quality_score": float(
+            result["manual_baseline_comparison"]["normalized_quality_score"]
+        ),
+        "anchor_distance_mm": result["metrics"]["anchor_distance_mm"],
+        "projected_anchor_distance_mm": result["metrics"][
+            "projected_anchor_distance_mm"
+        ],
+        "legality": result["legality"],
+        "optimizer_step_count": int(native["optimizer_step_count"]),
+        "optimizer_changed_step_count": int(
+            native["optimizer_changed_step_count"]
+        ),
+        "final_effective_learning_rate": _n7_final_learning_rate(result),
+    }
+    if include_guard:
+        sequence = n7_attempt_sequence(native)
+        identity.update(
+            {
+                "attempt_sequence": sequence,
+                "attempt_sequence_sha256": _n7_payload_sha256(sequence),
+            }
+        )
+    return identity
+
+
+def _n7_require_zero_checkpoint_legality(native):
+    checkpoints = native.get("exact_overlap_checkpoints", [])
+    if len(checkpoints) != N7_ITERATIONS + 1:
+        raise RuntimeError(
+            "N7 candidate requires 51 exact accepted checkpoints; found %d"
+            % len(checkpoints)
+        )
+    for checkpoint in checkpoints:
+        if (
+            int(checkpoint["overlap_pair_count"]) != 0
+            or float(checkpoint["overlap_area_mm2"]) != 0.0
+            or int(checkpoint["keepin_violation_count"]) != 0
+        ):
+            raise RuntimeError(
+                "N7 candidate accepted an illegal checkpoint: %s"
+                % checkpoint
+            )
+
+
+def validate_n7_result(result, experiment_id, arm):
+    if result.get("experiment_id") != experiment_id:
+        raise RuntimeError("N7 child experiment identity drifted")
+    if result.get("seed") != N7_SEED:
+        raise RuntimeError("N7 child seed drifted")
+    if result.get("initialization_track") != "checkpoint_warm_start":
+        raise RuntimeError("N7 child initialization track drifted")
+    validate_n7_arm_config(result["config"], experiment_id, arm)
+    native = result["metrics"].get("native_execution")
+    if native is None:
+        raise RuntimeError("N7 child lacks native execution evidence")
+    required_native = {
+        "nonlinear_place_executed": True,
+        "place_obj_executed": True,
+        "backward_call_count": 53,
+        "optimizer_step_count": N7_ITERATIONS,
+        "optimizer_changed_step_count": N7_ITERATIONS,
+        "optimizer_names": ["adam"],
+    }
+    for field, expected in required_native.items():
+        if native.get(field) != expected:
+            raise RuntimeError(
+                "N7 native evidence %s drifted: %r != %r"
+                % (field, native.get(field), expected)
+            )
+    score = result["serialized_native_score"]
+    if (
+        not math.isfinite(float(score["hpwl"]))
+        or not math.isfinite(float(score["rsmt"]))
+        or float(score["coordinate_replay_max_error"]) != 0.0
+        or score["input_placement_sha256"]
+        != score["replayed_placement_sha256"]
+    ):
+        raise RuntimeError("N7 native score or float64 replay is invalid")
+    legality = result["legality"]
+    if (
+        float(legality["area_epsilon_mm2"]) != 1e-5
+        or
+        int(legality["constrained_components"]) != 100
+        or int(legality["fully_contained_components"]) != 100
+        or int(legality["keepin_violation_count"]) != 0
+    ):
+        raise RuntimeError("N7 final containment/Keep-in contract failed")
+    if (
+        result.get("repair") is not None
+        or "repair" in result.get("artifacts", {})
+        or float(result.get("timing", {}).get("bounded_repair_seconds", 0.0))
+        != 0.0
+    ):
+        raise RuntimeError("N7 run used prohibited repair")
+    endpoint = result.get("preflight", {}).get("endpoint_policy", {})
+    if (
+        endpoint.get("default") != "runtime"
+        or endpoint.get("manual_endpoints") != ["EMI601"]
+        or endpoint.get("runtime_endpoints") != ["Q601"]
+    ):
+        raise RuntimeError("N7 endpoint policy drifted")
+    if arm == N7_FEATURE_OFF_ARM:
+        if (
+            result.get("footprint_collision_enabled")
+            or result.get("exact_step_guard_enabled")
+            or result.get("exact_contact_projection_enabled")
+            or result.get("exact_contact_policy")
+        ):
+            raise RuntimeError("N7 feature-off result enabled contact work")
+    else:
+        if (
+            not result.get("footprint_collision_enabled")
+            or not result.get("exact_step_guard_enabled")
+            or not result.get("exact_contact_projection_enabled")
+            or result.get("exact_contact_policy") != N7_CONSENSUS_ARM
+        ):
+            raise RuntimeError("N7 candidate result lacks production policy")
+        if (
+            int(native.get("exact_step_guard_accepted_step_count", -1))
+            != N7_ITERATIONS
+        ):
+            raise RuntimeError("N7 candidate did not accept 50 legal steps")
+        _n7_require_zero_checkpoint_legality(native)
+        if (
+            int(legality["overlap_pair_count"]) != 0
+            or float(legality["overlap_area_mm2"]) != 0.0
+        ):
+            raise RuntimeError("N7 candidate final overlap is nonzero")
+        for attempt in native.get("exact_step_guard_attempts", []):
+            contact = attempt.get("contact_projection") or {}
+            if int(contact.get("cover_search_state_count", 0)) != 0:
+                raise RuntimeError("N7 candidate enumerated authority states")
+            if not attempt.get("accepted"):
+                rollback = attempt.get("rollback") or {}
+                if not (
+                    rollback.get("position_restored")
+                    and rollback.get("optimizer_restored")
+                ):
+                    raise RuntimeError("N7 candidate rollback was incomplete")
+    identity = n7_result_identity(
+        result, include_guard=(arm == N7_CONSENSUS_ARM)
+    )
+    return {
+        "identity": identity,
+        "identity_sha256": _n7_payload_sha256(identity),
+        "timing": n7_timing_record(result["timing"]),
+        "correctness": {
+            "backward_call_count": int(native["backward_call_count"]),
+            "optimizer_step_count": int(native["optimizer_step_count"]),
+            "optimizer_changed_step_count": int(
+                native["optimizer_changed_step_count"]
+            ),
+            "guard_accepted_step_count": int(
+                native.get("exact_step_guard_accepted_step_count", 0)
+            ),
+            "guard_rejected_attempt_count": int(
+                native.get("exact_step_guard_rejected_attempt_count", 0)
+            ),
+            "rollback_count": sum(
+                1
+                for attempt in native.get("exact_step_guard_attempts", [])
+                if not attempt.get("accepted")
+                and (attempt.get("rollback") or {}).get("position_restored")
+                and (attempt.get("rollback") or {}).get("optimizer_restored")
+            ),
+            "accepted_checkpoint_count": len(
+                native.get("exact_overlap_checkpoints", [])
+            ),
+        },
+        "gpu_optimization_seconds": float(
+            result["timing"]["gpu_optimization_seconds"]
+        ),
+        "end_to_end_seconds": float(result["timing"]["end_to_end_seconds"]),
+    }
+
+
+def n7_timing_record(timing):
+    missing = [field for field in N7_REPORTED_TIMING_FIELDS if field not in timing]
+    if missing:
+        raise RuntimeError("N7 timing fields are missing: %s" % missing)
+    record = {
+        field: float(timing[field]) for field in N7_REPORTED_TIMING_FIELDS
+    }
+    if any(not math.isfinite(value) or value < 0 for value in record.values()):
+        raise RuntimeError("N7 timing buckets must be finite and non-negative")
+    expected_gpu = max(
+        record["optimization_wall_seconds"]
+        - record["exact_step_guard_seconds"]
+        - record["exact_overlap_diagnostic_seconds"],
+        0.0,
+    )
+    if not math.isclose(
+        record["gpu_optimization_seconds"],
+        expected_gpu,
+        rel_tol=0.0,
+        abs_tol=max(1e-9, record["optimization_wall_seconds"] * 1e-9),
+    ):
+        raise RuntimeError("N7 GPU timing-boundary identity changed")
+    return record
+
+
+def validate_n7_determinism(reference_identity, candidate_identity, label):
+    if reference_identity is None:
+        return json.loads(json.dumps(candidate_identity))
+    difference = _n7_first_difference(
+        reference_identity, candidate_identity, path=label
+    )
+    if difference:
+        raise RuntimeError("N7 deterministic output divergence: %s" % difference)
+    return reference_identity
+
+
+def n7_directory_manifest(path):
+    path = Path(path)
+    rows = []
+    if path.exists():
+        for file_path in sorted(
+            (candidate for candidate in path.rglob("*") if candidate.is_file()),
+            key=lambda candidate: str(candidate.relative_to(path)),
+        ):
+            rows.append(
+                {
+                    "path": str(file_path.relative_to(path)),
+                    "sha256": sha256_file(file_path),
+                    "size": file_path.stat().st_size,
+                }
+            )
+    return {
+        "path": repo_path(path),
+        "file_count": len(rows),
+        "files": rows,
+        "manifest_sha256": _n7_payload_sha256(rows),
+    }
+
+
+def n7_arm_command(args, experiment_id, arm, arm_dir):
+    arm_dir = Path(arm_dir).resolve()
+    command = [
+        str(Path(args.python).resolve()),
+        str(Path(__file__).resolve()),
+        "--experiments",
+        experiment_id,
+        "--seeds",
+        str(N7_SEED),
+        "--iterations",
+        str(N7_ITERATIONS),
+        "--learning-rate-scale",
+        "1",
+        "--gpu",
+        "--irregular-density",
+        "--collision-gradient-ratio",
+        "0.1",
+        "--collision-margin-mm",
+        "0",
+        "--collision-tau-mm",
+        "0.025",
+        "--exact-step-guard-backoff",
+        "0.5",
+        "--exact-step-guard-max-retries",
+        "4",
+        "--no-collision-pair-diagnostics",
+        "--exact-contact-projection-max-iterations",
+        "8",
+        "--exact-contact-projection-max-nodes",
+        "32",
+        "--exact-contact-projection-max-cover-component-nodes",
+        "16",
+        "--initialization-track",
+        "checkpoint_warm_start",
+        "--checkpoint-placement",
+        str(Path(args.checkpoint_placement).resolve()),
+        "--feasible-domain-cache-dir",
+        str(Path(args.feasible_domain_cache_dir).resolve()),
+        "--python",
+        str(Path(args.python).resolve()),
+        "--placer",
+        str(Path(args.placer).resolve()),
+        "--assignment",
+        str(Path(args.assignment).resolve()),
+        "--baseline-geometry",
+        str(Path(args.baseline_geometry).resolve()),
+        "--bookshelf-dir",
+        str((arm_dir / "input" / "bookshelf").resolve()),
+        "--baseline-output-dir",
+        str((arm_dir / "manual-baseline").resolve()),
+        "--anchor-gradient-ratio",
+        "0.1",
+        "--grid-mm",
+        "0.05",
+        "--clearance-mm",
+        "0",
+        "--keepin-margin-mm",
+        "0.1",
+        "--keepin-margin-tau-mm",
+        "0.05",
+        "--site-mm",
+        "0.05",
+        "--validation-path",
+        str((arm_dir / "validation.json").resolve()),
+        "--output-dir",
+        str(arm_dir),
+        "--summary-path",
+        str((arm_dir / "summary.json").resolve()),
+        "--report-path",
+        str((arm_dir / "REPORT.md").resolve()),
+        "--n7-arm",
+        arm,
+        "--n7-physical-gpu-index",
+        str(args.n7_physical_gpu_index),
+    ]
+    if arm == N7_FEATURE_OFF_ARM:
+        command.extend(
+            [
+                "--no-footprint-collision",
+                "--no-exact-step-guard",
+                "--no-exact-contact-projection",
+            ]
+        )
+    elif arm == N7_CONSENSUS_ARM:
+        command.extend(
+            [
+                "--footprint-collision",
+                "--exact-step-guard",
+                "--exact-contact-projection",
+                "--exact-contact-policy",
+                N7_CONSENSUS_ARM,
+            ]
+        )
+    else:
+        raise ValueError("unknown N7 arm: %s" % arm)
+    return command
+
+
+def _n7_monitored_subprocess(command, output_path, physical_gpu_index):
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    environment = _native_subprocess_environment(
+        overrides={
+            "CUDA_VISIBLE_DEVICES": str(physical_gpu_index),
+            "PYTHONPATH": "%s:%s"
+            % (REPO_ROOT / "install", REPO_ROOT),
+            "PYTHONFAULTHANDLER": "1",
+        }
+    )
+    started_utc = _n7_utc_now()
+    started = time.perf_counter()
+    samples = []
+    sampling_errors = []
+    with output_path.open("w") as output:
+        process = subprocess.Popen(
+            command,
+            cwd=REPO_ROOT,
+            env=environment,
+            text=True,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+        )
+        while process.poll() is None:
+            try:
+                samples.append(
+                    n7_gpu_snapshot(
+                        physical_gpu_index, owner_pid=os.getpid()
+                    )
+                )
+            except Exception as error:
+                sampling_errors.append(
+                    "%s:%s" % (type(error).__name__, error)
+                )
+            time.sleep(N7_SAMPLE_INTERVAL_SECONDS)
+        returncode = process.wait()
+    elapsed = time.perf_counter() - started
+    try:
+        samples.append(
+            n7_gpu_snapshot(physical_gpu_index, owner_pid=os.getpid())
+        )
+    except Exception as error:
+        sampling_errors.append("%s:%s" % (type(error).__name__, error))
+    return {
+        "command": command,
+        "command_shell": shlex.join(command),
+        "started_utc": started_utc,
+        "finished_utc": _n7_utc_now(),
+        "elapsed_seconds": elapsed,
+        "returncode": returncode,
+        "gpu_samples": samples,
+        "gpu_sampling_errors": sampling_errors,
+        "process_log": repo_path(output_path),
+    }
+
+
+class N7EnvironmentalError(RuntimeError):
+    """An objective environment failure that may use one replacement."""
+
+
+class N7CorrectnessError(RuntimeError):
+    """A frozen-contract, legality, or determinism failure."""
+
+
+def n7_invalid_attempt_action(attempt_index):
+    attempt_index = int(attempt_index)
+    if attempt_index == 1:
+        return "replace"
+    if attempt_index == 2:
+        return "stop_incomplete"
+    raise ValueError("N7 permits exactly one replacement attempt")
+
+
+def n7_preserved_paths_state():
+    state = {}
+    for path in N7_PRESERVED_PATHS:
+        if path.is_file():
+            state[repo_path(path)] = {
+                "kind": "file",
+                "exists": True,
+                "sha256": sha256_file(path),
+                "size": path.stat().st_size,
+            }
+        elif path.is_dir():
+            state[repo_path(path)] = {
+                "kind": "directory",
+                "exists": True,
+                **n7_directory_manifest(path),
+            }
+        else:
+            state[repo_path(path)] = {
+                "kind": "missing",
+                "exists": False,
+            }
+    return state
+
+
+def n7_repository_snapshot():
+    return {
+        "timestamp_utc": _n7_utc_now(),
+        "status_short": subprocess.check_output(
+            ["git", "status", "--short"], cwd=REPO_ROOT, text=True
+        ).splitlines(),
+        "branch": git_branch(),
+        "head": git_sha(),
+        "log_10": subprocess.check_output(
+            ["git", "log", "-10", "--oneline"],
+            cwd=REPO_ROOT,
+            text=True,
+        ).splitlines(),
+        "diff_check": subprocess.run(
+            ["git", "diff", "--check"],
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        ).stdout.splitlines(),
+    }
+
+
+def n7_static_input_hashes(args):
+    return hash_paths(
+        (
+            REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json",
+            REPO_ROOT / "experiments/m336/input/m336_clusters.json",
+            args.baseline_geometry,
+            args.checkpoint_placement,
+            args.assignment,
+        )
+    )
+
+
+def _n7_attempt_directory(
+    root, experiment_id, attempt_index, pair_index=None, warmup=False
+):
+    return n7_arm_directory(
+        root,
+        experiment_id,
+        N7_FEATURE_OFF_ARM,
+        pair_index=pair_index,
+        attempt_index=attempt_index,
+        warmup=warmup,
+    ).parent
+
+
+def _n7_require_fresh_path(path, label):
+    path = Path(path)
+    if path.exists():
+        raise N7CorrectnessError(
+            "N7 %s path is not fresh: %s" % (label, path)
+        )
+
+
+def _n7_load_child_result(arm_dir):
+    summary_path = Path(arm_dir) / "summary.json"
+    report_path = Path(arm_dir) / "REPORT.md"
+    if not summary_path.is_file() or not report_path.is_file():
+        raise N7EnvironmentalError(
+            "required child summary/report artifacts are absent: %s"
+            % arm_dir
+        )
+    try:
+        summary = json.loads(summary_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise N7EnvironmentalError(
+            "cannot read child summary %s: %s" % (summary_path, error)
+        ) from error
+    if len(summary.get("runs", [])) != 1:
+        raise N7EnvironmentalError(
+            "child summary must contain exactly one run: %s" % summary_path
+        )
+    return summary, summary["runs"][0], summary_path, report_path
+
+
+def _n7_require_arm_artifact_isolation(
+    arm_dir, summary_path, report_path, result
+):
+    arm_dir = Path(arm_dir).resolve()
+    expected_paths = {
+        "summary": arm_dir / "summary.json",
+        "report": arm_dir / "REPORT.md",
+    }
+    actual_paths = {
+        "summary": Path(summary_path).resolve(),
+        "report": Path(report_path).resolve(),
+    }
+    if actual_paths != expected_paths:
+        raise N7CorrectnessError("N7 summary/report path isolation failed")
+    config = result["config"]
+    for field in N7_RUN_LOCAL_CONFIG_FIELDS:
+        value = config.get(field)
+        if value is None:
+            continue
+        try:
+            Path(value).resolve().relative_to(arm_dir)
+        except ValueError as error:
+            raise N7CorrectnessError(
+                "N7 run-local config path escaped its arm: %s=%s"
+                % (field, value)
+            ) from error
+
+
+def _n7_execute_arm(
+    args,
+    reference,
+    experiment_id,
+    arm,
+    attempt_dir,
+    pair_index=None,
+    attempt_index=1,
+    warmup=False,
+):
+    arm_dir = n7_arm_directory(
+        args.output_dir,
+        experiment_id,
+        arm,
+        pair_index=pair_index,
+        attempt_index=attempt_index,
+        warmup=warmup,
+    )
+    _n7_require_fresh_path(arm_dir, "arm output")
+    command = n7_arm_command(args, experiment_id, arm, arm_dir)
+    if "--resume" in command or "--reevaluate" in command:
+        raise N7CorrectnessError("N7 child command enabled result reuse")
+    execution = _n7_monitored_subprocess(
+        command,
+        Path(attempt_dir) / ("%s-runner.log" % arm),
+        args.n7_physical_gpu_index,
+    )
+    write_json(Path(attempt_dir) / ("%s-execution.json" % arm), execution)
+    if execution["gpu_sampling_errors"]:
+        raise N7EnvironmentalError(
+            "N7 GPU monitoring failed: %s"
+            % execution["gpu_sampling_errors"]
+        )
+    if execution["returncode"] != 0:
+        raise N7EnvironmentalError(
+            "N7 child exited with code %d: %s"
+            % (execution["returncode"], execution["process_log"])
+        )
+    summary, result, summary_path, report_path = _n7_load_child_result(
+        arm_dir
+    )
+    if summary.get("n7_arm") != arm:
+        raise N7CorrectnessError("N7 child arm identity is absent or wrong")
+    try:
+        validate_n7_provenance(reference, result)
+    except RuntimeError as error:
+        raise N7EnvironmentalError(str(error)) from error
+    try:
+        validation = validate_n7_result(result, experiment_id, arm)
+        _n7_require_arm_artifact_isolation(
+            arm_dir, summary_path, report_path, result
+        )
+    except (KeyError, TypeError, ValueError, RuntimeError) as error:
+        if isinstance(error, N7CorrectnessError):
+            raise
+        raise N7CorrectnessError(str(error)) from error
+    constraint_path = Path(result["config"]["anchor_keepin_config"])
+    if not constraint_path.is_file():
+        raise N7EnvironmentalError(
+            "N7 child constraint artifact is absent: %s" % constraint_path
+        )
+    constraint = json.loads(constraint_path.read_text())
+    try:
+        validate_n7_constraint_config(constraint)
+    except (KeyError, TypeError, ValueError, RuntimeError) as error:
+        raise N7CorrectnessError(str(error)) from error
+    record = {
+        "arm": arm,
+        "output_dir": repo_path(arm_dir),
+        "summary_path": repo_path(summary_path),
+        "summary_sha256": sha256_file(summary_path),
+        "report_path": repo_path(report_path),
+        "report_sha256": sha256_file(report_path),
+        "run_result_path": repo_path(
+            Path(result["config"]["result_dir"]) / "run-result.json"
+        ),
+        "command": execution["command"],
+        "command_shell": execution["command_shell"],
+        "started_utc": execution["started_utc"],
+        "finished_utc": execution["finished_utc"],
+        "runner_elapsed_seconds": execution["elapsed_seconds"],
+        "runner_returncode": execution["returncode"],
+        "gpu_samples": execution["gpu_samples"],
+        "process_log": execution["process_log"],
+        "input_sha256": result["input_sha256"],
+        "canonical_input_sha256": n7_canonical_input_identity(
+            result["input_sha256"]
+        ),
+        **validation,
+    }
+    return {
+        "record": record,
+        "config": result["config"],
+        "constraint": constraint,
+        "result": result,
+    }
+
+
+def _n7_source_drift_reason(reference_source):
+    current = source_state()
+    difference = _n7_first_difference(
+        reference_source, current, path="source_state"
+    )
+    return None if difference is None else "source_or_install_drift:%s" % difference
+
+
+def _n7_cache_drift_reason(reference_cache):
+    current = n7_directory_manifest(reference_cache["path"])
+    if current["manifest_sha256"] == reference_cache["manifest_sha256"]:
+        return None
+    return "feasible_domain_cache_drift:%s!=%s" % (
+        current["manifest_sha256"],
+        reference_cache["manifest_sha256"],
+    )
+
+
+def _n7_run_pair_attempt(
+    args,
+    reference,
+    expected_gpu,
+    cache_manifest,
+    experiment_id,
+    order,
+    attempt_index,
+    pair_index=None,
+    warmup=False,
+):
+    attempt_dir = _n7_attempt_directory(
+        args.output_dir,
+        experiment_id,
+        attempt_index,
+        pair_index=pair_index,
+        warmup=warmup,
+    )
+    _n7_require_fresh_path(attempt_dir, "pair attempt")
+    attempt_dir.mkdir(parents=True)
+    record = {
+        "experiment_id": experiment_id,
+        "warmup": bool(warmup),
+        "pair_index": pair_index,
+        "attempt_index": int(attempt_index),
+        "order": list(order),
+        "started_utc": _n7_utc_now(),
+        "status": "running",
+        "arms": {},
+        "environmental_invalid_reasons": [],
+    }
+    pre_snapshot = n7_gpu_snapshot(
+        args.n7_physical_gpu_index, owner_pid=os.getpid()
+    )
+    record["pre_pair_gpu"] = pre_snapshot
+    environmental_reasons = n7_environment_invalid_reasons(
+        [pre_snapshot],
+        expected_gpu["physical_index"],
+        expected_gpu["uuid"],
+        expected_gpu["driver_version"],
+    )
+    arm_payloads = {}
+    correctness_error = None
+    if not environmental_reasons:
+        for arm in order:
+            try:
+                payload = _n7_execute_arm(
+                    args,
+                    reference,
+                    experiment_id,
+                    arm,
+                    attempt_dir,
+                    pair_index=pair_index,
+                    attempt_index=attempt_index,
+                    warmup=warmup,
+                )
+                arm_payloads[arm] = payload
+                record["arms"][arm] = payload["record"]
+            except N7EnvironmentalError as error:
+                environmental_reasons.append(str(error))
+                break
+            except N7CorrectnessError as error:
+                correctness_error = str(error)
+                break
+            except Exception as error:
+                correctness_error = (
+                    "unexpected N7 arm orchestration failure: %s" % error
+                )
+                break
+    post_snapshot = n7_gpu_snapshot(
+        args.n7_physical_gpu_index, owner_pid=os.getpid()
+    )
+    record["post_pair_gpu"] = post_snapshot
+    all_samples = [pre_snapshot, post_snapshot]
+    for payload in arm_payloads.values():
+        all_samples.extend(payload["record"]["gpu_samples"])
+    environmental_reasons.extend(
+        n7_environment_invalid_reasons(
+            all_samples,
+            expected_gpu["physical_index"],
+            expected_gpu["uuid"],
+            expected_gpu["driver_version"],
+        )
+    )
+    source_reason = _n7_source_drift_reason(reference["source_state"])
+    if source_reason:
+        environmental_reasons.append(source_reason)
+    cache_reason = _n7_cache_drift_reason(cache_manifest)
+    if cache_reason:
+        environmental_reasons.append(cache_reason)
+    if correctness_error is None and not environmental_reasons:
+        if set(arm_payloads) != set(N7_ARMS):
+            environmental_reasons.append("required_pair_arm_artifacts_absent")
+        else:
+            try:
+                record["config_equivalence"] = validate_n7_config_equivalence(
+                    arm_payloads[N7_FEATURE_OFF_ARM]["config"],
+                    arm_payloads[N7_CONSENSUS_ARM]["config"],
+                    arm_payloads[N7_FEATURE_OFF_ARM]["constraint"],
+                    arm_payloads[N7_CONSENSUS_ARM]["constraint"],
+                )
+            except RuntimeError as error:
+                correctness_error = str(error)
+    record["finished_utc"] = _n7_utc_now()
+    if correctness_error is not None:
+        record["status"] = "correctness_failure"
+        record["correctness_failure"] = correctness_error
+    elif environmental_reasons:
+        record["status"] = "environmentally_invalid"
+        record["environmental_invalid_reasons"] = sorted(
+            set(environmental_reasons)
+        )
+    else:
+        record["status"] = "valid"
+    write_json(attempt_dir / "pair-attempt.json", record)
+    return record
+
+
+def _n7_run_pair_with_replacement(
+    args,
+    reference,
+    expected_gpu,
+    cache_manifest,
+    experiment_id,
+    order,
+    pair_index=None,
+    warmup=False,
+):
+    attempts = []
+    for attempt_index in (1, 2):
+        attempt = _n7_run_pair_attempt(
+            args,
+            reference,
+            expected_gpu,
+            cache_manifest,
+            experiment_id,
+            order,
+            attempt_index,
+            pair_index=pair_index,
+            warmup=warmup,
+        )
+        attempts.append(attempt)
+        if attempt["status"] == "valid":
+            return {"status": "valid", "attempts": attempts, "valid": attempt}
+        if attempt["status"] == "correctness_failure":
+            return {
+                "status": "correctness_failure",
+                "attempts": attempts,
+                "valid": None,
+            }
+        action = n7_invalid_attempt_action(attempt_index)
+        attempt["replacement_action"] = action
+        write_json(
+            _n7_attempt_directory(
+                args.output_dir,
+                experiment_id,
+                attempt_index,
+                pair_index=pair_index,
+                warmup=warmup,
+            )
+            / "pair-attempt.json",
+            attempt,
+        )
+        if action == "stop_incomplete":
+            return {
+                "status": "environment_incomplete",
+                "attempts": attempts,
+                "valid": None,
+            }
+        time.sleep(N7_REPLACEMENT_DELAY_SECONDS)
+    raise AssertionError("unreachable N7 replacement state")
+
+
+def n7_update_determinism(references, experiment_id, arm_record):
+    arm = arm_record["arm"]
+    key = "%s:%s" % (experiment_id, arm)
+    try:
+        references[key] = validate_n7_determinism(
+            references.get(key), arm_record["identity"], key
+        )
+    except RuntimeError as error:
+        raise N7CorrectnessError(str(error)) from error
+
+
+def _n7_experiment_statistics(pair_records):
+    statistics_by_metric = {}
+    for field in N7_TIMING_FIELDS:
+        controls = [
+            pair["arms"][N7_FEATURE_OFF_ARM][field]
+            for pair in pair_records
+        ]
+        candidates = [
+            pair["arms"][N7_CONSENSUS_ARM][field]
+            for pair in pair_records
+        ]
+        statistics_by_metric[field] = n7_metric_statistics(
+            controls, candidates
+        )
+    return statistics_by_metric
+
+
+def _n7_contract_payload(args, source, repository, preserved, cache, gpu):
+    return {
+        "schema": N7_CONTRACT_SCHEMA,
+        "created_utc": _n7_utc_now(),
+        "repository": repository,
+        "source_state": source,
+        "static_input_sha256": n7_static_input_hashes(args),
+        "preserved_paths_before": preserved,
+        "physical_gpu": gpu,
+        "cuda_version": _n7_nvidia_cuda_version(),
+        "python": subprocess.check_output(
+            [str(Path(args.python).resolve()), "--version"],
+            text=True,
+            stderr=subprocess.STDOUT,
+        ).strip(),
+        "cublas_workspace_config": DEFAULT_CUBLAS_WORKSPACE_CONFIG,
+        "feasible_domain_cache": cache,
+        "protocol": {
+            "experiments": list(N7_EXPERIMENTS),
+            "seed": N7_SEED,
+            "iterations": N7_ITERATIONS,
+            "learning_rate_scale": 1.0,
+            "warmup_pairs_per_experiment": 1,
+            "measured_pairs_per_experiment": N7_PAIR_COUNT,
+            "alternating_order": [
+                n7_pair_order(index)
+                for index in range(1, N7_PAIR_COUNT + 1)
+            ],
+            "control": N7_FEATURE_OFF_ARM,
+            "candidate": N7_CONSENSUS_ARM,
+            "resume": False,
+            "cache_read_only": True,
+            "run_local_input_metadata_excluded_from_pair_hash": sorted(
+                N7_RUN_LOCAL_INPUT_METADATA
+            ),
+        },
+        "frozen_algorithm": {
+            "initialization_track": "checkpoint_warm_start",
+            "checkpoint_placement": repo_path(args.checkpoint_placement),
+            "assignment": repo_path(args.assignment),
+            "grid_mm": 0.05,
+            "keepin_margin_mm": 0.1,
+            "keepin_margin_tau_mm": 0.05,
+            "collision_gradient_ratio": 0.1,
+            "collision_margin_mm": 0.0,
+            "collision_tau_mm": 0.025,
+            "guard_backoff": 0.5,
+            "guard_retries": 4,
+            "contact_iterations": 8,
+            "contact_max_nodes": 32,
+            "contact_max_component_nodes": 16,
+            "strict_reference_default_off": True,
+            "stage_micro_enabled": False,
+        },
+        "timing": {
+            "primary_fields": list(N7_TIMING_FIELDS),
+            "reported_fields": list(N7_REPORTED_TIMING_FIELDS),
+            "median_ratio_limit": 2.0,
+        },
+        "prohibited": [
+            "D2",
+            "D3 rerun",
+            "E4",
+            "stage micro",
+            "repair",
+            "fallback",
+            "CP-SAT",
+            "one-opt",
+            "pair scan",
+            "parameter tuning",
+            "cold/source",
+        ],
+    }
+
+
+def render_n7_report(summary):
+    lines = [
+        "# M336 N7 Paired Production Runtime Evidence",
+        "",
+        "- Status: `%s`" % summary["status"],
+        "- Decision: `%s`" % summary["decision"],
+        "- Source: `%s`" % summary["source_state"]["git_sha"],
+        "- GPU: physical `%s`, `%s`"
+        % (
+            summary["environment"]["initial_gpu"]["physical_index"],
+            summary["environment"]["initial_gpu"]["uuid"],
+        ),
+        "- Candidate: `consensus_per_step`; control: M336-171 feature-off",
+        "",
+    ]
+    for experiment_id in N7_EXPERIMENTS:
+        experiment = summary.get("experiments", {}).get(experiment_id)
+        if not experiment or not experiment.get("pairs"):
+            continue
+        lines.extend(
+            [
+                "## %s" % experiment_id,
+                "",
+                "| Pair | Order | Control GPU | Candidate GPU | GPU delta | "
+                "GPU ratio | Control E2E | Candidate E2E | E2E delta | E2E ratio |",
+                "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for pair in experiment["pairs"]:
+            control = pair["arms"][N7_FEATURE_OFF_ARM]
+            candidate = pair["arms"][N7_CONSENSUS_ARM]
+            lines.append(
+                "| %d | `%s` | %.6f | %.6f | %.6f | %.6f | %.6f | %.6f | %.6f | %.6f |"
+                % (
+                    pair["pair_index"],
+                    " -> ".join(pair["order"]),
+                    control["gpu_optimization_seconds"],
+                    candidate["gpu_optimization_seconds"],
+                    candidate["gpu_optimization_seconds"]
+                    - control["gpu_optimization_seconds"],
+                    candidate["gpu_optimization_seconds"]
+                    / control["gpu_optimization_seconds"],
+                    control["end_to_end_seconds"],
+                    candidate["end_to_end_seconds"],
+                    candidate["end_to_end_seconds"]
+                    - control["end_to_end_seconds"],
+                    candidate["end_to_end_seconds"]
+                    / control["end_to_end_seconds"],
+                )
+            )
+        statistics_payload = experiment.get("statistics")
+        if statistics_payload is None:
+            lines.extend(["", "Distribution statistics pending five valid pairs.", ""])
+        else:
+            lines.extend(
+                [
+                    "",
+                    "| Metric | GPU ratio | E2E ratio |",
+                    "| --- | ---: | ---: |",
+                ]
+            )
+            for label, key in (
+                ("Median", "median"),
+                ("Minimum", "minimum"),
+                ("Maximum", "maximum"),
+                ("Arithmetic mean", "arithmetic_mean"),
+                ("Geometric mean", "geometric_mean"),
+                ("MAD", "median_absolute_deviation"),
+            ):
+                lines.append(
+                    "| %s | %.6f | %.6f |"
+                    % (
+                        label,
+                        statistics_payload["gpu_optimization_seconds"][key],
+                        statistics_payload["end_to_end_seconds"][key],
+                    )
+                )
+            lines.extend(
+                [
+                    "",
+                    "GPU gate: `%s`; end-to-end gate: `%s`."
+                    % (
+                        "PASS"
+                        if statistics_payload["gpu_optimization_seconds"][
+                            "passes_2x"
+                        ]
+                        else "FAIL",
+                        "PASS"
+                        if statistics_payload["end_to_end_seconds"][
+                            "passes_2x"
+                        ]
+                        else "FAIL",
+                    ),
+                    "",
+                ]
+            )
+        candidate = experiment["pairs"][0]["arms"][N7_CONSENSUS_ARM]
+        identity = candidate["identity"]
+        correctness = candidate["correctness"]
+        legality = identity["legality"]
+        lines.extend(
+            [
+                "Candidate placement `%s`; replay `%s`."
+                % (
+                    identity["input_placement_sha256"],
+                    identity["replayed_placement_sha256"],
+                ),
+                "",
+                "- Native HPWL / FLUTE RSMT / score: `%.12f / %.6f / %.12f`"
+                % (
+                    identity["hpwl"],
+                    identity["rsmt"],
+                    identity["normalized_quality_score"],
+                ),
+                "- Exact legality: `%d/100` contained, `%d` Keep-in violations, "
+                "`%d` overlaps, `%.12g mm2` overlap area"
+                % (
+                    legality["fully_contained_components"],
+                    legality["keepin_violation_count"],
+                    legality["overlap_pair_count"],
+                    legality["overlap_area_mm2"],
+                ),
+                "- Guard accepted/rejected/rollback: `%d / %d / %d`; final LR: `%.12g`"
+                % (
+                    correctness["guard_accepted_step_count"],
+                    correctness["guard_rejected_attempt_count"],
+                    correctness["rollback_count"],
+                    identity["final_effective_learning_rate"],
+                ),
+                "- Anchor mean / p90: `%.12f / %.12f mm`"
+                % (
+                    identity["anchor_distance_mm"]["mean"],
+                    identity["anchor_distance_mm"]["p90"],
+                ),
+                "",
+            ]
+        )
+    invalid = summary.get("invalid_attempts", [])
+    lines.extend(
+        [
+            "## Validity",
+            "",
+            "- Invalid attempts: `%d`" % len(invalid),
+            "- Candidate determinism: `%s`"
+            % summary.get("candidate_determinism", "not-complete"),
+            "- Prohibited work executed: `none`",
+            "",
+        ]
+    )
+    if summary.get("failure"):
+        lines.extend(
+            ["## Failure", "", "```text", summary["failure"], "```", ""]
+        )
+    if invalid:
+        lines.extend(["## Invalid Attempts", ""])
+        for attempt in invalid:
+            lines.append(
+                "- `%s` pair `%s` attempt `%s`: %s"
+                % (
+                    attempt["experiment_id"],
+                    attempt["pair_index"] or "warmup",
+                    attempt["attempt_index"],
+                    "; ".join(attempt["environmental_invalid_reasons"]),
+                )
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def run_n7_paired_timing(args):
+    _n7_require_fresh_path(args.output_dir, "campaign output")
+    if args.summary_path is None or args.report_path is None:
+        raise ValueError("N7 requires explicit summary and report paths")
+    expected_summary = args.output_dir / "paired-summary.json"
+    expected_report = args.output_dir / "REPORT.md"
+    if args.summary_path.resolve() != expected_summary.resolve():
+        raise ValueError("N7 summary path must be run-local paired-summary.json")
+    if args.report_path.resolve() != expected_report.resolve():
+        raise ValueError("N7 report path must be run-local REPORT.md")
+    if os.environ.get("CUDA_VISIBLE_DEVICES") != str(
+        args.n7_physical_gpu_index
+    ):
+        raise ValueError("N7 parent must be pinned to physical GPU 2")
+    if os.environ.get("CUBLAS_WORKSPACE_CONFIG") != (
+        DEFAULT_CUBLAS_WORKSPACE_CONFIG
+    ):
+        raise ValueError("N7 parent CUBLAS workspace contract is missing")
+    source = source_state()
+    if source["branch"] != "experiment":
+        raise ValueError("N7 must remain on branch experiment")
+    if source["source_install_mismatches"]:
+        raise ValueError("N7 source/install parity failed")
+    cache_manifest = n7_directory_manifest(args.feasible_domain_cache_dir)
+    if cache_manifest["file_count"] == 0:
+        raise ValueError("N7 requires an existing read-only feasible cache")
+    repository = n7_repository_snapshot()
+    if repository["diff_check"]:
+        raise ValueError("N7 repository has git diff --check failures")
+    preserved_before = n7_preserved_paths_state()
+    initial_gpu = n7_gpu_snapshot(
+        args.n7_physical_gpu_index, owner_pid=os.getpid()
+    )
+    contract = _n7_contract_payload(
+        args,
+        source,
+        repository,
+        preserved_before,
+        cache_manifest,
+        initial_gpu,
+    )
+    args.output_dir.mkdir(parents=True)
+    write_json(args.output_dir / "contract.json", contract)
+    environment = {
+        "created_utc": _n7_utc_now(),
+        "initial_gpu": initial_gpu,
+        "cuda_version": contract["cuda_version"],
+        "python": contract["python"],
+        "cublas_workspace_config": DEFAULT_CUBLAS_WORKSPACE_CONFIG,
+    }
+    write_json(args.output_dir / "environment.json", environment)
+    expected_gpu = {
+        key: initial_gpu[key]
+        for key in ("physical_index", "uuid", "driver_version")
+    }
+    provenance_reference = {
+        "source_state": source,
+        "static_input_sha256": contract["static_input_sha256"],
+        "input_sha256": None,
+    }
+    summary = {
+        "schema": N7_SCHEMA,
+        "status": "running",
+        "decision": "pending",
+        "started_utc": _n7_utc_now(),
+        "source_state": source,
+        "static_input_sha256": contract["static_input_sha256"],
+        "canonical_input_sha256": None,
+        "contract_path": repo_path(args.output_dir / "contract.json"),
+        "environment_path": repo_path(args.output_dir / "environment.json"),
+        "environment": environment,
+        "cache_manifest": cache_manifest,
+        "preserved_paths_before": preserved_before,
+        "warmups": {},
+        "experiments": {},
+        "invalid_attempts": [],
+        "candidate_determinism": "not-complete",
+        "prohibited_work_executed": [],
+    }
+    deterministic_references = {}
+
+    def persist():
+        summary["canonical_input_sha256"] = provenance_reference.get(
+            "input_sha256"
+        )
+        write_json(args.summary_path, summary)
+        args.report_path.write_text(render_n7_report(summary))
+
+    try:
+        for experiment_id in N7_EXPERIMENTS:
+            warmup = _n7_run_pair_with_replacement(
+                args,
+                provenance_reference,
+                expected_gpu,
+                cache_manifest,
+                experiment_id,
+                [N7_FEATURE_OFF_ARM, N7_CONSENSUS_ARM],
+                warmup=True,
+            )
+            summary["warmups"][experiment_id] = warmup
+            summary["invalid_attempts"].extend(
+                attempt
+                for attempt in warmup["attempts"]
+                if attempt["status"] == "environmentally_invalid"
+            )
+            if warmup["status"] != "valid":
+                if warmup["status"] == "correctness_failure":
+                    raise N7CorrectnessError(
+                        warmup["attempts"][-1]["correctness_failure"]
+                    )
+                raise N7EnvironmentalError(
+                    "N7 warm-up evidence is environmentally incomplete"
+                )
+
+        for experiment_id in N7_EXPERIMENTS:
+            measured_pairs = []
+            summary["experiments"][experiment_id] = {
+                "pairs": measured_pairs,
+                "statistics": None,
+            }
+            for pair_index in range(1, N7_PAIR_COUNT + 1):
+                pair = _n7_run_pair_with_replacement(
+                    args,
+                    provenance_reference,
+                    expected_gpu,
+                    cache_manifest,
+                    experiment_id,
+                    n7_pair_order(pair_index),
+                    pair_index=pair_index,
+                )
+                summary["invalid_attempts"].extend(
+                    attempt
+                    for attempt in pair["attempts"]
+                    if attempt["status"] == "environmentally_invalid"
+                )
+                if pair["status"] != "valid":
+                    if pair["status"] == "correctness_failure":
+                        raise N7CorrectnessError(
+                            pair["attempts"][-1]["correctness_failure"]
+                        )
+                    raise N7EnvironmentalError(
+                        "N7 measured pair %s/%d is environmentally incomplete"
+                        % (experiment_id, pair_index)
+                    )
+                valid = pair["valid"]
+                measured_pairs.append(valid)
+                for arm in N7_ARMS:
+                    n7_update_determinism(
+                        deterministic_references,
+                        experiment_id,
+                        valid["arms"][arm],
+                    )
+                persist()
+            summary["experiments"][experiment_id]["statistics"] = (
+                _n7_experiment_statistics(measured_pairs)
+            )
+
+        gates = {}
+        for experiment_id in N7_EXPERIMENTS:
+            experiment_stats = summary["experiments"][experiment_id][
+                "statistics"
+            ]
+            for field in N7_TIMING_FIELDS:
+                gates["%s_%s" % (experiment_id, field)] = experiment_stats[
+                    field
+                ]["passes_2x"]
+        summary["gates"] = gates
+        summary["candidate_determinism"] = "pass"
+        summary["status"] = "complete"
+        if all(gates.values()):
+            summary["decision"] = "pass_promote_consensus_per_step"
+        else:
+            summary["decision"] = "timing_gate_failed_human_decision_required"
+    except N7CorrectnessError as error:
+        summary["status"] = "correctness_failure"
+        summary["decision"] = "fail_stop_immediately"
+        summary["failure"] = str(error)
+    except N7EnvironmentalError as error:
+        summary["status"] = "environment_incomplete"
+        summary["decision"] = "incomplete_human_decision_required"
+        summary["failure"] = str(error)
+    except Exception as error:
+        summary["status"] = "measurement_runner_failure"
+        summary["decision"] = "fail_stop_immediately"
+        summary["failure"] = "unexpected N7 runner failure: %s" % error
+    finally:
+        summary["finished_utc"] = _n7_utc_now()
+        final_gpu = n7_gpu_snapshot(
+            args.n7_physical_gpu_index, owner_pid=os.getpid()
+        )
+        summary["environment"]["final_gpu"] = final_gpu
+        summary["repository_after"] = n7_repository_snapshot()
+        summary["preserved_paths_after"] = n7_preserved_paths_state()
+        summary["preserved_paths_unchanged"] = (
+            summary["preserved_paths_after"]
+            == summary["preserved_paths_before"]
+        )
+        if (
+            summary["status"] == "complete"
+            and not summary["preserved_paths_unchanged"]
+        ):
+            summary["status"] = "environment_incomplete"
+            summary["decision"] = "incomplete_human_decision_required"
+            summary["failure"] = "preserved user-owned artifact hashes drifted"
+        summary["cache_manifest_after"] = n7_directory_manifest(
+            args.feasible_domain_cache_dir
+        )
+        persist()
+        write_json(args.output_dir / "environment.json", summary["environment"])
+    print("wrote %s and %s" % (args.summary_path, args.report_path))
+    if summary["status"] != "complete":
+        raise RuntimeError(summary["failure"])
+    return summary
 
 
 def main():
@@ -3346,7 +5379,25 @@ def main():
     )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--reevaluate", action="store_true")
+    parser.add_argument(
+        "--n7-paired-timing",
+        action="store_true",
+        help="run the frozen M336 N7 paired timing campaign",
+    )
+    parser.add_argument(
+        "--n7-arm",
+        choices=N7_ARMS,
+        help="internal isolated arm identity for an N7 child process",
+    )
+    parser.add_argument(
+        "--n7-physical-gpu-index",
+        type=int,
+        default=N7_PHYSICAL_GPU_INDEX,
+        help="physical GPU used by the N7 parent and every child",
+    )
     args = parser.parse_args()
+    if args.n7_arm == N7_FEATURE_OFF_ARM:
+        args.exact_contact_policy = ""
     try:
         contact_policy = _resolve_contact_policy_contract(
             args.exact_contact_policy,
@@ -3381,6 +5432,10 @@ def main():
     args.feasible_domain_cache_dir = args.feasible_domain_cache_dir.resolve()
     args.assignment = args.assignment.resolve()
     args.placer = args.placer.resolve()
+    if args.summary_path is not None:
+        args.summary_path = args.summary_path.resolve()
+    if args.report_path is not None:
+        args.report_path = args.report_path.resolve()
     invalid = sorted(set(args.experiments) - set(EXPERIMENTS))
     if invalid:
         parser.error("unknown experiments: %s" % invalid)
@@ -3466,6 +5521,16 @@ def main():
         ratio <= 0 for ratio in args.anchor_gradient_ratio_sweep
     ):
         parser.error("all anchor gradient-ratio sweep values must be positive")
+    if args.n7_paired_timing and args.n7_arm is not None:
+        parser.error("N7 parent and child modes are mutually exclusive")
+    if args.n7_paired_timing or args.n7_arm is not None:
+        try:
+            validate_n7_frozen_arguments(args, child_arm=args.n7_arm)
+        except ValueError as error:
+            parser.error(str(error))
+    if args.n7_paired_timing:
+        run_n7_paired_timing(args)
+        return
 
     args.baseline_manifest = prepare_manual_baseline_assets(
         REPO_ROOT / "experiments/m336/input/pcb_geometry_keepin.json",
@@ -3593,6 +5658,7 @@ def main():
         sweep_summary = optional_json(sweep_path)
         summary = {
             "schema": "m336_experiment_summary_v2",
+            "n7_arm": args.n7_arm,
             "git_sha": git_sha(),
             "source_state": args.source_identity,
             "environment": args.environment_identity,
